@@ -1,17 +1,16 @@
 {
   "name": "gi-plugins",
-  "displayName": "Grounded Intelligence",
   "description": "Production AI tooling for Grounded Intelligence clients.",
   "owner": {
     "name": "Grounded Intelligence",
-    "url": "https://groundedintelligence.io"
+    "email": "david@groundedintelligence.io"
   },
   "plugins": [
     {
       "name": "lee-internal-comps",
       "source": "./plugins/lee-internal-comps",
       "description": "Internal lease & sale comps for Lee & Associates Raleigh brokers.",
-      "version": "0.1.1"
+      "version": "0.1.2"
     }
   ]
 }
