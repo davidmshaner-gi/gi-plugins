@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lee-raleigh": {
+      "type": "http",
+      "url": "https://leeraleigh.groundedintelligence.io/mcp"
+    }
+  }
+}
