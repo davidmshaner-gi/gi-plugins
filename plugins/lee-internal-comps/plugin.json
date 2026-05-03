@@ -1,6 +1,6 @@
 {
   "name": "lee-internal-comps",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pull internal Dealius lease/sale comps and produce Excel + email drafts. For authorized Lee & Associates Raleigh brokers only.",
   "author": {
     "name": "Grounded Intelligence",

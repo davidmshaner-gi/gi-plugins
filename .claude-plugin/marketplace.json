@@ -11,7 +11,7 @@
       "name": "lee-internal-comps",
       "source": "./plugins/lee-internal-comps",
       "description": "Internal lease & sale comps for Lee & Associates Raleigh brokers.",
-      "version": "0.1.0"
+      "version": "0.1.1"
     }
   ]
 }
