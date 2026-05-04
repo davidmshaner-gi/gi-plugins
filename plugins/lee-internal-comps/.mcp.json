@@ -2,7 +2,10 @@
   "mcpServers": {
     "lee-raleigh": {
       "type": "http",
-      "url": "https://leeraleigh.groundedintelligence.io/mcp"
+      "url": "https://leeraleigh.groundedintelligence.io/mcp",
+      "headers": {
+        "Authorization": "Bearer ${user_config.lee_raleigh_token}"
+      }
     }
   }
 }
