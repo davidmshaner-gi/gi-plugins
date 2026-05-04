@@ -1,18 +1,9 @@
 {
   "name": "lee-internal-comps",
   "description": "Pull internal Dealius lease/sale comps and produce Excel + email drafts. For authorized Lee & Associates Raleigh brokers only.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "Grounded Intelligence"
   },
-  "homepage": "https://groundedintelligence.io",
-  "userConfig": {
-    "lee_raleigh_token": {
-      "type": "string",
-      "title": "Lee Raleigh API token",
-      "description": "Get yours at https://leeraleigh.groundedintelligence.io/token (enter your @lee-associates.com email and click the link in the email we send). Treat this like a password.",
-      "sensitive": true,
-      "required": true
-    }
-  }
+  "homepage": "https://groundedintelligence.io"
 }
