@@ -74,7 +74,7 @@ Every applied default appears in the email body so the broker can push back.
 
 The model does not need to memorize the 365-column schema. The helpers select a fixed canonical column set. The boundaries that matter:
 
-- **Rate column:** `effective_rate` is canonical (99.4% populated). Never use `base_rate_per_sf` (5.7% populated).
+- **Rate column:** `effective_rate` is the only canonical rate column on `lease_comps_safe`. Use it directly. Don't mention or look for any other rate-style columns — they aren't in the view.
 - **Size column:** `space_sf` preferred; fall back to `square_feet_sold`.
 - **Dates:** `lease_execution` and `lease_commencement` are stored as MM/DD/YYYY text. Helpers handle conversion.
 - **Always include:** `link_to_comp_profile` (the Dealius URL).
@@ -123,7 +123,7 @@ Do not speculate about deletion, alternate IDs, broker error, or any other reaso
 - **Sheet 1: `"{Asset Title} {Geography} Comps"`** (e.g., `"Industrial RDU MSA Comps"`, `"Retail Raleigh Comps"`).
   - Dark blue header fill, white bold; frozen panes; autofilter.
   - Color scale (red → yellow → green) on `effective_rate` column.
-  - 23-column canonical layout (see `DISPLAY_COLUMNS_LEASE` and `DISPLAY_COLUMNS_SALE` in `helpers.py`).
+  - 23-column canonical layout matching `internal-comps-db/cowork-runs/2026-04-29_industrial-RDU-2k-30k-4mo/build_comps.py`.
 - **Sheet 2: `"Summary"`** — count, avg/median/min/max effective $/SF, avg/median leased SF.
 - **Sheet 3: `"Methodology"`** — pulled_for, pull_date, source, geography, property_types, size_range, date_window, rate_convention, applied_defaults, warnings, last_sync, caveat.
 
