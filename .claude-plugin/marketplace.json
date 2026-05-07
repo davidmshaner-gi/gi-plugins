@@ -9,8 +9,8 @@
     {
       "name": "lee-internal-comps",
       "source": "./plugins/lee-internal-comps",
-      "description": "Internal lease & sale comps for Lee & Associates Raleigh brokers.",
-      "version": "0.3.2"
+      "description": "Internal (Dealius) and external (CoStar) lease & sale comps for Lee & Associates Raleigh brokers. Two skills: internal-comps + costar-comps.",
+      "version": "0.4.0"
     }
   ]
 }
