@@ -4,9 +4,9 @@ Public plugin marketplace for [Grounded Intelligence](https://groundedintelligen
 
 ## What's here
 
-| Plugin | Description | Client |
-|---|---|---|
-| `lee-internal-comps` | Internal lease & sale comps for Lee & Associates Raleigh brokers. | Lee & Associates |
+| Plugin | Skills | Description | Client |
+|---|---|---|---|
+| `lee-internal-comps` | `internal-comps`, `costar-comps` | Internal (Dealius) and external (CoStar) lease & sale comps. Internal produces Excel + email drafts; CoStar drives the broker's logged-in CoStar tab via Claude in Chrome and produces a chat markdown table + backup xlsx. | Lee & Associates |
 
 ## Install
 
