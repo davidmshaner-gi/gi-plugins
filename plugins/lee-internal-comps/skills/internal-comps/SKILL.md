@@ -1,11 +1,11 @@
 ---
 name: internal-comps
-description: Pull internal lease comps from the Dealius mirror for Lee & Associates brokers. Broker pastes a free-form comp request into chat; skill parses, queries the lease_comps_safe MCP, and produces a formatted Excel deliverable plus a draft email reply. Confidentiality enforced server-side. Always Excel — no email-summary branch.
+description: Pull internal lease comps from the Dealius mirror for Lee & Associates brokers. Broker pastes a free-form comp request into chat; skill parses, queries the lease_comps_safe MCP, and produces a formatted Excel and/or PDF deliverable plus a draft email reply. Confidentiality enforced server-side.
 ---
 
 # Internal Comps (Lee & Associates / Dealius)
 
-Pull internal lease comps from the Dealius mirror MCP and produce a formatted Excel deliverable, a draft email reply, and a feedback capture.
+Pull internal lease comps from the Dealius mirror MCP and produce a formatted Excel and/or PDF deliverable, a draft email reply, and a feedback capture.
 
 ## When to use
 
@@ -34,20 +34,47 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 1. **Parse** the broker's paste into a request dict (see Input Contract below).
 2. Call `validate_request(parsed)` → applies defaults, lists missing/warnings.
 3. If `missing_required` is non-empty: draft a clarifying reply, stop. Do not run SQL.
-4. Call `build_sql(validated)` → SQL string against `lease_comps_safe` or `sale_comps_safe`.
-5. Run the SQL via MCP `read_query`. (The MCP tool, not a helper — helpers run in the Cowork sandbox and have no MCP access.)
-6. Call `format_excel(rows, validated, output_path, ...)` → writes the workbook.
-7. Call `draft_email(rows, validated, xlsx_path, ...)` → returns subject + body. If the result count is below `target_count`, the email asks the broker which dimension (size, date, geography) to widen. **No auto-expansion** — the broker drives.
-8. After the broker confirms / closes the loop: ask the three feedback questions, call `format_feedback(...)`, then send via connected email tool (Gmail / Outlook MCP) or write the fallback file.
+4. **Ask the broker which deliverable to produce.** If the original request explicitly names a format, set `output_format` from that signal and skip to step 5. Format-trigger words map as follows:
+
+   - `"PDF"`, `"BPO"`, `"send as BPO"`, `"client-facing"` → `output_format = "pdf"`
+   - `"Excel"`, `"spreadsheet"`, `"working file"` → `output_format = "excel"`
+   - `"both"`, `"Excel and PDF"`, `"send both"` → `output_format = "both"`
+
+   Otherwise (no trigger word present) reply once with:
+
+   > Got it — pulling [N] [asset_type] [transaction_type] comps in [region] for the past [X] months. How would you like the deliverable?
+   > - **Excel** (working file with all rows + summary stats)
+   > - **PDF** (client-facing, Lee-branded, drop into a BPO)
+   > - **Both**
+
+   Wait for the broker's reply before continuing. On follow-up requests in the same thread (e.g., "widen the size range"), reuse the previously-chosen format unless the broker overrides.
+
+5. Set `validated["output_format"] = "excel" | "pdf" | "both"` from step 4. (`output_format` is not auto-defaulted — the skill blocks until the broker explicitly chooses.)
+6. Call `build_sql(validated)` → SQL string against `lease_comps_safe` or `sale_comps_safe`.
+7. Run the SQL via MCP `read_query`. (The MCP tool, not a helper — helpers run in the Cowork sandbox and have no MCP access.) **The response is an object `{"rows": [...], "query_id": "<uuid>"}`, not a bare array.** Extract `rows` for downstream helpers and **save `query_id` for `render_comps_pdf`**. If `query_id` is absent (KV write failed server-side), degrade gracefully: deliver Excel-only and inform the broker that the PDF path is temporarily unavailable.
+8. Format the deliverable(s):
+   - If `output_format` is `"excel"` or `"both"`: call `format_excel(rows, validated, xlsx_path, applied_defaults, warnings, last_sync)` → writes the workbook to the sandbox.
+   - If `output_format` is `"pdf"` or `"both"`: call MCP tool `render_comps_pdf` with `{query_id, validated, template_name: "internal", output_format}`. The tool returns one of two shapes (discriminated by `mode`):
+     - **`mode: "url"` (happy path):** `{mode, pdf_url, expires_at, estimated_page_count, summary_stats}`. The signed `pdf_url` expires after approximately 1 hour (see `expires_at`).
+     - **`mode: "bytes"` (R2-failure fallback):** `{mode, pdf_bytes_b64, expires_at, estimated_page_count, summary_stats}`. Write the decoded bytes to `/tmp/<filename>.pdf` in the sandbox and treat that local path as the deliverable instead of a URL.
+     - `estimated_page_count` is a heuristic — do not quote it as authoritative to the broker.
+
+   **Error handling for `render_comps_pdf`:**
+   - **`cache_miss`** — `query_id` expired in the 10-min KV TTL (broker took too long to reply on the format question). Re-run `read_query` with the same SQL to get a fresh `query_id`, then retry `render_comps_pdf` once.
+   - **`render_failed`** — Service Binding threw during render. Fall back to Excel-only and add a note in the broker email body: *"PDF render failed (transient issue); Excel attached. Investigation in flight."*
+
+9. Call `draft_email(rows, validated, xlsx_path?, pdf_url?, pdf_local_path?)` → returns subject + body. **`pdf_url` and `pdf_local_path` are mutually exclusive** — pass `pdf_url` on the `mode: "url"` happy path, `pdf_local_path` on the `mode: "bytes"` fallback. The body includes the signed PDF URL with a 1-hour expiry note when applicable, or the local sandbox path on the bytes-fallback path. If the result count is below `target_count`, the email asks the broker which dimension (size, date, geography) to widen. **No auto-expansion** — the broker drives.
+10. After the broker confirms / closes the loop: ask the three feedback questions, call `format_feedback(...)`, then send via connected email tool (Gmail / Outlook MCP) or write the fallback file.
 
 ## Input Contract
 
-The dict you pass to `validate_request`. Three keys are load-bearing; everything else is open-shaped — the helpers tolerate missing optional keys and ignore unknown keys.
+The dict you pass to `validate_request`. `asset_type` and `transaction_type` are load-bearing from the broker's request; `output_format` is resolved at step 4 before SQL runs. Everything else is open-shaped — the helpers tolerate missing optional keys and ignore unknown keys.
 
 | Key | Required | Shape |
 |---|---|---|
 | `asset_type` | yes | `"industrial"` \| `"flex"` \| `"office"` \| `"retail"` \| `"medical_office"` \| `"lab"` \| `"land"` |
 | `transaction_type` | yes | `"lease"` \| `"sale"` |
+| `output_format` | yes (set in step 4) | `"excel"` \| `"pdf"` \| `"both"` |
 | `geography` | no | `{"named_market": str}` or `{"cities": [str, ...]}` or `{"anchor": str, "radius_mi": int}` |
 | `size_range` | no | `{"min_sf": int, "max_sf": int}` |
 | `date_window` | no | `{"lookback_months": int}` or `{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}` |
@@ -69,6 +96,8 @@ Stuff anything you parsed but couldn't slot cleanly into `notes`. The helpers wo
 | `size_range` | none | warning (not blocking) |
 
 Every applied default appears in the email body so the broker can push back.
+
+`output_format` is **not** auto-defaulted. The skill blocks at Process step 4 until the broker explicitly chooses (Excel / PDF / Both) or the request names a format directly.
 
 ## Schema crib (`lease_comps_safe` view)
 
@@ -116,7 +145,11 @@ If a broker references a specific comp by ID or address that doesn't appear in r
 
 Do not speculate about deletion, alternate IDs, broker error, or any other reason. The view filter is the explanation; saying anything else is hallucination.
 
-## Output — frozen layout
+## Output — deliverable shapes
+
+The broker chooses one of three output shapes at Process step 4. All three start from the same SQL result set.
+
+### Excel (`output_format = "excel"`)
 
 `format_excel` writes a three-sheet workbook. Layout is frozen. Do not parameterize beyond what the helper signature exposes.
 
@@ -127,7 +160,20 @@ Do not speculate about deletion, alternate IDs, broker error, or any other reaso
 - **Sheet 2: `"Summary"`** — count, avg/median/min/max effective $/SF, avg/median leased SF.
 - **Sheet 3: `"Methodology"`** — pulled_for, pull_date, source, geography, property_types, size_range, date_window, rate_convention, applied_defaults, warnings, last_sync, caveat.
 
-Always Excel. There is no `<3 results → email summary` branch and no `0 results → no-comps email` branch in the deliverable. The `draft_email` reply describes the count in prose, and asks the broker how to widen if the count is below target; the Excel itself is always attached (even if empty, with a methodology sheet explaining the empty result).
+### PDF (`output_format = "pdf"`)
+
+`render_comps_pdf` produces a Lee-branded, client-facing PDF using the server-side internal template (Dealius data). The tool returns a discriminated-union response:
+
+- **`mode: "url"`** — R2 happy path. The `pdf_url` is a signed URL that expires approximately 1 hour after generation (`expires_at` field). Surface the URL in the broker email body with an explicit note about the 1-hour expiry so the broker knows to share it promptly. `estimated_page_count` is a heuristic; do not quote it as authoritative.
+- **`mode: "bytes"`** — R2-failure fallback. `pdf_bytes_b64` contains the PDF encoded as base64. Decode and write to `/tmp/<filename>.pdf` in the sandbox, then treat that local path as the deliverable (e.g., attach to the email if the connected tool supports it). The `expires_at` and `estimated_page_count` fields are still present.
+
+### Both (`output_format = "both"`)
+
+Run `format_excel` (Excel) and `render_comps_pdf` (PDF) against the same `rows` / `query_id`. Deliver both. If the PDF step fails, deliver Excel-only and note the failure in the email body (see `render_failed` handling in Process step 8).
+
+### No-result behavior
+
+There is no `<3 results → email summary` branch and no `0 results → no-comps email` branch in the deliverable. The `draft_email` reply describes the count in prose and asks the broker how to widen if the count is below target. Excel is produced whenever `output_format` includes `"excel"` (i.e., `"excel"` or `"both"`), even on empty result sets — the methodology sheet explains the empty result. PDF is produced whenever `output_format` includes `"pdf"` (i.e., `"pdf"` or `"both"`), even on empty result sets — an empty-result PDF is unusual but valid.
 
 ## Email draft
 
@@ -138,6 +184,7 @@ Always Excel. There is no `<3 results → email summary` branch and no `0 result
 - Any warnings (e.g., size range not specified).
 - If the count is below `target_count`: a single line asking the broker which dimension to widen (size, date, geography). The broker drives expansion via reply — the model never auto-widens.
 - The confidentiality response template if a referenced comp wasn't found.
+- If a PDF was produced and `mode: "url"`: the signed `pdf_url` with an explicit 1-hour expiry note (e.g., *"Link expires in ~1 hour — download or share promptly"*). On the `mode: "bytes"` fallback path, describe the local path instead.
 
 The model sends via the broker's connected email tool. The helper does not send.
 
@@ -158,14 +205,14 @@ Keep the questions short. Long questionnaires get skipped.
 
 ## Success criteria
 
-The Python the model writes per request should be small. Cowork's unprompted runs were 10K-41K characters of generated Python per query (the 41K was a *simpler* question, expanding 4× as it reasoned its way through the same problem). With this skill, per-request orchestration code should be well under 1K characters — basically `validate → build_sql → read_query → format_excel → draft_email → format_feedback`. No expansion loop; below-target results trigger a broker ask in the email, not a re-query.
+The Python the model writes per request should be small. Cowork's unprompted runs were 10K-41K characters of generated Python per query (the 41K was a *simpler* question, expanding 4× as it reasoned its way through the same problem). With this skill, per-request orchestration code should be well under 1K characters — basically `validate → [format question] → build_sql → read_query → format_excel? → render_comps_pdf? → draft_email → format_feedback`. No expansion loop; below-target results trigger a broker ask in the email, not a re-query.
 
 If you find yourself regenerating openpyxl formatting, hand-writing date math, or reconstructing the city list, **stop**. Call the helper. The flexibility tradeoff was deliberate: the dict is open-shaped so weird broker phrasings still slot in, but the deterministic surface (SQL, Excel, email scaffolding) is locked.
 
 ## Files
 
 - `SKILL.md` — this file.
-- `helpers.py` — atomic helpers (validate, build_sql, format_excel, draft_email, format_feedback).
+- `helpers.py` — atomic helpers (validate, build_sql, format_excel, draft_email, format_feedback). The `render_comps_pdf` step is an MCP tool call, not a Python helper — the sandbox calls the MCP directly.
 - `lee_logo.png` — bundled with the skill; used by `format_excel`.
 
 Lives next to the skill on disk but **not in the bundle**:

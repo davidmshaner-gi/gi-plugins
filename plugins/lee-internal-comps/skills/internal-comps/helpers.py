@@ -28,10 +28,10 @@ from openpyxl.drawing.image import Image as XLImage
 LEE_BRAND_MAROON = "97012D"  # rgb(151, 1, 45) — Lee & Associates Raleigh
 LEE_LOGO_FILENAME = "lee_logo.png"  # ships alongside helpers.py (used in local dev)
 
-# Inline base64 of lee_logo.png. Cowork's plugin sandbox doesn't always ship
-# binary assets next to helpers.py, so we embed the PNG here and write it to
-# a temp file at runtime if the bundled file isn't present. This guarantees
-# the workbook always renders with the logo regardless of sandbox quirks.
+# Lee & Associates logo, base64-encoded. Source: lee_logo.png in this skill bundle.
+# Embedded here (rather than fetched at runtime) to eliminate the bundle-distribution
+# reliability bug AND avoid any outbound-HTTPS dependency (Cowork sandbox has no egress).
+# Update via scripts/encode_logo.py if logo changes.
 LEE_LOGO_B64 = """\
 iVBORw0KGgoAAAANSUhEUgAAAPAAAABJCAYAAAADkKsvAABCbklEQVR42u29eZxcRbk+/rxV55xe
 ZkkYQkICsiiLzkAAAXcICi6g6PeqPaJeBVQSQQJiwJBkuqureyYhhIgRERLZXK7LtKLg9YoKaFhU
@@ -336,23 +336,16 @@ IwYBnkrO/k4AAAAASUVORK5CYII=
 """
 
 
-def _resolve_logo_path():
-    """Return a filesystem path to the Lee logo PNG, or None if unrecoverable.
-
-    Prefers the bundled PNG next to helpers.py (local dev). Falls back to
-    decoding the base64 constant into a temp file for sandboxes that don't
-    ship binary assets alongside the .py file.
-    """
-    direct = os.path.join(os.path.dirname(os.path.abspath(__file__)), LEE_LOGO_FILENAME)
-    if os.path.exists(direct):
-        return direct
+def _resolve_logo_path() -> Optional[str]:
+    """Decode the embedded Lee logo to a tmp PNG file. Returns the path, or None on decode failure."""
     try:
-        fd, tmp = tempfile.mkstemp(suffix=".png", prefix="lee_logo_")
-        with os.fdopen(fd, "wb") as f:
-            f.write(base64.b64decode(LEE_LOGO_B64))
-        return tmp
+        bytes_ = base64.b64decode(LEE_LOGO_B64)
     except Exception:
         return None
+    tmp = tempfile.NamedTemporaryFile(prefix="lee_logo_", suffix=".png", delete=False)
+    tmp.write(bytes_)
+    tmp.close()
+    return tmp.name
 
 # =====================================================================
 # Constants — registries the helpers read from
@@ -851,225 +844,231 @@ def format_excel(
     thin = Side(border_style="thin", color="BFBFBF")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    # Locate the bundled logo. Falls back to the inline base64 PNG if the
-    # bundled file isn't shipped to the sandbox (Cowork quirk).
+    # Decodes the embedded LEE_LOGO_B64 to a tmp PNG; cleaned up in the finally below.
     logo_path = _resolve_logo_path()
     logo_available = logo_path is not None and os.path.exists(logo_path)
 
-    # ---------- Sheet 1: Comps ----------
-    ws = wb.active
-    ws.title = sheet_name[:31]  # Excel sheet name limit
+    try:
+        # ---------- Sheet 1: Comps ----------
+        ws = wb.active
+        ws.title = sheet_name[:31]  # Excel sheet name limit
 
-    # Logo + title band at top, then header row, then data.
-    header_row_idx = 4 if logo_available else 1
+        # Logo + title band at top, then header row, then data.
+        header_row_idx = 4 if logo_available else 1
 
-    if logo_available:
-        ws.row_dimensions[1].height = 56
-        img = XLImage(logo_path)
-        ws.add_image(img, "A1")
-        title_kind = "Sale Comps" if is_sale else "Comps"
-        view_label = "sale_comps_safe" if is_sale else "lease_comps_safe"
-        ws.cell(row=2, column=2, value=f"{asset_title} {title_kind} — {geo_label}").font = Font(
+        if logo_available:
+            ws.row_dimensions[1].height = 56
+            img = XLImage(logo_path)
+            ws.add_image(img, "A1")
+            title_kind = "Sale Comps" if is_sale else "Comps"
+            view_label = "sale_comps_safe" if is_sale else "lease_comps_safe"
+            ws.cell(row=2, column=2, value=f"{asset_title} {title_kind} — {geo_label}").font = Font(
+                name="Calibri", size=14, bold=True, color=LEE_BRAND_MAROON
+            )
+            ws.cell(row=3, column=2, value=f"Pulled {date.today().isoformat()} · Internal {view_label}").font = Font(
+                name="Calibri", size=10, italic=True, color="555555"
+            )
+
+        headers = [label for label, _ in display_columns]
+        keys = [key for _, key in display_columns]
+
+        for col_idx, h in enumerate(headers, start=1):
+            c = ws.cell(row=header_row_idx, column=col_idx, value=h)
+            c.fill = header_fill
+            c.font = header_font
+            c.alignment = center
+            c.border = border
+
+        if is_sale:
+            # Sale layout: cols 1..23 above
+            # 7 Building SF, 8 Acres, 9 Year Built, 10 Asking Price, 11 Sale Price,
+            # 12 $/SF, 13 Asking Cap %, 14 Actual Cap %, 15 Close Date,
+            # 16 Investment Sale, 17 Buyer ... 23 Comp Profile
+            left_align_cols = {3, 4, 5, 6, 16, 17, 18, 19, 20, 21, 22, 23}
+            int_cols = {7, 9}                          # Building SF, Year Built
+            acres_cols = {8}                           # Acres (decimal)
+            large_money_cols = {10, 11}                # Asking Price, Sale Price
+            money_per_sf_cols = {12}                   # $/SF
+            pct_cols = {13, 14}                        # Asking Cap %, Actual Cap %
+            color_scale_col = "L"                      # $/SF
+        else:
+            left_align_cols = {3, 4, 5, 6, 15, 19, 20, 21, 22, 23}
+            int_cols = {7, 8, 16}                      # SF, free rent months
+            acres_cols = set()
+            large_money_cols = set()
+            money_per_sf_cols = {12, 13, 14, 17}       # asking, base, effective, TI
+            pct_cols = {18}                            # avg escalation
+            color_scale_col = "N"                      # Effective $/SF
+
+        data_start = header_row_idx + 1
+        for row_offset, row in enumerate(rows):
+            excel_row = data_start + row_offset
+            for col_idx, key in enumerate(keys, start=1):
+                raw = row.get(key)
+                # Coalesce primary→fallback for the leased-SF / building-SF column.
+                if key == "space_sf" and (raw is None or raw == ""):
+                    raw = row.get("square_feet_sold")
+                if is_sale and key == "square_feet_sold" and (raw is None or raw == ""):
+                    raw = row.get("building_size")
+                if col_idx in int_cols:
+                    val = _to_int(raw)
+                elif col_idx in (money_per_sf_cols | large_money_cols | pct_cols | acres_cols):
+                    val = _to_number(raw)
+                else:
+                    val = raw
+                c = ws.cell(row=excel_row, column=col_idx, value=val)
+                c.font = default_font
+                c.border = border
+                c.alignment = left if col_idx in left_align_cols else center
+
+        last_row = header_row_idx + len(rows)
+
+        if rows:
+            for r in range(data_start, last_row + 1):
+                for col_idx in int_cols:
+                    ws.cell(row=r, column=col_idx).number_format = "#,##0"
+                for col_idx in acres_cols:
+                    ws.cell(row=r, column=col_idx).number_format = "0.00"
+                for col_idx in large_money_cols:
+                    ws.cell(row=r, column=col_idx).number_format = "$#,##0"
+                for col_idx in money_per_sf_cols:
+                    ws.cell(row=r, column=col_idx).number_format = "$#,##0.00"
+                for col_idx in pct_cols:
+                    ws.cell(row=r, column=col_idx).number_format = '0.0"%"'
+
+        if is_sale:
+            widths = {
+                1: 9, 2: 16, 3: 30, 4: 30, 5: 14, 6: 18, 7: 12, 8: 9, 9: 11,
+                10: 14, 11: 14, 12: 11, 13: 12, 14: 12, 15: 12, 16: 13,
+                17: 32, 18: 32, 19: 32, 20: 32, 21: 28, 22: 28, 23: 42,
+            }
+        else:
+            widths = {
+                1: 9, 2: 16, 3: 30, 4: 30, 5: 14, 6: 18, 7: 11, 8: 12, 9: 13, 10: 13,
+                11: 12, 12: 11, 13: 11, 14: 13, 15: 18, 16: 11, 17: 11, 18: 13,
+                19: 32, 20: 32, 21: 28, 22: 28, 23: 42,
+            }
+        for col, w in widths.items():
+            ws.column_dimensions[get_column_letter(col)].width = w
+
+        ws.row_dimensions[header_row_idx].height = 32
+        ws.freeze_panes = ws.cell(row=data_start, column=1).coordinate
+        ws.auto_filter.ref = f"A{header_row_idx}:{get_column_letter(len(headers))}{max(last_row, header_row_idx)}"
+
+        if rows:
+            ws.conditional_formatting.add(
+                f"{color_scale_col}{data_start}:{color_scale_col}{last_row}",
+                ColorScaleRule(
+                    start_type="min", start_color="F8696B",
+                    mid_type="percentile", mid_value=50, mid_color="FFEB84",
+                    end_type="max", end_color="63BE7B",
+                ),
+            )
+
+        # ---------- Sheet 2: Summary ----------
+        ws2 = wb.create_sheet("Summary")
+        ws2.column_dimensions["A"].width = 28
+        ws2.column_dimensions["B"].width = 16
+
+        ws2.cell(row=1, column=1, value="Summary").font = Font(
             name="Calibri", size=14, bold=True, color=LEE_BRAND_MAROON
         )
-        ws.cell(row=3, column=2, value=f"Pulled {date.today().isoformat()} · Internal {view_label}").font = Font(
-            name="Calibri", size=10, italic=True, color="555555"
+
+        summary_stats = _compute_stats(rows, is_sale=is_sale)
+        if is_sale:
+            stats_rows = [
+                ("Comp count",         summary_stats.get("count", 0),               "#,##0"),
+                ("Avg Sale Price",     summary_stats.get("avg_sale_price"),         "$#,##0"),
+                ("Median Sale Price",  summary_stats.get("median_sale_price"),      "$#,##0"),
+                ("Min Sale Price",     summary_stats.get("min_sale_price"),         "$#,##0"),
+                ("Max Sale Price",     summary_stats.get("max_sale_price"),         "$#,##0"),
+                ("Avg $/SF",           summary_stats.get("avg_price_per_sf"),       "$#,##0.00"),
+                ("Median $/SF",        summary_stats.get("median_price_per_sf"),    "$#,##0.00"),
+                ("Avg Building SF",    summary_stats.get("avg_building_sf"),        "#,##0"),
+                ("Total Sale Volume",  summary_stats.get("total_sale_volume"),      "$#,##0"),
+            ]
+        else:
+            stats_rows = [
+                ("Comp count",            summary_stats.get("count", 0),                "#,##0"),
+                ("Avg Effective $/SF",    summary_stats.get("avg_effective_rate"),      "$#,##0.00"),
+                ("Median Effective $/SF", summary_stats.get("median_effective_rate"),   "$#,##0.00"),
+                ("Min Effective $/SF",    summary_stats.get("min_effective_rate"),      "$#,##0.00"),
+                ("Max Effective $/SF",    summary_stats.get("max_effective_rate"),      "$#,##0.00"),
+                ("Avg Asking $/SF",       summary_stats.get("avg_asking_rate"),         "$#,##0.00"),
+                ("Avg Leased SF",         summary_stats.get("avg_leased_sf"),           "#,##0"),
+                ("Median Leased SF",      summary_stats.get("median_leased_sf"),        "#,##0"),
+            ]
+        for i, (label, value, fmt) in enumerate(stats_rows, start=3):
+            a = ws2.cell(row=i, column=1, value=label)
+            a.font = Font(bold=True)
+            b = ws2.cell(row=i, column=2, value=value)
+            b.number_format = fmt
+
+        # ---------- Sheet 3: Methodology ----------
+        ws3 = wb.create_sheet("Methodology")
+        ws3.column_dimensions["A"].width = 26
+        ws3.column_dimensions["B"].width = 90
+
+        ws3.cell(row=1, column=1, value="Methodology").font = Font(
+            name="Calibri", size=14, bold=True, color=LEE_BRAND_MAROON
         )
+        method_start = 3
 
-    headers = [label for label, _ in display_columns]
-    keys = [key for _, key in display_columns]
+        pull_date = date.today().isoformat()
+        if is_sale:
+            source_text = "Internal sale_comps_safe (Dealius mirror, Lee & Associates Raleigh). Confidential and NDA rows filtered server-side."
+            rate_convention = "Sale Price is the closed transaction amount. $/SF is sale price divided by building square footage. Asking Cap and Actual Cap are reported by the listing where disclosed; cap rates are sparse in the source."
+            caveat = "Cap rates are populated for ~10% of sale comps; absence does not imply 0%. Buyer DBA and seller DBA may be blank for owner-occupied or single-purpose entities. Confirm against the comp profile link if material."
+        else:
+            source_text = "Internal lease_comps_safe (Dealius mirror, Lee & Associates Raleigh). Confidential and NDA rows filtered server-side."
+            rate_convention = "Effective $/SF includes effects of free rent, TI, and escalations as recorded in the source. Asking $/SF is initial quoted rate. Both annualized."
+            caveat = "TI and free-rent values that appear as 0 may be unpopulated in the source rather than truly zero. Confirm against the comp profile link if material."
 
-    for col_idx, h in enumerate(headers, start=1):
-        c = ws.cell(row=header_row_idx, column=col_idx, value=h)
-        c.fill = header_fill
-        c.font = header_font
-        c.alignment = center
-        c.border = border
-
-    if is_sale:
-        # Sale layout: cols 1..23 above
-        # 7 Building SF, 8 Acres, 9 Year Built, 10 Asking Price, 11 Sale Price,
-        # 12 $/SF, 13 Asking Cap %, 14 Actual Cap %, 15 Close Date,
-        # 16 Investment Sale, 17 Buyer ... 23 Comp Profile
-        left_align_cols = {3, 4, 5, 6, 16, 17, 18, 19, 20, 21, 22, 23}
-        int_cols = {7, 9}                          # Building SF, Year Built
-        acres_cols = {8}                           # Acres (decimal)
-        large_money_cols = {10, 11}                # Asking Price, Sale Price
-        money_per_sf_cols = {12}                   # $/SF
-        pct_cols = {13, 14}                        # Asking Cap %, Actual Cap %
-        color_scale_col = "L"                      # $/SF
-    else:
-        left_align_cols = {3, 4, 5, 6, 15, 19, 20, 21, 22, 23}
-        int_cols = {7, 8, 16}                      # SF, free rent months
-        acres_cols = set()
-        large_money_cols = set()
-        money_per_sf_cols = {12, 13, 14, 17}       # asking, base, effective, TI
-        pct_cols = {18}                            # avg escalation
-        color_scale_col = "N"                      # Effective $/SF
-
-    data_start = header_row_idx + 1
-    for row_offset, row in enumerate(rows):
-        excel_row = data_start + row_offset
-        for col_idx, key in enumerate(keys, start=1):
-            raw = row.get(key)
-            # Coalesce primary→fallback for the leased-SF / building-SF column.
-            if key == "space_sf" and (raw is None or raw == ""):
-                raw = row.get("square_feet_sold")
-            if is_sale and key == "square_feet_sold" and (raw is None or raw == ""):
-                raw = row.get("building_size")
-            if col_idx in int_cols:
-                val = _to_int(raw)
-            elif col_idx in (money_per_sf_cols | large_money_cols | pct_cols | acres_cols):
-                val = _to_number(raw)
-            else:
-                val = raw
-            c = ws.cell(row=excel_row, column=col_idx, value=val)
-            c.font = default_font
-            c.border = border
-            c.alignment = left if col_idx in left_align_cols else center
-
-    last_row = header_row_idx + len(rows)
-
-    if rows:
-        for r in range(data_start, last_row + 1):
-            for col_idx in int_cols:
-                ws.cell(row=r, column=col_idx).number_format = "#,##0"
-            for col_idx in acres_cols:
-                ws.cell(row=r, column=col_idx).number_format = "0.00"
-            for col_idx in large_money_cols:
-                ws.cell(row=r, column=col_idx).number_format = "$#,##0"
-            for col_idx in money_per_sf_cols:
-                ws.cell(row=r, column=col_idx).number_format = "$#,##0.00"
-            for col_idx in pct_cols:
-                ws.cell(row=r, column=col_idx).number_format = '0.0"%"'
-
-    if is_sale:
-        widths = {
-            1: 9, 2: 16, 3: 30, 4: 30, 5: 14, 6: 18, 7: 12, 8: 9, 9: 11,
-            10: 14, 11: 14, 12: 11, 13: 12, 14: 12, 15: 12, 16: 13,
-            17: 32, 18: 32, 19: 32, 20: 32, 21: 28, 22: 28, 23: 42,
-        }
-    else:
-        widths = {
-            1: 9, 2: 16, 3: 30, 4: 30, 5: 14, 6: 18, 7: 11, 8: 12, 9: 13, 10: 13,
-            11: 12, 12: 11, 13: 11, 14: 13, 15: 18, 16: 11, 17: 11, 18: 13,
-            19: 32, 20: 32, 21: 28, 22: 28, 23: 42,
-        }
-    for col, w in widths.items():
-        ws.column_dimensions[get_column_letter(col)].width = w
-
-    ws.row_dimensions[header_row_idx].height = 32
-    ws.freeze_panes = ws.cell(row=data_start, column=1).coordinate
-    ws.auto_filter.ref = f"A{header_row_idx}:{get_column_letter(len(headers))}{max(last_row, header_row_idx)}"
-
-    if rows:
-        ws.conditional_formatting.add(
-            f"{color_scale_col}{data_start}:{color_scale_col}{last_row}",
-            ColorScaleRule(
-                start_type="min", start_color="F8696B",
-                mid_type="percentile", mid_value=50, mid_color="FFEB84",
-                end_type="max", end_color="63BE7B",
-            ),
-        )
-
-    # ---------- Sheet 2: Summary ----------
-    ws2 = wb.create_sheet("Summary")
-    ws2.column_dimensions["A"].width = 28
-    ws2.column_dimensions["B"].width = 16
-
-    ws2.cell(row=1, column=1, value="Summary").font = Font(
-        name="Calibri", size=14, bold=True, color=LEE_BRAND_MAROON
-    )
-
-    summary_stats = _compute_stats(rows, is_sale=is_sale)
-    if is_sale:
-        stats_rows = [
-            ("Comp count",         summary_stats.get("count", 0),               "#,##0"),
-            ("Avg Sale Price",     summary_stats.get("avg_sale_price"),         "$#,##0"),
-            ("Median Sale Price",  summary_stats.get("median_sale_price"),      "$#,##0"),
-            ("Min Sale Price",     summary_stats.get("min_sale_price"),         "$#,##0"),
-            ("Max Sale Price",     summary_stats.get("max_sale_price"),         "$#,##0"),
-            ("Avg $/SF",           summary_stats.get("avg_price_per_sf"),       "$#,##0.00"),
-            ("Median $/SF",        summary_stats.get("median_price_per_sf"),    "$#,##0.00"),
-            ("Avg Building SF",    summary_stats.get("avg_building_sf"),        "#,##0"),
-            ("Total Sale Volume",  summary_stats.get("total_sale_volume"),      "$#,##0"),
+        methodology_rows = [
+            ("Pull date", pull_date),
+            ("Source", source_text),
+            ("Asset type", _asset_title(validated.get("asset_type", ""))),
+            ("Property types in scope", _describe_property_types(validated.get("asset_type", ""))),
+            ("Transaction type", validated.get("transaction_type", "")),
+            ("Geography", geo_label or "Not specified"),
+            ("Size range", _describe_size_range(validated.get("size_range"))),
+            ("Min acres", f"{float(validated['min_acres']):g} acres" if validated.get("min_acres") else "Not specified"),
+            ("Date window", _describe_date_window(validated.get("date_window"))),
+            ("Target count", str(validated.get("target_count", ""))),
+            ("Rate convention", rate_convention),
+            ("Applied defaults", "; ".join(applied_defaults) if applied_defaults else "None"),
+            ("Warnings", "; ".join(warnings) if warnings else "None"),
+            ("Mirror last sync", last_sync or "Not provided"),
+            ("Caveat", caveat),
         ]
-    else:
-        stats_rows = [
-            ("Comp count",            summary_stats.get("count", 0),                "#,##0"),
-            ("Avg Effective $/SF",    summary_stats.get("avg_effective_rate"),      "$#,##0.00"),
-            ("Median Effective $/SF", summary_stats.get("median_effective_rate"),   "$#,##0.00"),
-            ("Min Effective $/SF",    summary_stats.get("min_effective_rate"),      "$#,##0.00"),
-            ("Max Effective $/SF",    summary_stats.get("max_effective_rate"),      "$#,##0.00"),
-            ("Avg Asking $/SF",       summary_stats.get("avg_asking_rate"),         "$#,##0.00"),
-            ("Avg Leased SF",         summary_stats.get("avg_leased_sf"),           "#,##0"),
-            ("Median Leased SF",      summary_stats.get("median_leased_sf"),        "#,##0"),
-        ]
-    for i, (label, value, fmt) in enumerate(stats_rows, start=3):
-        a = ws2.cell(row=i, column=1, value=label)
-        a.font = Font(bold=True)
-        b = ws2.cell(row=i, column=2, value=value)
-        b.number_format = fmt
+        if validated.get("notes"):
+            methodology_rows.insert(-1, ("Broker notes", validated["notes"]))
+        if not rows:
+            methodology_rows.insert(2, ("Result", "0 comps matched the criteria above. Reply if you want me to widen size, date, or geography."))
 
-    # ---------- Sheet 3: Methodology ----------
-    ws3 = wb.create_sheet("Methodology")
-    ws3.column_dimensions["A"].width = 26
-    ws3.column_dimensions["B"].width = 90
+        for offset, (k, v) in enumerate(methodology_rows):
+            r = method_start + offset
+            a = ws3.cell(row=r, column=1, value=k)
+            a.font = Font(bold=True)
+            a.alignment = Alignment(vertical="top")
+            b = ws3.cell(row=r, column=2, value=v)
+            b.alignment = Alignment(wrap_text=True, vertical="top")
+            ws3.row_dimensions[r].height = 30
 
-    ws3.cell(row=1, column=1, value="Methodology").font = Font(
-        name="Calibri", size=14, bold=True, color=LEE_BRAND_MAROON
-    )
-    method_start = 3
+        wb.save(output_path)
 
-    pull_date = date.today().isoformat()
-    if is_sale:
-        source_text = "Internal sale_comps_safe (Dealius mirror, Lee & Associates Raleigh). Confidential and NDA rows filtered server-side."
-        rate_convention = "Sale Price is the closed transaction amount. $/SF is sale price divided by building square footage. Asking Cap and Actual Cap are reported by the listing where disclosed; cap rates are sparse in the source."
-        caveat = "Cap rates are populated for ~10% of sale comps; absence does not imply 0%. Buyer DBA and seller DBA may be blank for owner-occupied or single-purpose entities. Confirm against the comp profile link if material."
-    else:
-        source_text = "Internal lease_comps_safe (Dealius mirror, Lee & Associates Raleigh). Confidential and NDA rows filtered server-side."
-        rate_convention = "Effective $/SF includes effects of free rent, TI, and escalations as recorded in the source. Asking $/SF is initial quoted rate. Both annualized."
-        caveat = "TI and free-rent values that appear as 0 may be unpopulated in the source rather than truly zero. Confirm against the comp profile link if material."
-
-    methodology_rows = [
-        ("Pull date", pull_date),
-        ("Source", source_text),
-        ("Asset type", _asset_title(validated.get("asset_type", ""))),
-        ("Property types in scope", _describe_property_types(validated.get("asset_type", ""))),
-        ("Transaction type", validated.get("transaction_type", "")),
-        ("Geography", geo_label or "Not specified"),
-        ("Size range", _describe_size_range(validated.get("size_range"))),
-        ("Min acres", f"{float(validated['min_acres']):g} acres" if validated.get("min_acres") else "Not specified"),
-        ("Date window", _describe_date_window(validated.get("date_window"))),
-        ("Target count", str(validated.get("target_count", ""))),
-        ("Rate convention", rate_convention),
-        ("Applied defaults", "; ".join(applied_defaults) if applied_defaults else "None"),
-        ("Warnings", "; ".join(warnings) if warnings else "None"),
-        ("Mirror last sync", last_sync or "Not provided"),
-        ("Caveat", caveat),
-    ]
-    if validated.get("notes"):
-        methodology_rows.insert(-1, ("Broker notes", validated["notes"]))
-    if not rows:
-        methodology_rows.insert(2, ("Result", "0 comps matched the criteria above. Reply if you want me to widen size, date, or geography."))
-
-    for offset, (k, v) in enumerate(methodology_rows):
-        r = method_start + offset
-        a = ws3.cell(row=r, column=1, value=k)
-        a.font = Font(bold=True)
-        a.alignment = Alignment(vertical="top")
-        b = ws3.cell(row=r, column=2, value=v)
-        b.alignment = Alignment(wrap_text=True, vertical="top")
-        ws3.row_dimensions[r].height = 30
-
-    wb.save(output_path)
-
-    return {
-        "path": output_path,
-        "summary_stats": summary_stats,
-        "sheet_name": sheet_name,
-        "row_count": len(rows),
-    }
+        return {
+            "path": output_path,
+            "summary_stats": summary_stats,
+            "sheet_name": sheet_name,
+            "row_count": len(rows),
+        }
+    finally:
+        if logo_path and logo_path.startswith(tempfile.gettempdir()):
+            try:
+                os.unlink(logo_path)
+            except OSError:
+                pass  # best-effort; file may have been removed externally
 
 
 # =====================================================================
