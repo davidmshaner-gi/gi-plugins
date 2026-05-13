@@ -1,7 +1,7 @@
 {
   "name": "lee-internal-comps",
-  "description": "Pull internal Dealius lease/sale comps and external CoStar comps. For authorized Lee & Associates Raleigh brokers only. Internal comps produce Excel and/or Lee-branded PDF deliverables (broker chooses on each request); CoStar comps produce a chat markdown table + backup xlsx via the Claude in Chrome bridge (PDF coming in a future update).",
-  "version": "0.5.0",
+  "description": "Pull internal Dealius lease/sale comps and external CoStar comps. For authorized Lee & Associates Raleigh brokers only. Internal comps produce Excel and/or Lee-branded PDF deliverables (broker chooses on each request); external CoStar comps are reachable via typed MCP tools (search_external_sale_comps, search_external_lease_comps, get_external_comp_detail). A broker-facing skill wrapping the external tools is forthcoming.",
+  "version": "0.6.0",
   "author": {
     "name": "Grounded Intelligence"
   },
