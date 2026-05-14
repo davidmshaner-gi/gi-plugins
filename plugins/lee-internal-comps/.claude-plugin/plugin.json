@@ -1,7 +1,7 @@
 {
   "name": "lee-internal-comps",
   "description": "Internal (Dealius) and external (CoStar) lease & sale comps for authorized Lee & Associates Raleigh brokers. Two skills: internal-comps (Dealius mirror, Excel + Lee-branded PDF) and external-comps (CoStar weekly snapshot via typed MCP tools, Excel + Markdown table; PDF deferred to v1.1).",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": {
     "name": "Grounded Intelligence"
   },

@@ -38,6 +38,35 @@ RDU_MSA_COUNTIES = {"Wake", "Durham", "Orange", "Chatham", "Johnston", "Franklin
 # Aliases for the RDU named market — case-insensitive match in validate_request.
 RDU_MARKET_ALIASES = {"rdu msa", "rdu", "triangle", "raleigh-durham", "raleigh durham"}
 
+# RDU MSA city → county fallback map. Surfaced in SKILL.md so brokers can
+# read/override it. Passed to apply_post_filters via the city_to_county
+# parameter when the skill needs to enrich null county values.
+RDU_CITY_TO_COUNTY: dict[str, str] = {
+    # Wake
+    "Raleigh": "Wake", "Cary": "Wake", "Garner": "Wake", "Apex": "Wake",
+    "Wake Forest": "Wake", "Holly Springs": "Wake", "Morrisville": "Wake",
+    "Knightdale": "Wake", "Rolesville": "Wake", "Wendell": "Wake",
+    "Zebulon": "Wake", "Fuquay-Varina": "Wake", "Fuquay Varina": "Wake",
+    # Durham
+    "Durham": "Durham",
+    # Orange
+    "Chapel Hill": "Orange", "Carrboro": "Orange", "Hillsborough": "Orange",
+    # Chatham
+    "Pittsboro": "Chatham", "Siler City": "Chatham",
+    # Johnston
+    "Smithfield": "Johnston", "Clayton": "Johnston", "Selma": "Johnston",
+    "Benson": "Johnston", "Four Oaks": "Johnston",
+    # Franklin
+    "Louisburg": "Franklin", "Youngsville": "Franklin", "Bunn": "Franklin",
+    # Granville
+    "Creedmoor": "Granville", "Oxford": "Granville", "Butner": "Granville",
+}
+
+# When the share of rows with null county exceeds this threshold AND a county
+# filter is requested, the model surfaces a 3-strategy dialog before applying
+# the filter (see SKILL.md Process step 7). Below threshold, silent enrichment.
+NULL_COUNTY_DIALOG_THRESHOLD = 0.20
+
 # CoStar property_type taxonomy — values are the verbatim strings the MCP expects.
 # Maps the skill's `asset_type` (broker shorthand) to CoStar's `property_type`.
 ASSET_TYPE_TO_COSTAR_SALE = {
@@ -271,28 +300,72 @@ def build_mcp_params(validated: dict) -> dict:
     }
 
 
+def null_county_rate(rows: list[dict]) -> tuple[int, int, float]:
+    """Return (null_count, total_count, share). `share` is null_count / total_count
+    (0.0 when total_count == 0). `county` is considered null if absent, None, or
+    blank (whitespace-only). The model uses `share` to decide whether to surface
+    the 3-strategy null-county dialog (see SKILL.md Process step 7).
+    """
+    total = len(rows)
+    if total == 0:
+        return 0, 0, 0.0
+    null_count = sum(1 for r in rows if not (r.get("county") or "").strip())
+    return null_count, total, null_count / total
+
+
 def apply_post_filters(
     rows: list[dict],
     validated: dict,
     post_filter_counties: Optional[set[str]] = None,
+    city_to_county: Optional[dict[str, str]] = None,
 ) -> tuple[list[dict], list[str]]:
     """Apply Python-side filters that the MCP couldn't express.
 
-    Currently: county whitelist (for named_market="RDU MSA").
+    Currently: county whitelist (for named_market="RDU MSA"), with optional
+    city → county fallback when the snapshot has null counties.
+
+    Args:
+      rows: MCP-returned rows.
+      validated: the validated request dict (currently unused but reserved for
+        future filter axes like sub-region exclusions).
+      post_filter_counties: county whitelist. None = skip the county filter.
+      city_to_county: optional fallback map. When set, rows with null/empty
+        `county` are enriched in-place from `property_city` before filtering.
+        Rows whose city isn't in the map keep null county and fall through to
+        the existing "not in whitelist → drop" behavior. Note: if zero rows
+        are enriched (no nulls, or all unmapped), no "inferred" entry is added
+        to `applied_filters` — the drop count alone tells the story.
 
     Returns (filtered_rows, applied_filters_log) where applied_filters_log is a
-    list of human-readable strings describing what was filtered, for the email body.
+    list of human-readable strings describing what was filtered, for the email
+    body and Methodology sheet.
     """
     applied: list[str] = []
     out = rows
 
     if post_filter_counties:
+        # --- Optional pre-pass: enrich null counties from city map ---
+        inferred = 0
+        if city_to_county:
+            for r in out:
+                if not (r.get("county") or "").strip():
+                    city = (r.get("property_city") or "").strip()
+                    if city and city in city_to_county:
+                        r["county"] = city_to_county[city]
+                        inferred += 1
+            if inferred > 0:
+                applied.append(
+                    f"inferred {inferred} county value{'s' if inferred != 1 else ''} "
+                    f"from property_city (RDU map)"
+                )
+
+        # --- County whitelist filter ---
         before = len(out)
         out = [r for r in out if (r.get("county") or "").strip() in post_filter_counties]
         dropped = before - len(out)
         if dropped > 0:
             applied.append(
-                f"dropped {dropped} rows outside {sorted(post_filter_counties)}"
+                f"dropped {dropped} row{'s' if dropped != 1 else ''} outside {sorted(post_filter_counties)}"
             )
 
     return out, applied

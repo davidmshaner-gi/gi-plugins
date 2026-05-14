@@ -43,7 +43,7 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 
 5. Call `build_mcp_params(validated)` → `(tool_name, params_dict)`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly.
 6. Invoke the MCP tool with the params dict. The response shape is `{"rows": [...]}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed CoStar columns plus `external_id` and `raw_fields_json`.
-7. Call `apply_post_filters(rows, validated, post_filter_counties)` → filters by county whitelist (for named markets like "RDU MSA") and any city subset the broker specified that the MCP couldn't express. `post_filter_counties` is the value returned by `build_mcp_params` in step 5. Returns `(filtered_rows, applied_filters)`; `applied_filters` is a list of human-readable strings describing what was filtered, surfaced in the email body.
+7. **Handle the county filter strategy.** Call `null_county_rate(rows)` → `(null_count, total_count, share)`. If `share > NULL_COUNTY_DIALOG_THRESHOLD` (0.20) AND `post_filter_counties` is non-None, surface the 3-strategy dialog (see "Null-county strategy dialog" in the Geography registry section). Wait for the broker's choice. Below threshold, default to strategy 1 (silent city-map enrichment). Then call `apply_post_filters(rows, validated, post_filter_counties, city_to_county=<map or None>)` → `(filtered_rows, applied_filters)`. `applied_filters` is a list of human-readable strings describing what was filtered/inferred, surfaced in the email body and Methodology sheet.
 8. Call `rank_comps(filtered_rows, validated)` → returns `(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed)`. `top` is the ranked sweet-spot list (typically 7-10).
 9. Call `format_excel(filtered_rows, validated, xlsx_path, applied_defaults, warnings, applied_filters, last_sync)` → writes a 3-sheet workbook to the sandbox. The full filtered set goes into the Excel, not just the top N — brokers want the working file with everything.
 10. Call `markdown_table(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed, validated)` → returns a Markdown string for the chat reply.
@@ -148,6 +148,42 @@ Response: `{"row": {...}}` with all typed columns AND `raw_fields` (parsed JSON 
 For `{"cities": [...]}`, the skill calls the MCP once per city (each MCP query expects a single exact-match `city`) and unions the results. Pass the cities verbatim — CoStar stores them as title case (e.g. `"Raleigh"`, `"Garner"`, `"Cary"`).
 
 Sub-regional broker shorthand (e.g. "Garner / South Raleigh", "North Hills") is NOT enriched in V1. Parse the cities explicitly with the broker (rule #3) and pass `geography={"cities": [...]}`.
+
+### Null-county fallback (city → county map)
+
+The CoStar weekly snapshot occasionally lands with `county` null on some or all rows (depends on which export shape Will pulls — the "Everything" export populates it; leaner exports don't). When `apply_post_filters` runs the RDU county whitelist on rows with null county, it can optionally fall back to a `property_city → county` lookup. The fallback map ships with the skill as `helpers.RDU_CITY_TO_COUNTY` and is mirrored here so brokers can override per-deal:
+
+| County | Cities |
+|---|---|
+| Wake | Raleigh, Cary, Garner, Apex, Wake Forest, Holly Springs, Morrisville, Knightdale, Rolesville, Wendell, Zebulon, Fuquay-Varina |
+| Durham | Durham |
+| Orange | Chapel Hill, Carrboro, Hillsborough |
+| Chatham | Pittsboro, Siler City |
+| Johnston | Smithfield, Clayton, Selma, Benson, Four Oaks |
+| Franklin | Louisburg, Youngsville, Bunn |
+| Granville | Creedmoor, Oxford, Butner |
+
+If a broker says "treat Chapel Hill as Durham" or names a city not in the map, override by passing a modified dict to `apply_post_filters` for that request. The map is just a default — the broker drives.
+
+### Null-county strategy dialog
+
+When `null_county_rate(rows)` returns a `share` greater than `NULL_COUNTY_DIALOG_THRESHOLD` (default 20%) AND a county filter is requested, the model pauses before calling `apply_post_filters` and surfaces this dialog to the broker:
+
+> Snapshot has {N} of {M} rows with null county ({pct}%). Three options for the RDU filter:
+> 1. **Infer county from city** using the RDU map (default — Raleigh→Wake, Durham→Durham, etc.)
+> 2. **Skip the county filter** and return all NC rows in your size/date range
+> 3. **Drop the null-county rows** (strictest — only keep rows with populated county in the whitelist)
+>
+> Which?
+
+The broker's choice maps to:
+- (1) → `apply_post_filters(rows, validated, post_filter_counties, city_to_county=RDU_CITY_TO_COUNTY)`
+- (2) → `apply_post_filters(rows, validated, post_filter_counties=None)`
+- (3) → `apply_post_filters(rows, validated, post_filter_counties, city_to_county=None)` (no enrichment — null counties fall out of whitelist)
+
+The chosen strategy is logged in `applied_filters` so the email body and Methodology sheet are auditable. **Remember the choice for the rest of the conversation, scoped to the current geography context.** Don't re-ask on follow-up queries that keep the same `named_market` (e.g. "widen the size range"). A new `named_market`, an explicit `cities` override, or a fresh transaction_type resets the choice — re-evaluate the threshold and ask again if needed.
+
+Below threshold, default to silent enrichment (strategy 1) — don't pause for trivial null counts.
 
 ## CoStar terminology check-in
 
