@@ -1,0 +1,251 @@
+---
+name: external-comps
+description: Pull external (CoStar) lease or sale comps for a Lee & Associates broker. Broker pastes a free-form comp request into chat; skill parses, calls the typed external-comps MCP tools (search_external_sale_comps / search_external_lease_comps / get_external_comp_detail), and produces a Markdown table in chat plus an Excel deliverable and draft email reply. PDF deferred to v1.1.
+---
+
+# External Comps (Lee & Associates / CoStar)
+
+Pull external CoStar comps via the typed external-comps MCP tools and produce a Markdown table inline, an Excel deliverable, a draft email reply, and a feedback capture.
+
+## When to use
+
+Anything that asks for external (CoStar) lease or sale comps. The phrasing is open — what matters is the intent.
+
+The broker might:
+
+- Paraphrase: "Pull CoStar sale comps for industrial in Raleigh-Durham, 2K-30K sqft, past 4 months."
+- Forward another broker's email verbatim.
+- Ask in shorthand: "any costar industrial sales in raleigh past year?", "external lease comps on office 1.5-4K?", "what's CoStar showing in north hills"
+- Follow up on a previous pull: "can you widen the size range?", "add a tighter cap rate filter", "rerun with 6 months instead of 4."
+- Reference a specific comp by external_id or CoStar Property ID.
+
+Pattern: the request names some combination of asset type, geography, size, date window, or transaction type AND points to external / CoStar data (or asks generically and the broker confirms external when asked). That's the trigger.
+
+**Don't apply this skill to:**
+
+- Questions about the mirror, the schema, or how the skill itself works.
+- **Internal** (Dealius) comp requests — that's the `internal-comps` skill. If unclear which the broker wants, ask: *"Internal (Dealius) or external (CoStar)?"* Internal is the firm's own data; external is the weekly CoStar export.
+- Pure analysis on comps the broker has already pasted into chat (no DB lookup needed).
+- Requests for a Lee-branded PDF — surface the deferral message (see Process step 4).
+
+## Process
+
+The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Excel formatting, MCP param mapping, ranking, or email scaffolding inline.** Import and call.
+
+1. **Parse** the broker's paste into a request dict (see Input Contract below).
+2. Call `validate_request(parsed)` → applies defaults, lists missing/warnings.
+3. If `missing_required` is non-empty: draft a clarifying reply, stop. Do not call MCP.
+4. **Output format handling.** v1 always produces Markdown + Excel. If the broker explicitly asks for a PDF, reply once with the v1.1 deferral message:
+
+   > Lee-branded PDF for external CoStar comps is coming in the next update (depends on a small server-side change). For now I can deliver the Markdown table + an Excel — that work for you?
+
+   Then proceed.
+
+5. Call `build_mcp_params(validated)` → `(tool_name, params_dict)`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly.
+6. Invoke the MCP tool with the params dict. The response shape is `{"rows": [...]}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed CoStar columns plus `external_id` and `raw_fields_json`.
+7. Call `apply_post_filters(rows, validated, post_filter_counties)` → filters by county whitelist (for named markets like "RDU MSA") and any city subset the broker specified that the MCP couldn't express. `post_filter_counties` is the value returned by `build_mcp_params` in step 5. Returns `(filtered_rows, applied_filters)`; `applied_filters` is a list of human-readable strings describing what was filtered, surfaced in the email body.
+8. Call `rank_comps(filtered_rows, validated)` → returns `(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed)`. `top` is the ranked sweet-spot list (typically 7-10).
+9. Call `format_excel(filtered_rows, validated, xlsx_path, applied_defaults, warnings, applied_filters, last_sync)` → writes a 3-sheet workbook to the sandbox. The full filtered set goes into the Excel, not just the top N — brokers want the working file with everything.
+10. Call `markdown_table(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed, validated)` → returns a Markdown string for the chat reply.
+11. Call `draft_email(filtered_rows, top, validated, xlsx_path, applied_defaults, warnings, applied_filters)` → returns `{subject, body}`. The body surfaces total filtered count, top-N ranked count, stats summary, applied defaults, warnings, applied filters, and a narrow-or-widen question if the top-N count is below `target_count`. **No auto-expansion** — the broker drives.
+12. After the broker confirms / closes the loop: ask the three feedback questions, call `format_feedback(...)`, then send via connected email tool (Gmail / Outlook MCP) or write the fallback file.
+
+## Behavioral rules — follow these closely
+
+Borrowed from the stashed costar-comps SOP. These compound with the Process steps above.
+
+1. **Aim for around 7-10 best matches as a soft default.** Mention this in your first confirmation. Treat it as guidance, not a rule — defer if the broker wants more, fewer, or all of them.
+2. **Ask only for what's missing.** Never re-ask anything the broker already gave you, including in earlier turns.
+3. **If the broker uses a term you don't recognize** ("IOS," "the Triangle," internal nicknames, etc.), ask them to describe what it maps to in CoStar terms. Don't translate or guess. This rule applies to broker-internal shorthand, not CoStar's own labels.
+4. **Confirm the resolved query back to the broker before you call the MCP.** Wait for explicit "yes" or "go" before executing.
+5. **Narrow/loosen is a separate conversation.** When the result count is far from 7-10, propose adjustments — narrowing axes (tighter date, tighter size, smaller geo, property-type subset) or loosening — and let the broker decide. They can override with "show me all of them" or pick a different target count.
+
+## Input Contract
+
+The dict you pass to `validate_request`. `asset_type` and `transaction_type` are load-bearing; everything else is open-shaped — the helpers tolerate missing optional keys and ignore unknown keys.
+
+| Key | Required | Shape |
+|---|---|---|
+| `asset_type` | yes | `"industrial"` \| `"office"` \| `"retail"` \| `"flex"` \| `"medical"` \| `"multifamily"` \| `"student"` \| `"land"` \| `"hospitality"` \| `"health_care"` \| `"specialty"` |
+| `transaction_type` | yes | `"lease"` \| `"sale"` |
+| `geography` | no | `{"named_market": str}` or `{"cities": [str, ...]}` |
+| `size_range` | no | `{"min_sf": int, "max_sf": int}` |
+| `date_window` | no | `{"lookback_months": int}` or `{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}` |
+| `target_count` | no | int (default 8) |
+| `min_sale_price` | no | int — sale only |
+| `max_sale_price` | no | int — sale only |
+| `min_cap_rate` | no | float (0.075 = 7.5%) — sale only |
+| `max_cap_rate` | no | float — sale only |
+| `min_base_rent` | no | float — lease only ($/SF) |
+| `max_base_rent` | no | float — lease only |
+| `min_lease_term_months` | no | int — lease only |
+| `max_lease_term_months` | no | int — lease only |
+| `tenant_industry` | no | str — lease only; pass-through to MCP |
+| `notes` | no | str — broker preferences not captured by other keys; `draft_email` reads it back, `build_mcp_params` ignores it |
+
+Stuff anything you parsed but couldn't slot cleanly into `notes`. The helpers won't choke on extras.
+
+## Defaults applied by `validate_request`
+
+| Field missing | Default applied | Surfaced as |
+|---|---|---|
+| `geography` | `{"named_market": "RDU MSA"}` | applied default |
+| `date_window` | `{"lookback_months": 12}` for sale, `{"lookback_months": 6}` for lease | applied default |
+| `target_count` | `8` | applied default |
+| `min_sale_price` (sale only) | `500000` | applied default |
+| `size_range` | none | warning (not blocking) |
+
+Every applied default appears in the email body so the broker can push back.
+
+## MCP tools — param contracts
+
+These are the live tools on `leeraleigh.groundedintelligence.io`. The skill calls one of the two search tools per request; `get_external_comp_detail` is reserved for explicit-comp-lookup follow-ups.
+
+### `search_external_sale_comps`
+
+| Param | Shape | Notes |
+|---|---|---|
+| `city` | str | exact match on `property_city`. Pass only when broker named a single specific city. |
+| `state` | str | `"NC"` for all RDU work. |
+| `zip` | str | exact match. |
+| `property_type` | str | CoStar taxonomy (`"Industrial"`, `"Office"`, ...). |
+| `min_sale_date` / `max_sale_date` | str (ISO `YYYY-MM-DD`) | inclusive. |
+| `min_building_sf` / `max_building_sf` | int | inclusive. |
+| `min_sale_price` / `max_sale_price` | int | whole dollars. |
+| `min_cap_rate` / `max_cap_rate` | float | `0.075` = 7.5%. |
+| `limit` | int | default 50, max 200. |
+
+Response: `{"rows": [...]}` with all typed sale columns plus `external_id`, `raw_fields_json`.
+
+### `search_external_lease_comps`
+
+| Param | Shape | Notes |
+|---|---|---|
+| `city`, `state`, `zip` | str | same as sale. |
+| `property_type` | str | CoStar taxonomy. |
+| `min_lease_start_date` / `max_lease_start_date` | str (ISO) | inclusive. |
+| `min_building_sf` / `max_building_sf` | int | inclusive. |
+| `min_base_rent` / `max_base_rent` | float | $/SF/yr. |
+| `min_lease_term_months` / `max_lease_term_months` | int | inclusive. |
+| `tenant_industry` | str | exact match. |
+| `limit` | int | default 50, max 200. |
+
+Response: `{"rows": [...]}` with all typed lease columns plus `external_id`, `raw_fields_json`.
+
+### `get_external_comp_detail`
+
+| Param | Shape | Notes |
+|---|---|---|
+| `external_id` | str | preferred. |
+| `costar_property_id` | str | alternate. |
+
+Response: `{"row": {...}}` with all typed columns AND `raw_fields` (parsed JSON of the unpromoted CoStar columns). Use after a search to drill into one row.
+
+## Geography registry (V1)
+
+`"RDU MSA"` (and aliases `"RDU"`, `"Triangle"`, `"Raleigh-Durham"`) resolves to a county whitelist applied **post-fetch** by `apply_post_filters`: `{Wake, Durham, Orange, Chatham, Johnston, Franklin, Granville}`. The MCP call passes `state="NC"` and no `city`.
+
+For `{"cities": [...]}`, the skill calls the MCP once per city (each MCP query expects a single exact-match `city`) and unions the results. Pass the cities verbatim — CoStar stores them as title case (e.g. `"Raleigh"`, `"Garner"`, `"Cary"`).
+
+Sub-regional broker shorthand (e.g. "Garner / South Raleigh", "North Hills") is NOT enriched in V1. Parse the cities explicitly with the broker (rule #3) and pass `geography={"cities": [...]}`.
+
+## CoStar terminology check-in
+
+Broker shorthand → CoStar taxonomy mappings worth knowing (cached from the stashed costar-comps SOP, last verified 2026-05-07):
+
+- "Raleigh-Durham" / "Triangle" / "RDU" → `named_market: "RDU MSA"` → county whitelist applied post-fetch.
+- "industrial" → `property_type: "Industrial"`.
+- "warehouse" → ambiguous; CoStar's `Secondary Type` carries Warehouse/Distribution/Light Manufacturing etc. — but the typed MCP tools do NOT expose `Secondary Type` as a filter. Ask the broker to confirm `property_type: "Industrial"` and note "warehouse" in `notes`; post-filtering by secondary type is V1.1+.
+- "IOS" (industrial outdoor storage) → CoStar has no clean tag. Confirmed with the broker. Suggest `property_type: "Industrial"` or `"Flex"` and surface in the email that this is the closest proxy.
+- "flex" → `property_type: "Flex"`.
+- "office" → `property_type: "Office"`.
+- "medical" / "medical office" → `property_type: "Medical"` (lease) or `"Health Care"` (sale — CoStar's sale taxonomy differs).
+
+When the broker uses a term that isn't in this list, behavioral rule #3 applies: ask, don't guess.
+
+## Schema crib — typed columns the search tools return
+
+The model does not need to memorize the column list, but for ranking and the Markdown table here is what to expect (full list in `column_map.py`):
+
+**Sale (`search_external_sale_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `costar_property_id`, `costar_property_url`, `property_type`, `property_secondary_type`, `building_sf`, `year_built`, `sale_price`, `price_per_sf`, `sale_date`, `actual_cap_rate`, `noi`, `percent_leased`, `sale_type`, `sale_conditions`, `days_on_market`, `sale_notes`, `buyer_true_company`, `seller_true_company`, `buyers_broker_company`, `listing_broker_company`, ...
+
+**Lease (`search_external_lease_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `costar_property_id`, `property_type`, `building_sf`, `lease_start_date`, `lease_term_months`, `lease_expiration_date`, `base_rent`, `rent_type`, `escalations`, `free_rent_months`, `ti_allowance`, `tenant_name`, `tenant_industry`, `floor`, `suite`, `space_type`, ...
+
+Both shapes also include `raw_fields_json` — a stringified JSON blob of unpromoted CoStar columns. Don't surface it directly to the broker; use `get_external_comp_detail` to inspect a specific row's full record.
+
+## Confidentiality
+
+All external-comps queries are scoped server-side by `client_id` (Lee Raleigh's client_id, injected from the broker's authenticated session). The broker only sees rows their firm has ingested. If a broker references a specific comp by `external_id` or address that doesn't appear in results, reply verbatim:
+
+> That comp isn't in the Lee Raleigh external-comps snapshot. It may not have been included in Will's most recent CoStar export, or the firm hasn't ingested that asset type yet. Want me to flag it for the next snapshot?
+
+Do not speculate further.
+
+## Output — deliverable shapes
+
+v1 always produces both:
+
+### Markdown table (inline in chat)
+
+`markdown_table(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed, validated)` returns one string with these blocks (only blocks with rows appear):
+
+- **Main ranked table** (top 7-10). Sale columns: `# | Address | City | County | SF | Sale Price | $/SF | Sale Date | YB | Type | Submarket | Notes`. Lease columns: `# | Address | City | County | SF | Rent ($/SF) | Type | Term | Tenant | Signed | Notes`.
+- **Under Contract** sub-table (sale only, if any).
+- **Sublet** sub-table (lease only, if any).
+- **Rent not disclosed** sub-table (lease only, if any — activity signal only).
+- **Quick read** paragraph below: PSF range, term outliers, NNN-vs-MG split (lease), portfolio-allocated outliers (sale).
+
+### Excel (`output_format = "excel"` implicit)
+
+`format_excel` writes a 3-sheet workbook. Layout is frozen. Do not parameterize beyond what the helper signature exposes.
+
+- **Sheet 1: `"{Asset Title} {Geography} Comps"`** (e.g., `"Industrial Sale RDU MSA Comps"`, `"Retail Lease Raleigh Comps"`).
+  - Dark blue header fill (matches internal-comps), white bold; frozen panes; autofilter.
+  - Color scale (red → yellow → green) on the rate column: `price_per_sf` for sale, `base_rent` for lease.
+  - Full filtered row set (not just the top N — brokers want the working file).
+- **Sheet 2: `"Summary"`** — count, avg/median/min/max rate, avg/median size.
+- **Sheet 3: `"Methodology"`** — pulled_for, pull_date, source (`"CoStar weekly snapshot via lee-raleigh-mcp"`), geography, property_types, size_range, date_window, applied_defaults, warnings, applied_filters, last_sync, caveat.
+
+### PDF — deferred to v1.1
+
+Not produced in v1. PDF requires a `query_id` returned by a `read_query`-style MCP call, which external-comps does not have. The fix is a new `cache_external_rows` MCP tool on lee-raleigh-mcp; until that ships, the skill cannot reach `render_comps_pdf`. If the broker asks for PDF, surface the Process step 4 deferral message.
+
+## Email draft
+
+`draft_email(filtered_rows, top, validated, xlsx_path, applied_defaults, warnings, applied_filters)` returns `{subject, body}`. The body always surfaces:
+
+- Result count and a one-line stats summary (mirror of Sheet 2).
+- Any defaults `validate_request` applied — broker should be able to push back.
+- Any warnings (e.g., size range not specified).
+- Any post-filters applied (e.g., "dropped 4 rows outside Wake/Durham").
+- If the count is below `target_count`: a single line asking which dimension to widen (size, date, geography, property-type subset). Broker drives expansion via reply — model never auto-widens.
+- The confidentiality response template if a referenced comp wasn't found.
+
+The model sends via the broker's connected email tool. The helper does not send.
+
+## Feedback step
+
+After the broker confirms the deliverable, ask three short questions:
+
+1. Rating 1-5 — did this save you time vs. doing it yourself?
+2. What worked?
+3. What didn't?
+
+Pass to `format_feedback(...)` which returns a structured payload. The model then:
+
+- Tries the Gmail or Outlook MCP send tool if available, to `david@groundedintelligence.io`.
+- Falls back to writing `fallback_content` to `feedback-{YYYY-MM-DD}.md` next to the Excel.
+
+Keep the questions short. Long questionnaires get skipped.
+
+## Success criteria
+
+Per-request orchestration code should be well under 1K characters — basically `validate → confirm → build_mcp_params → [invoke MCP] → post_filter → rank → format_excel → markdown_table → draft_email → format_feedback`. No expansion loop; below-target results trigger a broker ask in the email, not a re-query.
+
+If you find yourself regenerating openpyxl formatting, hand-writing date math, or reconstructing the county whitelist, **stop**. Call the helper.
+
+## Files
+
+- `SKILL.md` — this file.
+- `helpers.py` — atomic helpers (validate, build_mcp_params, post-filter, rank, format_excel, markdown_table, draft_email, format_feedback). None call MCP — the model has MCP access; the sandbox doesn't.
+- `lee_logo.png` — bundled with the skill; used by `format_excel` (Methodology sheet header image).
