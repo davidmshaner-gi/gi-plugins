@@ -52,6 +52,28 @@ Per-ring metrics, each carrying inline `method` / `source` / `vintage`:
 
 `methodology_version` is the Bonner package version this Worker port is calibrated against. `methodology_doc` points at the design spec.
 
+## CRITICAL: how to present growth rates
+
+`pop_growth_annual_pct` and `housing_growth_annual_pct` are **backward-looking** annual rates derived from 2020 Decennial → 2023 ACS 5-year, NOT current/forward growth.
+
+The ACS 5-year vintage labeled "2023" is a *rolling average* of 2019–2023 survey responses. In fast-growth markets — Cary, Apex, Holly Springs, Raleigh exurbs, anywhere with post-2020 in-migration — this rolling average smooths over the actual growth and frequently produces **negative annual rates even where the area is visibly booming**. This is a real methodology artifact, not a data error.
+
+**When the broker sees a negative growth rate in an obvious-growth market:**
+- DO present the number as-is — don't hide it
+- DO NOT editorialize "this is unusual" or "this might be wrong"
+- DO add a one-line context note when growth is negative or surprising: *"Note: this is a backward-looking annual rate from the 2020 Decennial → 2023 ACS 5-year rolling average; it lags actual on-the-ground growth in fast-moving submarkets. Forward-projection growth (Esri-style 2025/2028 estimates) arrives in v1.2."*
+- Housing growth tends to be more reliable than population growth at small rings (Cary 3mi/5mi housing growth +3.2%/+2.2% is in line with what you'd expect)
+
+If both pop growth AND housing growth are negative at all rings, that's typically the rolling-average artifact, not a real signal. Flag the data, don't doubt the data.
+
+## CRITICAL: per-metric source/vintage disclosure
+
+Every metric in the response has `source` (e.g. "ACS 5yr B01003_001E") and `vintage` (e.g. 2022). If the broker asks "where is this from" or "how recent is this", quote the inline `source` + `vintage` for the specific metric — don't paraphrase. The methodology is the contract; surface it accurately.
+
+## CRITICAL: daytime population is workforce-only
+
+`daytime_population = total_pop - resident_workers + workplace_workers`. This counts workers but **does not** impute shoppers, students, hospital patients, or other non-worker daytime presence. Esri BAO's daytime number is typically 10-15% higher for retail/commercial centers because it adds those non-worker flows. If a broker compares our number to a BAO printout for a retail site, expect a gap and explain why — don't assume our number is wrong.
+
 ## What's deliberately NOT in v1
 
 - Tapestry segmentation, Wealth Index, Total Sales, Largest Businesses in Area — Esri-only data, not portable.
