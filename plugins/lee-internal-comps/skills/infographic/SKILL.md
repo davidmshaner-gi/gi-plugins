@@ -1,6 +1,6 @@
 ---
 name: infographic
-description: Pull a 1/3/5-mile demographic infographic for any NC address. Returns population, households, income, education, workforce mix, daytime population, and growth rates with per-metric methodology metadata. Wraps the lee-raleigh-mcp pull_infographic tool. v1.0 returns structured JSON; v1.1 will add a Lee-branded PDF link.
+description: Pull a 1/3/5-mile demographic infographic for any NC address. Returns population, households, income, education, workforce mix, daytime population, and growth rates with per-metric methodology metadata, plus a Lee-branded PDF link (1-hour signed URL). Wraps the lee-raleigh-mcp pull_infographic tool.
 ---
 
 # Intellisite Demographic Infographic (Lee & Associates)
@@ -30,7 +30,7 @@ Triggers:
 1. Parse the broker's request to extract the address as a single free-text string. Don't try to canonicalize or pre-validate — the Census Geocoder does that server-side.
 2. Call the MCP tool `pull_infographic` with `{address: "<the extracted address>"}`. The tool takes ~5-7 seconds.
 3. The response is structured JSON with three top-level ring keys (`1mi`, `3mi`, `5mi`) plus metadata. Render it inline conversationally — Claude already handles ring-keyed objects well; no custom formatting helper is needed.
-4. If the response has `pdf_url: null` (v1.0 behavior), say so explicitly — *"PDF rendering is coming in next release; today's deliverable is the data."* If `pdf_url` is a non-null string (v1.1), surface it as a "📄 Open PDF" link with the standard 1-hour expiry note.
+4. If `pdf_url` is a non-null string (the expected v1.1 path), surface it as a "📄 Open PDF" link with a 1-hour expiry note: *"Link expires in ~1 hour — download or share it now."* If `pdf_url` is `null` (transient render failure — the JSON response is non-fatal on PDF errors), deliver the structured data as usual and add a short note: *"The PDF render hit a snag this run; the data is fully present. Re-run the command to regenerate the PDF."*
 
 ## Error handling
 
@@ -79,7 +79,7 @@ Every metric in the response has `source` (e.g. "ACS 5yr B01003_001E") and `vint
 - Tapestry segmentation, Wealth Index, Total Sales, Largest Businesses in Area — Esri-only data, not portable.
 - Forward-projection growth (e.g. "Population (2025)") — deferred to a future version.
 - Multi-state coverage — NC only for v1.
-- PDF rendering — arrives in v1.1.
+- Charts (age distribution, income, race breakdowns) — v1.1 PDF is tile-grid only; charts arrive in v1.2 once the JSON shape widens to carry the breakdowns the charts plot.
 
 ## Files
 
