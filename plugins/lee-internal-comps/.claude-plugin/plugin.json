@@ -1,7 +1,7 @@
 {
   "name": "lee-internal-comps",
-  "description": "Internal (Dealius) and external (CoStar) lease & sale comps + demographic reports for authorized Lee & Associates Raleigh brokers. Four skills: internal-comps (Dealius mirror, Excel + Lee-branded PDF), external-comps (CoStar weekly snapshot via typed MCP tools, Excel + Markdown table), infographic (1/3/5 mi demographic profile for any NC address, JSON + Lee-branded PDF with 1-hour signed link), and demographics-report (14-page Demographic and Income Profile with Chart.js charts, race/income breakdowns, 2020/2025/2030 projections, four Esri-analog indices, and Lee-branded PDF).",
-  "version": "0.9.0",
+  "description": "Internal (Dealius) and external (CoStar) lease & sale comps + demographic reports for authorized Lee & Associates Raleigh brokers. Four skills: internal-comps (Dealius mirror, Excel + Lee-branded PDF), external-comps (CoStar weekly snapshot via typed MCP tools, Excel + Markdown table), demographic-summary (1/3/5 mi single-page Lee infographic for any NC address, JSON + Lee-branded PDF with 1-hour signed link), and demographic-detail (multi-page Demographic and Income Profile with inline SVG charts, race/income breakdowns, 2020/2025/2030 projections via gi_permit_adjusted with Census BPS add-back, Family HHs + Owner HUs trend bars, four Esri-analog indices, and Lee-branded PDF).",
+  "version": "1.0.0",
   "author": {
     "name": "Grounded Intelligence"
   },
