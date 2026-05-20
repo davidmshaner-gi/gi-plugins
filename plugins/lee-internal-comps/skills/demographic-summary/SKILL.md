@@ -1,6 +1,6 @@
 ---
-name: infographic
-description: Pull a 1/3/5-mile demographic infographic for any NC address. Returns population, households, income, education, workforce mix, daytime population, and growth rates with per-metric methodology metadata, plus a Lee-branded PDF link (1-hour signed URL). Wraps the lee-raleigh-mcp pull_infographic tool.
+name: demographic-summary
+description: Pull a 1/3/5-mile demographic summary (single-page Lee infographic) for any NC address. Returns population, households, income, education, workforce mix, daytime population, and growth rates with per-metric methodology metadata, plus a Lee-branded PDF link (1-hour signed URL). Wraps the lee-raleigh-mcp pull_demographic_summary tool.
 ---
 
 # Intellisite Demographic Infographic (Lee & Associates)
@@ -13,7 +13,7 @@ Anything that asks for a "demographic profile" or an "infographic" around a prop
 
 Triggers:
 
-- `/infographic <address>` (slash command)
+- `/demographic-summary <address>` (slash command)
 - "Pull infographic for 100 Walnut St, Cary"
 - "Demographic profile of 200 Main St, Raleigh"
 - "Site report for [address]"
@@ -28,7 +28,7 @@ Triggers:
 ## Process
 
 1. Parse the broker's request to extract the address as a single free-text string. Don't try to canonicalize or pre-validate — the Census Geocoder does that server-side.
-2. Call the MCP tool `pull_infographic` with `{address: "<the extracted address>"}`. The tool takes ~5-7 seconds.
+2. Call the MCP tool `pull_demographic_summary` with `{address: "<the extracted address>"}`. The tool takes ~10-15 seconds.
 3. The response is structured JSON with three top-level ring keys (`1mi`, `3mi`, `5mi`) plus metadata. Render it inline conversationally — Claude already handles ring-keyed objects well; no custom formatting helper is needed.
 4. If `pdf_url` is a non-null string (the expected v1.1 path), surface it as a "📄 Open PDF" link with a 1-hour expiry note: *"Link expires in ~1 hour — download or share it now."* If `pdf_url` is `null` (transient render failure — the JSON response is non-fatal on PDF errors), deliver the structured data as usual and add a short note: *"The PDF render hit a snag this run; the data is fully present. Re-run the command to regenerate the PDF."*
 
@@ -83,4 +83,4 @@ Every metric in the response has `source` (e.g. "ACS 5yr B01003_001E") and `vint
 
 ## Files
 
-- `SKILL.md` — this file. The skill is a thin orchestrator over `pull_infographic`; no Python helpers.
+- `SKILL.md` — this file. The skill is a thin orchestrator over `pull_demographic_summary`; no Python helpers.
