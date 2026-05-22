@@ -6,7 +6,7 @@ Public plugin marketplace for [Grounded Intelligence](https://groundedintelligen
 
 | Plugin | Skills | Description | Client |
 |---|---|---|---|
-| `lee-internal-comps` | `internal-comps` | Internal (Dealius) and external (CoStar) lease & sale comps. Internal produces Excel + email drafts. External CoStar comps are reachable via typed MCP tools (`search_external_sale_comps`, `search_external_lease_comps`, `get_external_comp_detail`), backed by a weekly Excel ingest from Will. A broker-facing external-comps skill is forthcoming. | Lee & Associates |
+| `lee-internal-comps` | `internal-comps`, `external-comps`, `demographic-summary`, `demographic-detail`, `business-key-facts` | Internal (Dealius) and external (CoStar) lease & sale comps. Internal produces Excel + email drafts. External CoStar comps are reachable via typed MCP tools (`search_external_sale_comps`, `search_external_lease_comps`, `get_external_comp_detail`), backed by a weekly Excel ingest from Will. A broker-facing external-comps skill is forthcoming. | Lee & Associates |
 
 ## Install
 
