@@ -60,7 +60,26 @@ For a matched parcel:
 
 ## CRITICAL: data freshness + scope
 
-Data is **bulk-staged quarterly-ish** from each county's GIS endpoint, NOT live. There's a lag between when a property changes hands and when our copy reflects that. If a broker is making time-sensitive decisions (offer letters, deed work), they should always confirm against the county GIS at the moment of action. Wake iMaps, Durham GoMaps, NHC GIS Map, Lee NC GIS Online are the authoritative sources.
+Data is **bulk-staged quarterly-ish** from each county's GIS endpoint, NOT live. There's a lag between when a property changes hands and when our copy reflects that. If a broker is making time-sensitive decisions (offer letters, deed work), they should always confirm against the county GIS at the moment of action.
+
+### Per-county verification portals (use these in the response)
+
+When the response includes a "confirm against …" link, use the per-county portal below, **and include the PIN explicitly** so the broker can paste it into the portal's search bar. None of these portals support deep-linking via URL query parameter (verified 2026-05-23 via Chrome DevTools), so the format is always "open portal + paste PIN."
+
+| County | Portal | URL | How to use |
+|---|---|---|---|
+| **WAKE** | Wake iMaps | https://maps.raleighnc.gov/imaps/ | Paste the 10-digit PIN into the search bar labeled "Address, owner, PIN, or REID" |
+| **DURHAM** | Durham County (dconc.gov) | https://dconc.gov/ | Navigate to Tax Administration → Property Search and paste the PIN |
+| **NEW_HANOVER** | NHC etax | https://etax.nhcgov.com/ | Use the Property Search form and paste the PIN |
+| **LEE** | Lee County GIS | https://leecountync.gov/ | Navigate to GIS / Tax Office and paste the PIN |
+
+**Render format** in the broker response:
+
+> Heads-up on freshness: our owner graph is bulk-staged from {COUNTY} County GIS quarterly-ish, not live. For anything time-sensitive (offer letters, deed work), verify against **[{Portal Name}]({URL})** — search by PIN: `{PIN}`.
+
+Substitute the four placeholders from the table above per the parcel's `county` field. **Do NOT** use a generic Wake-only link when the parcel is in Durham, NHC, or Lee.
+
+### Known data gaps
 
 NHC parcels have **null lat/lng** in v1 (the County's PropertyOwners layer doesn't carry usable polygon geometry on the free endpoint); this is a known limitation, not a defect.
 
