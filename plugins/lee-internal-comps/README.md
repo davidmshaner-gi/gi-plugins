@@ -10,7 +10,11 @@ Install via the GI marketplace — see [parent README](../../README.md).
 
 - **Skill:** `internal-comps` — orchestrates a comp search against the firm's internal Dealius mirror, builds the Excel deliverable, and renders a Lee-branded PDF (broker chooses Excel / PDF / Both per request).
 - **Skill:** `external-comps` — orchestrates a comp search against the external CoStar weekly snapshot, produces a Markdown table in chat plus an Excel deliverable, and drafts a tour-ready email. PDF deferred to v1.1.
-- **MCP connector:** `lee-raleigh` — read-only access to your firm's internal Dealius mirror plus external CoStar comp tools, gated by OAuth + magic-link sign-in. Authorized brokers are pre-provisioned by Grounded Intelligence.
+- **Skill:** `demographic-summary` — single-page 1/3/5-mile demographic infographic for any NC address (JSON + Lee-branded PDF with a 1-hour signed link).
+- **Skill:** `demographic-detail` — multi-page Demographic and Income Profile with inline SVG charts, race/income breakdowns, 2020/2025/2030 projections (gi_permit_adjusted + Census BPS add-back), Family HHs + Owner HUs trend bars, and four Esri-analog indices.
+- **Skill:** `business-key-facts` — BAO-style Business Key Facts 3-page landscape PDF for any NC address: key statistics, households table, site map with 1/3/5-mile rings, education attainment + workforce charts, population/housing growth.
+- **Skill:** `owner-lookup` — sub-second owner-of-record + mailing address + assessor facts for any property in Wake, Durham, New Hanover, or Lee NC. Backed by a ~2M-row D1 owner graph bulk-staged from each county's GIS endpoint (no live external calls on the request path).
+- **MCP connector:** `lee-raleigh` — read-only access to your firm's internal Dealius mirror, external CoStar comp tools, demographic infographics, and the cross-county owner graph, gated by OAuth + magic-link sign-in. Authorized brokers are pre-provisioned by Grounded Intelligence.
 
 ## External CoStar comps
 
