@@ -34,7 +34,8 @@ Triggers:
 2. If the broker explicitly mentions the county OR the address is ambiguous in a way only county can disambiguate, pass `county` as one of: `Wake`, `Durham`, `NEW_HANOVER`, `Lee`.
 3. Call the MCP tool `owner_lookup` with `{address: "<the extracted address>", county: "<county-or-omit>"}`. The tool is sub-second (indexed D1 lookup, no external APIs on the request path).
 4. The response is a JSON parcel record. Render the broker-facing essentials inline conversationally — county, parcel_id, owner_raw, owner_mail_address, assessed_value_total, year_built, lot_size_acres, building_sf, land_use, last_sale_date, last_sale_price. Format the mailing address as multi-line (it's stored with embedded `\n`).
-5. If the tool returns an error, fall through to the Error Handling section below.
+5. **REQUIRED — every successful response MUST end with the verification footer.** This is not optional, not dependent on broker phrasing, not skippable when the data looks "obviously fine." See "Verification footer" below for the exact rendering — choose the URL template from the table that matches the parcel's `county` field, substitute the PIN for Wake (URL-encoded), and emit the markdown link inline at the end of the response. If the parcel is in WAKE the link IS a deep-link (the broker clicks once); for DURHAM / NEW_HANOVER / LEE the link opens a search form and the response must also include the literal `search by PIN: \`<PIN>\`` text so the broker has the PIN to paste.
+6. If the tool returns an error, fall through to the Error Handling section below.
 
 ## Error handling
 
@@ -58,13 +59,22 @@ For a matched parcel:
 - **last_sale_date**, **last_sale_price** — most-recent recorded sale; null when never sold or not yet refreshed
 - **jurisdiction** — the assessor's jurisdiction code (e.g., `CARY`, `RA`, `WC` for Wake; varies by county)
 
-## CRITICAL: data freshness + scope
+## REQUIRED: Verification footer
 
-Data is **bulk-staged quarterly-ish** from each county's GIS endpoint, NOT live. There's a lag between when a property changes hands and when our copy reflects that. If a broker is making time-sensitive decisions (offer letters, deed work), they should always confirm against the county GIS at the moment of action.
+**Every successful `owner_lookup` response MUST end with a verification footer that includes a county-specific link.** This is the load-bearing UX of the skill — brokers use the link to confirm freshness against the authoritative county portal before relying on the data for offer letters or deed work. Omitting the footer is a skill-output bug, not a stylistic choice.
 
-### Per-county verification portals (use these in the response)
+The footer paragraph format is:
 
-When the response includes a "verify against …" link, use the per-county URL below — these were verified via Chrome DevTools on 2026-05-23 with the sentinel PINs and they do what's described in the "Behavior" column. Substitute `{PIN}` with the parcel's `parcel_id` value (URL-encoded for the Wake template).
+> Heads-up on freshness: this is from our bulk-staged copy of {COUNTY} County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[{Portal Name}]({Resolved URL})**{paste-hint}.
+
+Where:
+- `{COUNTY}` is the human-readable county name (`Wake`, `Durham`, `New Hanover`, or `Lee`).
+- `{Portal Name}` and `{Resolved URL}` come from the table below.
+- `{paste-hint}` is empty string for WAKE (the link IS a deep-link to the parcel); for DURHAM / NEW_HANOVER / LEE it is the exact literal text ` — search by PIN: \`<PIN>\`` so the broker can paste the PIN into the search form on the other side.
+
+### Per-county verification portals
+
+These were verified via Chrome DevTools on 2026-05-23 with the sentinel PINs and they do what's described in the "Behavior" column. For Wake, substitute `{PIN}` with the parcel's `parcel_id` value (URL-encode if needed).
 
 | County | Portal | URL template | Behavior |
 |---|---|---|---|
@@ -73,15 +83,21 @@ When the response includes a "verify against …" link, use the per-county URL b
 | **NEW_HANOVER** | NHC etax | `https://etax.nhcgov.com/PT/search/commonsearch.aspx?mode=parid` | Tyler iasWorld. After accepting the disclaimer (once per session), opens the Parcel ID search form. Broker pastes the PIN and clicks Search. |
 | **LEE** | Lee County Tax Access | `https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=parid` | Same Tyler iasWorld pattern as NHC. Opens the Parcel search form; broker pastes the PIN and clicks Search. |
 
-**Render format** in the broker response:
+### Worked examples of the verification footer (copy this format exactly)
 
-> Heads-up on freshness: our owner graph is bulk-staged from {COUNTY} County GIS quarterly-ish, not live. For anything time-sensitive (offer letters, deed work), verify against **[{Portal Name}]({Resolved URL})**{paste-hint}.
+**Wake** (parcel `0734835370`):
+> Heads-up on freshness: this is from our bulk-staged copy of Wake County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[Wake iMaps](https://maps.raleighnc.gov/imaps/?pin=0734835370)**.
 
-Where:
-- For Wake parcels, `{Resolved URL}` is the deep-link with `?pin={PIN}` filled in, and `{paste-hint}` is empty (the link IS the deep-link).
-- For Durham, NHC, and Lee parcels, `{Resolved URL}` is the template above (no PIN substitution — the portals are form-based), and `{paste-hint}` is ` — search by PIN: \`{PIN}\``.
+**Durham** (parcel `0822419440`):
+> Heads-up on freshness: this is from our bulk-staged copy of Durham County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[Durham Tax CAMA](https://taxcama.dconc.gov/camapwa/#PIN)** — search by PIN: `0822419440`.
 
-**Do NOT** use a generic Wake-only link when the parcel is in Durham, NHC, or Lee.
+**New Hanover** (parcel `R04720-007-011-000`):
+> Heads-up on freshness: this is from our bulk-staged copy of New Hanover County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[NHC etax](https://etax.nhcgov.com/PT/search/commonsearch.aspx?mode=parid)** — search by PIN: `R04720-007-011-000`.
+
+**Lee** (parcel `9645-45-9484-00`):
+> Heads-up on freshness: this is from our bulk-staged copy of Lee County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[Lee County Tax Access](https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=parid)** — search by PIN: `9645-45-9484-00`.
+
+**Do NOT** ship the response without this footer, ever. **Do NOT** use a generic Wake-only link when the parcel is in Durham, NHC, or Lee.
 
 ### Known data gaps
 
