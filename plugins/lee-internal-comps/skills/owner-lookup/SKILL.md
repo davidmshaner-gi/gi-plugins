@@ -64,20 +64,24 @@ Data is **bulk-staged quarterly-ish** from each county's GIS endpoint, NOT live.
 
 ### Per-county verification portals (use these in the response)
 
-When the response includes a "confirm against …" link, use the per-county portal below, **and include the PIN explicitly** so the broker can paste it into the portal's search bar. None of these portals support deep-linking via URL query parameter (verified 2026-05-23 via Chrome DevTools), so the format is always "open portal + paste PIN."
+When the response includes a "verify against …" link, use the per-county URL below — these were verified via Chrome DevTools on 2026-05-23 with the sentinel PINs and they do what's described in the "Behavior" column. Substitute `{PIN}` with the parcel's `parcel_id` value (URL-encoded for the Wake template).
 
-| County | Portal | URL | How to use |
+| County | Portal | URL template | Behavior |
 |---|---|---|---|
-| **WAKE** | Wake iMaps | https://maps.raleighnc.gov/imaps/ | Paste the 10-digit PIN into the search bar labeled "Address, owner, PIN, or REID" |
-| **DURHAM** | Durham County (dconc.gov) | https://dconc.gov/ | Navigate to Tax Administration → Property Search and paste the PIN |
-| **NEW_HANOVER** | NHC etax | https://etax.nhcgov.com/ | Use the Property Search form and paste the PIN |
-| **LEE** | Lee County GIS | https://leecountync.gov/ | Navigate to GIS / Tax Office and paste the PIN |
+| **WAKE** | Wake iMaps | `https://maps.raleighnc.gov/imaps/?pin={PIN}` | **Direct deep-link.** Opens iMaps with the parcel pre-selected; the broker accepts a one-time disclaimer and lands on the parcel's full Info pane (owner, mail, valuation, last sale, building). |
+| **DURHAM** | Durham Tax CAMA | `https://taxcama.dconc.gov/camapwa/#PIN` | Opens Durham's CAMA portal with the PIN search tab already expanded. Broker pastes the 10-digit PIN and clicks search. |
+| **NEW_HANOVER** | NHC etax | `https://etax.nhcgov.com/PT/search/commonsearch.aspx?mode=parid` | Tyler iasWorld. After accepting the disclaimer (once per session), opens the Parcel ID search form. Broker pastes the PIN and clicks Search. |
+| **LEE** | Lee County Tax Access | `https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=parid` | Same Tyler iasWorld pattern as NHC. Opens the Parcel search form; broker pastes the PIN and clicks Search. |
 
 **Render format** in the broker response:
 
-> Heads-up on freshness: our owner graph is bulk-staged from {COUNTY} County GIS quarterly-ish, not live. For anything time-sensitive (offer letters, deed work), verify against **[{Portal Name}]({URL})** — search by PIN: `{PIN}`.
+> Heads-up on freshness: our owner graph is bulk-staged from {COUNTY} County GIS quarterly-ish, not live. For anything time-sensitive (offer letters, deed work), verify against **[{Portal Name}]({Resolved URL})**{paste-hint}.
 
-Substitute the four placeholders from the table above per the parcel's `county` field. **Do NOT** use a generic Wake-only link when the parcel is in Durham, NHC, or Lee.
+Where:
+- For Wake parcels, `{Resolved URL}` is the deep-link with `?pin={PIN}` filled in, and `{paste-hint}` is empty (the link IS the deep-link).
+- For Durham, NHC, and Lee parcels, `{Resolved URL}` is the template above (no PIN substitution — the portals are form-based), and `{paste-hint}` is ` — search by PIN: \`{PIN}\``.
+
+**Do NOT** use a generic Wake-only link when the parcel is in Durham, NHC, or Lee.
 
 ### Known data gaps
 
