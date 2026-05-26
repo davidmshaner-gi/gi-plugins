@@ -14,6 +14,7 @@ Install via the GI marketplace — see [parent README](../../README.md).
 - **Skill:** `demographic-detail` — multi-page Demographic and Income Profile with inline SVG charts, race/income breakdowns, 2020/2025/2030 projections (gi_permit_adjusted + Census BPS add-back), Family HHs + Owner HUs trend bars, and four Esri-analog indices.
 - **Skill:** `business-key-facts` — BAO-style Business Key Facts 3-page landscape PDF for any NC address: key statistics, households table, site map with 1/3/5-mile rings, education attainment + workforce charts, population/housing growth.
 - **Skill:** `owner-lookup` — sub-second owner-of-record + mailing address + assessor facts for any property in Wake, Durham, New Hanover, or Lee NC. Backed by a ~2M-row D1 owner graph bulk-staged from each county's GIS endpoint (no live external calls on the request path).
+- **Skill:** `daily-debrief` — Will-only interview-style classification of yesterday's plugin sessions; walks Will through each session, records his outcome classification (plugin_only / plugin_with_manual_fix / manual_only / unable) and broker request source, and feeds the Friday usage rollup in #all-groundedintelligence.
 - **MCP connector:** `lee-raleigh` — read-only access to your firm's internal Dealius mirror, external CoStar comp tools, demographic infographics, and the cross-county owner graph, gated by OAuth + magic-link sign-in. Authorized brokers are pre-provisioned by Grounded Intelligence.
 
 ## External CoStar comps
