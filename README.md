@@ -21,3 +21,4 @@ Then click **Install** on the plugin you've been authorized for.
 ## Authorization
 
 Plugins in this marketplace require client-specific authorization. If you haven't been pre-provisioned in the relevant client's broker registry, contact `david@groundedintelligence.io`.
+

@@ -21,21 +21,23 @@ if [[ ! -x "$CHECK" ]]; then
 fi
 
 # Collect distinct skill dirs whose SKILL.md or helpers.py is staged.
-mapfile -t SKILL_DIRS < <(
+# Avoid `mapfile` (bash 4+) so macOS system bash 3.2 also works.
+SKILL_DIRS_RAW=$(
   git diff --cached --name-only --diff-filter=ACMR \
     | grep -E '^plugins/[^/]+/skills/[^/]+/(SKILL\.md|helpers\.py)$' \
     | awk -F/ '{print $1"/"$2"/"$3"/"$4}' \
     | sort -u
 )
 
-if [[ "${#SKILL_DIRS[@]}" -eq 0 ]]; then
+if [[ -z "$SKILL_DIRS_RAW" ]]; then
   exit 0
 fi
 
 FAILED=0
-for s in "${SKILL_DIRS[@]}"; do
+while IFS= read -r s; do
+  [[ -z "$s" ]] && continue
   bash "$CHECK" "$REPO_ROOT/$s" || FAILED=1
-done
+done <<< "$SKILL_DIRS_RAW"
 
 if [[ "$FAILED" -ne 0 ]]; then
   echo "" >&2
