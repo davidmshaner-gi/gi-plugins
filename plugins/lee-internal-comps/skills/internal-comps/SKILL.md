@@ -1,6 +1,6 @@
 ---
 name: internal-comps
-description: Pull internal lease comps from the Dealius mirror for Lee & Associates brokers. Broker pastes a free-form comp request into chat; skill parses, queries the lease_comps_safe MCP, and produces a formatted Excel and/or PDF deliverable plus a draft email reply. Confidentiality enforced server-side.
+description: Pull internal sale or lease comps from the Dealius mirror for Lee & Associates brokers. Broker pastes a free-form comp request into chat; skill parses, queries sale_comps_safe or lease_comps_safe via MCP, and produces a formatted Excel and/or PDF deliverable plus a draft email reply. Confidentiality enforced server-side.
 ---
 
 # Internal Comps (Lee & Associates / Dealius)
