@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# pre-commit hook — skill contract enforcement.
+#
+# For each plugins/*/skills/*/ that has staged changes to SKILL.md or
+# helpers.py, run scripts/skill-contract-check.sh. Block the commit if
+# any check reports a blocker.
+#
+# To bypass intentionally (e.g. work-in-progress commit on a branch):
+#   git commit --no-verify
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+CHECK="$REPO_ROOT/scripts/skill-contract-check.sh"
+
+if [[ ! -x "$CHECK" ]]; then
+  # Hook is installed but the check script is missing — fail closed so
+  # the user knows the tooling is in a half-installed state.
+  echo "pre-commit: $CHECK not found or not executable. Either install" >&2
+  echo "the hook properly (scripts/install-hooks.sh) or remove the hook." >&2
+  exit 2
+fi
+
+# Collect distinct skill dirs whose SKILL.md or helpers.py is staged.
+mapfile -t SKILL_DIRS < <(
+  git diff --cached --name-only --diff-filter=ACMR \
+    | grep -E '^plugins/[^/]+/skills/[^/]+/(SKILL\.md|helpers\.py)$' \
+    | awk -F/ '{print $1"/"$2"/"$3"/"$4}' \
+    | sort -u
+)
+
+if [[ "${#SKILL_DIRS[@]}" -eq 0 ]]; then
+  exit 0
+fi
+
+FAILED=0
+for s in "${SKILL_DIRS[@]}"; do
+  bash "$CHECK" "$REPO_ROOT/$s" || FAILED=1
+done
+
+if [[ "$FAILED" -ne 0 ]]; then
+  echo "" >&2
+  echo "pre-commit: one or more skills have drift. Resolve the issues above," >&2
+  echo "or pass --no-verify to bypass (e.g. for WIP branch commits)." >&2
+  exit 1
+fi
+exit 0
