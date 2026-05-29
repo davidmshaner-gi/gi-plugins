@@ -1,0 +1,40 @@
+# Changelog
+
+All notable changes to the `gi-plugins` marketplace (the `lee-internal-comps` plugin for
+Lee & Associates Raleigh brokers). Follows [Semantic Versioning](https://semver.org/).
+
+Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle on), or
+via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
+carry the same version as of 1.4.0.
+
+## [1.4.0] - 2026-05-29
+
+First tagged release since `v1.1.0`. Consolidates the 1.2.0–1.3.4 work (which shipped to
+brokers via commit-sync but was never tagged) into one clean release, and re-syncs the
+two version manifests (`marketplace.json` had drifted to 0.7.1).
+
+### Added
+- **owner-lookup skill** — owner of record, mailing address, and assessor facts for any
+  property in Wake, Durham, New Hanover, or Lee NC, sub-second from a bulk-staged owner
+  graph (~2M parcels). (1.2.0)
+- **daily-debrief skill** — Will-facing interview-style classification of yesterday's
+  broker requests, capturing off-plugin asks (plugin_broke / known_gap / new_opportunity)
+  so the rollup drives the roadmap conversation. (1.3.0)
+
+### Changed
+- Comps skills now **surface the data freshness banner** so brokers can see how current
+  the Dealius/CoStar data is before relying on it.
+- `internal-comps` description corrected to advertise **both lease and sale** comps (it
+  previously read lease-only).
+
+### Fixed
+- **Excel export filenames** on Windows — short, flat filenames + a `format_excel` guard
+  for the 218-character path limit Will hit (roadmap #61).
+
+### Internal (not broker-facing)
+- skill-contract-check pre-commit hook + reviewer tooling (`scripts/`).
+- PR template for the plugin-development-process.
+- Version manifests re-synced: `marketplace.json` + `plugin.json` both `1.4.0`.
+
+## [1.1.0] - earlier
+Last previously-tagged release. See git history before this changelog existed.
