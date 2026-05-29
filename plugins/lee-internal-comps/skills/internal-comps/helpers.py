@@ -1055,6 +1055,17 @@ def format_excel(
             b.alignment = Alignment(wrap_text=True, vertical="top")
             ws3.row_dimensions[r].height = 30
 
+        # Guard (defense-in-depth for the Windows 218-char path limit).
+        # Brokers open this in Excel on Windows, where the full path cannot
+        # exceed 218 chars and the Cowork base dir is already ~125 deep. Flatten
+        # any directory the caller prepended and cap the filename so a deep or
+        # long path can't survive even if the model ignores the SKILL.md rule.
+        _name = os.path.basename(output_path.replace("\\", "/")) or "comps.xlsx"
+        if not _name.lower().endswith(".xlsx"):
+            _name += ".xlsx"
+        if len(_name) > 50:
+            _name = _name[:-5][:45] + ".xlsx"
+        output_path = _name
         wb.save(output_path)
 
         return {

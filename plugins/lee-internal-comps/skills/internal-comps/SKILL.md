@@ -53,7 +53,7 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 6. Call `build_sql(validated)` → SQL string against `lease_comps_safe` or `sale_comps_safe`.
 7. Run the SQL via MCP `read_query`. (The MCP tool, not a helper — helpers run in the Cowork sandbox and have no MCP access.) **The response is an object `{"rows": [...], "query_id": "<uuid>", "freshness": "..."}`, not a bare array.** Extract `rows` for downstream helpers and **save `query_id` for `render_comps_pdf`**. If `query_id` is absent (KV write failed server-side), degrade gracefully: deliver Excel-only and inform the broker that the PDF path is temporarily unavailable. **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ Heads up: I'm pulling from Dealius sale comps, which were last updated May 26 (2 days ago). ℹ️` — bookended by `ℹ️`, broker-voice, no UTC timestamps). The freshness line tells the broker how current the comp data is — it is not optional, never omit or rephrase it.
 8. Format the deliverable(s):
-   - If `output_format` is `"excel"` or `"both"`: call `format_excel(rows, validated, xlsx_path, applied_defaults, warnings, last_sync)` → writes the workbook to the sandbox.
+   - If `output_format` is `"excel"` or `"both"`: call `format_excel(rows, validated, xlsx_path, applied_defaults, warnings, last_sync)` → writes the workbook to the sandbox. **Set `xlsx_path` to a short, flat filename — `comps-<asset>-<YYYY-MM-DD>.xlsx` (e.g. `comps-industrial-2026-05-28.xlsx`) — written directly to the working directory. No subfolders, no `os.makedirs`, no long descriptive names. This is load-bearing for Windows brokers; see the "Excel filename rule" in Output below.**
    - If `output_format` is `"pdf"` or `"both"`: call MCP tool `render_comps_pdf` with `{query_id, validated, template_name: "internal", output_format}`. The tool returns one of two shapes (discriminated by `mode`):
      - **`mode: "url"` (happy path):** `{mode, pdf_url, expires_at, estimated_page_count, summary_stats}`. The signed `pdf_url` expires after approximately 1 hour (see `expires_at`).
      - **`mode: "bytes"` (R2-failure fallback):** `{mode, pdf_bytes_b64, expires_at, estimated_page_count, summary_stats}`. Write the decoded bytes to `/tmp/<filename>.pdf` in the sandbox and treat that local path as the deliverable instead of a URL.
@@ -152,6 +152,12 @@ The broker chooses one of three output shapes at Process step 4. All three start
 ### Excel (`output_format = "excel"`)
 
 `format_excel` writes a three-sheet workbook. Layout is frozen. Do not parameterize beyond what the helper signature exposes.
+
+**Excel filename rule (load-bearing — do not skip).** Pass `xlsx_path` as a short, flat filename written directly to the current working directory:
+
+- Use the form `comps-<asset>-<YYYY-MM-DD>.xlsx`, where `<asset>` is a single lowercase token derived from `asset_type` (`industrial`, `retail`, `office`, `flex`, `land`, `medical`, etc.). Example: `comps-industrial-2026-05-28.xlsx`.
+- **Never create a subfolder** (`os.makedirs`, nested paths) and **never build a long descriptive name** (no geography, size range, or date-window strings stuffed into the filename). The Sheet 1 tab name still carries the descriptive title; the file on disk stays short.
+- **Why:** brokers run this in Cowork on Windows, where — with no folder attached — output lands in a default path roughly 125 characters deep (`C:\Users\<user>\AppData\Roaming\Claude\local-agent-mode-sessions\<session-id>\outputs\`). Excel refuses to *open* any workbook whose full path exceeds **218 characters** (stricter than Windows' own 260 limit and stricter than Word/PowerPoint's 259), throwing *"the file path is too long."* The file saves fine; it just won't open. A model-created subfolder plus a long descriptive name tips the path over 218; a short flat name keeps the worst case near 150, comfortably under. This is the single lever the skill controls — the deep base directory is Cowork's and cannot be overridden.
 
 - **Sheet 1: `"{Asset Title} {Geography} Comps"`** (e.g., `"Industrial RDU MSA Comps"`, `"Retail Raleigh Comps"`).
   - Dark blue header fill, white bold; frozen panes; autofilter.
