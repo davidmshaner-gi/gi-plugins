@@ -26,10 +26,12 @@ For each message decide `record_type`:
 - **listing** - the sender is MARKETING a property they have. Tells: "For Lease", "For Sale", "Now Leasing", "Available", "New to Market", "development opportunity", "reduced price".
 Judge by who-wants-what, not by stray keywords ("Now Leasing 2,000 SF available" is a LISTING even though it has a size).
 
-Then set:
+Then set, **on EVERY record (requirement AND listing)**:
+- `reason`: **always required** — a one-clause rationale for the requirement-vs-listing call (e.g. "broker marketing a property they have" for a listing, "broker representing a tenant seeking space" for a requirement). Set it on listings too; it is the audit trail. A null `reason` is a bug.
 - `is_investment`: true only if it seeks an INVESTMENT / $-budget property rather than space.
 - `queryable`: true for space requirements; **false** for `is_investment` requirements (audit-only) and for all listings.
-- Extract: `tenant`, `requirement_sf` (verbatim), `sf_min` (int or null), `budget` (verbatim $ or null), `preferred_location`, `asset_type`, `tenure` (lease/purchase/both/null), `additional_details`, `reason` (one clause).
+
+For **requirements only**, also extract (leave these null on listings): `tenant`, `requirement_sf` (verbatim), `sf_min` (int or null), `budget` (verbatim $ or null), `preferred_location`, `asset_type`, `tenure` (lease/purchase/both/null), `additional_details`.
 
 Worked anchors (from the validated Phase-1 corpus):
 - "ISO: 5,000-7,000 SF Medical | Garner" -> requirement, queryable, asset_type=medical, tenure=both, sf_min=5000.
@@ -47,7 +49,8 @@ Set `broker_name`, `broker_email`, `broker_phone` (from the signature).
 For EACH screened message, call `lee_tenant_requirement_write` with:
 - `source_message_id`: the email's RFC822 Message-ID if the connector exposes it; else the connector's stable per-message id. (This is the dedup key.)
 - `received_date`: the email date (YYYY-MM-DD).
-- all screened fields from Step 2-3, `raw_json`: the full email (headers + body) as a JSON string.
+- all screened fields from Step 2-3, **including `reason` on every call** (a listing row carries `record_type`, `reason`, broker contact, and `raw_json`; the requirement-only fields stay null).
+- `raw_json`: the full email (headers + body) as a JSON string.
 Re-running is safe (UPSERT on source_message_id).
 
 ## Step 5 - Report
