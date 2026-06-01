@@ -11,11 +11,8 @@ Scheduled ingest of Triangle Pairlist emails into the shared tenant-requirements
 - **Gmail connector** enabled in Cowork (Settings -> Connectors -> Gmail). This reads the runner's own inbox server-side; it is the ONLY supported way to read mail from a Cowork session.
 - **lee-raleigh-mcp** connector enabled and the runner's email on the LEE_TENANT_WRITERS allowlist.
 
-## Step 0 - Smoke check (run first on any new build)
-Confirm both dependencies are reachable before processing real mail:
-1. Gmail connector: list 1 message matching `subject:"[Triangle Pairlist]"`. If it errors, STOP and report `Gmail connector: BLOCKED`.
-2. lee-raleigh-mcp: call `lee_tenant_requirement_write` with a throwaway record (`source_message_id: "smoke-<date>"`, `record_type: "listing"`, `queryable: false`, `is_investment: false`, `raw_json: "{}"`). Expect `{ok:true}`. If `forbidden`, the runner is not on LEE_TENANT_WRITERS - escalate to David.
-Print `REACHABLE` / `BLOCKED` per dependency, then proceed.
+## Every run starts at Step 1
+This is a routine ingest. Do **not** run a smoke check and do **not** write any throwaway / `smoke-*` record — go straight to Step 1. (One-time deploy validation is a separate manual gesture; see the appendix at the bottom. It is never part of a scheduled or routine run.)
 
 ## Step 1 - Read
 Via the Gmail connector, fetch messages matching `subject:"[Triangle Pairlist]" newer_than:2d`. (Rolling 2-day window; UPSERT makes re-reads harmless.)
@@ -55,3 +52,10 @@ Re-running is safe (UPSERT on source_message_id).
 
 ## Step 5 - Report
 Summarize: N read, M requirements (K queryable), (N-M) listings, write errors. Do not collapse requirements and listings.
+
+---
+
+## Appendix — one-time deploy validation (MANUAL only, never on scheduled/routine runs)
+Run this by hand ONLY right after deploying a brand-new build, to confirm the runtime path before trusting a scheduled run. Skip it entirely on every normal run.
+1. **Gmail reachable:** list 1 message matching `subject:"[Triangle Pairlist]"`. If it errors → `Gmail connector: BLOCKED`, stop.
+2. **Write path reachable:** do ONE real Step 1–4 pass on a single recent email and confirm the row lands in D1. Use a REAL email — do not invent a throwaway `smoke-*` record (it would pollute the table). If the write returns `forbidden`, the runner isn't on `LEE_TENANT_WRITERS` — escalate to David.
