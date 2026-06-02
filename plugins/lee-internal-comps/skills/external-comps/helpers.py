@@ -554,7 +554,7 @@ def format_excel(
     pairs = [
         ("Pulled for", "Lee & Associates Raleigh broker"),
         ("Pull date", date.today().isoformat()),
-        ("Source", "CoStar weekly snapshot via lee-raleigh-mcp"),
+        ("Source", "External weekly snapshot via lee-raleigh-mcp"),
         ("Geography", json.dumps(validated.get("geography"))),
         ("Property type", validated.get("asset_type")),
         ("Size range", json.dumps(validated.get("size_range"))),
@@ -563,7 +563,7 @@ def format_excel(
         ("Warnings", "; ".join(warnings) or "—"),
         ("Applied filters", "; ".join(applied_filters) or "—"),
         ("Last snapshot sync", last_sync or "unknown"),
-        ("Caveat", "External CoStar data ingested weekly. Latest snapshot only."),
+        ("Caveat", "External comps data ingested weekly. Latest snapshot only."),
     ]
     for i, (k, v) in enumerate(pairs, start=1):
         meth.cell(row=i, column=1, value=k).font = Font(bold=True)
@@ -698,7 +698,7 @@ def draft_email(
 
     body_lines = [
         f"Pulled {total_count} external {tx} comp{'s' if total_count != 1 else ''} "
-        f"for {asset} in {geo_str} (CoStar weekly snapshot via lee-raleigh-mcp). "
+        f"for {asset} in {geo_str} (external weekly snapshot via lee-raleigh-mcp). "
         f"Top {top_count} ranked in the attached table.",
     ]
 

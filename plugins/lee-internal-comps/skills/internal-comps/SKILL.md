@@ -24,7 +24,7 @@ Pattern: the request names some combination of asset type, geography, size, date
 **Don't apply this skill to:**
 
 - Questions about the mirror, the schema, or how the skill itself works.
-- External comp requests (CoStar / RealNex outside Lee's Dealius) — that's a different skill.
+- External comp requests (external sources outside Lee's Dealius) — that's a different skill.
 - Pure analysis on comps the broker has already pasted into chat (no DB lookup needed).
 
 ## Process

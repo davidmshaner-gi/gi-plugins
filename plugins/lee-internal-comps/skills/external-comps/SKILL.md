@@ -1,30 +1,30 @@
 ---
 name: external-comps
-description: Pull external (CoStar) lease or sale comps for a Lee & Associates broker. Broker pastes a free-form comp request into chat; skill parses, calls the typed external-comps MCP tools (search_external_sale_comps / search_external_lease_comps / get_external_comp_detail), and produces a Markdown table in chat plus an Excel deliverable and draft email reply. PDF deferred to v1.1.
+description: Pull external lease or sale comps for a Lee & Associates broker. Broker pastes a free-form comp request into chat; skill parses, calls the typed external-comps MCP tools (search_external_sale_comps / search_external_lease_comps / get_external_comp_detail), and produces a Markdown table in chat plus an Excel deliverable and draft email reply. PDF deferred to v1.1.
 ---
 
-# External Comps (Lee & Associates / CoStar)
+# External Comps (Lee & Associates)
 
-Pull external CoStar comps via the typed external-comps MCP tools and produce a Markdown table inline, an Excel deliverable, a draft email reply, and a feedback capture.
+Pull external comps via the typed external-comps MCP tools and produce a Markdown table inline, an Excel deliverable, a draft email reply, and a feedback capture.
 
 ## When to use
 
-Anything that asks for external (CoStar) lease or sale comps. The phrasing is open — what matters is the intent.
+Anything that asks for external lease or sale comps. The phrasing is open — what matters is the intent.
 
 The broker might:
 
-- Paraphrase: "Pull CoStar sale comps for industrial in Raleigh-Durham, 2K-30K sqft, past 4 months."
+- Paraphrase: "Pull external sale comps for industrial in Raleigh-Durham, 2K-30K sqft, past 4 months."
 - Forward another broker's email verbatim.
-- Ask in shorthand: "any costar industrial sales in raleigh past year?", "external lease comps on office 1.5-4K?", "what's CoStar showing in north hills"
+- Ask in shorthand: "any external industrial sales in raleigh past year?", "external lease comps on office 1.5-4K?", "what's the external data showing in north hills"
 - Follow up on a previous pull: "can you widen the size range?", "add a tighter cap rate filter", "rerun with 6 months instead of 4."
 - Reference a specific comp by external_id or CoStar Property ID.
 
-Pattern: the request names some combination of asset type, geography, size, date window, or transaction type AND points to external / CoStar data (or asks generically and the broker confirms external when asked). That's the trigger.
+Pattern: the request names some combination of asset type, geography, size, date window, or transaction type AND points to external data (or asks generically and the broker confirms external when asked). That's the trigger.
 
 **Don't apply this skill to:**
 
 - Questions about the mirror, the schema, or how the skill itself works.
-- **Internal** (Dealius) comp requests — that's the `internal-comps` skill. If unclear which the broker wants, ask: *"Internal (Dealius) or external (CoStar)?"* Internal is the firm's own data; external is the weekly CoStar export.
+- **Internal** (Dealius) comp requests — that's the `internal-comps` skill. If unclear which the broker wants, ask: *"Internal (Dealius) or external?"* Internal is the firm's own data; external is the weekly external-comps snapshot.
 - Pure analysis on comps the broker has already pasted into chat (no DB lookup needed).
 - Requests for a Lee-branded PDF — surface the deferral message (see Process step 4).
 
@@ -37,12 +37,12 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 3. If `missing_required` is non-empty: draft a clarifying reply, stop. Do not call MCP.
 4. **Output format handling.** v1 always produces Markdown + Excel. If the broker explicitly asks for a PDF, reply once with the v1.1 deferral message:
 
-   > Lee-branded PDF for external CoStar comps is coming in the next update (depends on a small server-side change). For now I can deliver the Markdown table + an Excel — that work for you?
+   > Lee-branded PDF for external comps is coming in the next update (depends on a small server-side change). For now I can deliver the Markdown table + an Excel — that work for you?
 
    Then proceed.
 
 5. Call `build_mcp_params(validated)` → `(tool_name, params_dict)`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly.
-6. Invoke the MCP tool with the params dict. The response shape is `{"rows": [...], "freshness": "..."}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed CoStar columns plus `external_id` and `raw_fields_json`. **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ External sale comps: ingested 2026-05-16 17:12 UTC (10 days ago)`). The freshness line tells the broker how current the CoStar snapshot is — it is not optional, never omit or rephrase it.
+6. Invoke the MCP tool with the params dict. The response shape is `{"rows": [...], "freshness": "..."}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed CoStar columns plus `external_id` and `raw_fields_json`. **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ External sale comps: ingested 2026-05-16 17:12 UTC (10 days ago)`). The freshness line tells the broker how current the external snapshot is — it is not optional, never omit or rephrase it.
 7. **Handle the county filter strategy.** Call `null_county_rate(rows)` → `(null_count, total_count, share)`. If `share > NULL_COUNTY_DIALOG_THRESHOLD` (0.20) AND `post_filter_counties` is non-None, surface the 3-strategy dialog (see "Null-county strategy dialog" in the Geography registry section). Wait for the broker's choice. Below threshold, default to strategy 1 (silent city-map enrichment). Then call `apply_post_filters(rows, validated, post_filter_counties, city_to_county=<map or None>)` → `(filtered_rows, applied_filters)`. `applied_filters` is a list of human-readable strings describing what was filtered/inferred, surfaced in the email body and Methodology sheet.
 8. Call `rank_comps(filtered_rows, validated)` → returns `(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed)`. `top` is the ranked sweet-spot list (typically 7-10).
 9. Call `format_excel(filtered_rows, validated, xlsx_path, applied_defaults, warnings, applied_filters, last_sync)` → writes a 3-sheet workbook to the sandbox. The full filtered set goes into the Excel, not just the top N — brokers want the working file with everything. **Set `xlsx_path` to a short, flat filename — `comps-<asset>-<YYYY-MM-DD>.xlsx` (e.g. `comps-industrial-2026-05-28.xlsx`) — written directly to the working directory. No subfolders, no long descriptive names. This is load-bearing for Windows brokers; see the "Excel filename rule" in Output below.**
@@ -52,7 +52,7 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 
 ## Behavioral rules — follow these closely
 
-Borrowed from the stashed costar-comps SOP. These compound with the Process steps above.
+Borrowed from the prior external-comps SOP. These compound with the Process steps above.
 
 1. **Aim for around 7-10 best matches as a soft default.** Mention this in your first confirmation. Treat it as guidance, not a rule — defer if the broker wants more, fewer, or all of them.
 2. **Ask only for what's missing.** Never re-ask anything the broker already gave you, including in earlier turns.
@@ -151,7 +151,7 @@ Sub-regional broker shorthand (e.g. "Garner / South Raleigh", "North Hills") is 
 
 ### Null-county fallback (city → county map)
 
-The CoStar weekly snapshot occasionally lands with `county` null on some or all rows (depends on which export shape Will pulls — the "Everything" export populates it; leaner exports don't). When `apply_post_filters` runs the RDU county whitelist on rows with null county, it can optionally fall back to a `property_city → county` lookup. The fallback map ships with the skill as `helpers.RDU_CITY_TO_COUNTY` and is mirrored here so brokers can override per-deal:
+The external weekly snapshot occasionally lands with `county` null on some or all rows (depends on which export shape Will pulls — the "Everything" export populates it; leaner exports don't). When `apply_post_filters` runs the RDU county whitelist on rows with null county, it can optionally fall back to a `property_city → county` lookup. The fallback map ships with the skill as `helpers.RDU_CITY_TO_COUNTY` and is mirrored here so brokers can override per-deal:
 
 | County | Cities |
 |---|---|
@@ -213,7 +213,7 @@ Both shapes also include `raw_fields_json` — a stringified JSON blob of unprom
 
 All external-comps queries are scoped server-side by `client_id` (Lee Raleigh's client_id, injected from the broker's authenticated session). The broker only sees rows their firm has ingested. If a broker references a specific comp by `external_id` or address that doesn't appear in results, reply verbatim:
 
-> That comp isn't in the Lee Raleigh external-comps snapshot. It may not have been included in Will's most recent CoStar export, or the firm hasn't ingested that asset type yet. Want me to flag it for the next snapshot?
+> That comp isn't in the Lee Raleigh external-comps snapshot. It may not have been included in Will's most recent export, or the firm hasn't ingested that asset type yet. Want me to flag it for the next snapshot?
 
 Do not speculate further.
 
@@ -246,7 +246,7 @@ v1 always produces both:
   - Color scale (red → yellow → green) on the rate column: `price_per_sf` for sale, `base_rent` for lease.
   - Full filtered row set (not just the top N — brokers want the working file).
 - **Sheet 2: `"Summary"`** — count, avg/median/min/max rate, avg/median size.
-- **Sheet 3: `"Methodology"`** — pulled_for, pull_date, source (`"CoStar weekly snapshot via lee-raleigh-mcp"`), geography, property_types, size_range, date_window, applied_defaults, warnings, applied_filters, last_sync, caveat.
+- **Sheet 3: `"Methodology"`** — pulled_for, pull_date, source (`"External weekly snapshot via lee-raleigh-mcp"`), geography, property_types, size_range, date_window, applied_defaults, warnings, applied_filters, last_sync, caveat.
 
 ### PDF — deferred to v1.1
 
