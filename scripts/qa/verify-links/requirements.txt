@@ -1,0 +1,5 @@
+# owner-lookup verify-link QA harness
+# Browser automation only -- this is OFFLINE pre-release QA tooling, never on the
+# broker request path (gotcha G2). After installing, fetch the browser binary:
+#   python3 -m playwright install chromium
+playwright>=1.40,<2
