@@ -1,0 +1,70 @@
+name: auto-tag-release
+
+# Continuous-delivery tagging for gi-plugins. The marketplace serves `main`, so a
+# version bump merged to `main` IS the release -- but the GitHub squash-merge UI
+# does not create the tag. This workflow stamps `v<version>` on the merge commit
+# automatically when the plugin version changes, so the manual post-merge tag step
+# (and the "tag the right squash SHA under concurrency" footgun) can't be forgotten.
+# See 10_org/eos/processes/plugin-development-process.md (in the PARENT grounded-intelligence
+# repo, not this one) -> "Release Cadence & Concurrency".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/lee-internal-comps/.claude-plugin/plugin.json"
+      - ".claude-plugin/marketplace.json"
+
+permissions:
+  contents: write # needed to push the tag
+
+concurrency:
+  # Serialize so two near-simultaneous merges don't race to create tags.
+  group: auto-tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      # SHA-pinned (not @v4): this workflow has contents:write, so a compromised v4
+      # tag could push tags as us. Bump deliberately (or via Dependabot). Repo's first
+      # Action -- sets the pinning precedent.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # need the full tag list to test existence
+
+      - name: Tag the merge commit when the plugin version changed
+        run: |
+          set -euo pipefail
+
+          plugin_ver=$(jq -r '.version' plugins/lee-internal-comps/.claude-plugin/plugin.json)
+          # Single-plugin marketplace; [0] is the lee-internal-comps plugin. Revisit if a 2nd is added.
+          mkt_ver=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+
+          # Sync guard: the two manifests must carry the same version (Release Cadence rule).
+          # (If BOTH lack a version, jq prints "null" for each and this comparison passes --
+          # the null-guard just below is the backstop that then fails the run.)
+          if [ "$plugin_ver" != "$mkt_ver" ]; then
+            echo "::error::manifest version mismatch -- plugin.json=$plugin_ver marketplace.json=$mkt_ver. Bump BOTH in the same PR."
+            exit 1
+          fi
+
+          if [ -z "$plugin_ver" ] || [ "$plugin_ver" = "null" ]; then
+            echo "::error::could not read a version from plugin.json"
+            exit 1
+          fi
+
+          tag="v${plugin_ver}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag ${tag} already exists -- manifest changed without a version bump (e.g. a chore edit). Nothing to tag."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${tag}" -m "gi-plugins ${tag} (auto-tagged on version bump)"
+          # Tag pushes carry refs/tags/* and intentionally do NOT match this workflow's
+          # `on: push: branches: [main]` trigger -- no recursion. Do not add a `tags:` trigger.
+          git push origin "refs/tags/${tag}"
+          echo "Created and pushed ${tag} on ${GITHUB_SHA}."
