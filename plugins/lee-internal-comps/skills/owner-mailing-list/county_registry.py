@@ -2,7 +2,8 @@
 
 COUNTY_REGISTRY = {
     "WAKE COUNTY": {
-        "service_url": "https://maps.wake.gov/arcgis/rest/services/Property/Parcels/MapServer/0",
+        # Confirmed live from the 100 Walnut St run (Task 10). Host is maps.wakegov.com, NOT maps.wake.gov.
+        "service_url": "https://maps.wakegov.com/arcgis/rest/services/Property/Parcels/MapServer/0",
         "field_map": {
             "acreage": "DEED_ACRES",
             "land_class": "LAND_CLASS_DECODE",
