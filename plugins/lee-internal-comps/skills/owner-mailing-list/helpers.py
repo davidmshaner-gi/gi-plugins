@@ -54,6 +54,40 @@ def parse_request(text):
         "raw": t,
     }
 
+def build_rows(raw_rows, entry):
+    """Map raw ArcGIS attribute dicts through a county registry entry to CSV rows.
+
+    Honors `mail_concat` / `site_concat` — many counties split the mailing address
+    across several fields (street + city + state + zip) or the site address across
+    components. Joining them here (driven by the registry, not hardcoded) is what
+    keeps city/state/zip from being silently dropped for non-Wake counties.
+    REQUIRES the ArcGIS query to have requested all fields (outFields="*"), since
+    the concat fields are not in field_map.values().
+    """
+    fm = entry["field_map"]
+    mail_fields = entry.get("mail_concat") or ([fm["mail_addr"]] if fm.get("mail_addr") else [])
+    site_fields = entry.get("site_concat") or ([fm["site_addr"]] if fm.get("site_addr") else [])
+
+    def _join(row, fields):
+        parts = []
+        for f in fields:
+            v = row.get(f)
+            if v is not None and str(v).strip():
+                parts.append(str(v).strip())
+        return " ".join(parts)
+
+    out = []
+    for r in raw_rows:
+        out.append({
+            "owner": r.get(fm["owner"], "") or "",
+            "mail_addr": _join(r, mail_fields),
+            "site_addr": _join(r, site_fields),
+            "acreage": r.get(fm["acreage"], ""),
+            "land_class": r.get(fm["land_class"], ""),
+        })
+    return out
+
+
 CSV_FIELDS = ["owner", "mail_addr", "site_addr", "acreage", "land_class"]
 
 def format_csv(rows, request, date, out_dir="."):

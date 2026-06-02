@@ -74,3 +74,45 @@ def test_registry_resolves_wake_case_insensitive():
 
 def test_registry_returns_none_for_uncovered():
     assert reg.resolve_county("Mecklenburg County") is None
+
+
+def test_build_rows_joins_mail_concat_fields():
+    # split mailing address (street + city + state + zip) must survive
+    entry = {
+        "field_map": {"acreage": "AC", "land_class": "LC", "bldg_val": "BV",
+                      "owner": "OWN", "mail_addr": "M1", "site_addr": "SITE"},
+        "mail_concat": ["M1", "M2", "CITY", "ST", "ZIP"],
+    }
+    raw = [{"OWN": "ACME LLC", "M1": "PO BOX 5", "M2": "", "CITY": "CARY",
+            "ST": "NC", "ZIP": "27513", "SITE": "0 MAPLE", "AC": 3.1, "LC": "Vacant"}]
+    out = helpers.build_rows(raw, entry)
+    assert out == [{"owner": "ACME LLC", "mail_addr": "PO BOX 5 CARY NC 27513",
+                    "site_addr": "0 MAPLE", "acreage": 3.1, "land_class": "Vacant"}]
+
+def test_build_rows_without_concat_uses_field_map():
+    entry = {"field_map": {"acreage": "AC", "land_class": "LC", "bldg_val": "BV",
+                           "owner": "OWN", "mail_addr": "MAIL", "site_addr": "SITE"}}
+    raw = [{"OWN": "BETA", "MAIL": "1 Main St, Apex NC", "SITE": "2 Elm", "AC": 5.0, "LC": "V"}]
+    out = helpers.build_rows(raw, entry)
+    assert out[0]["mail_addr"] == "1 Main St, Apex NC"
+    assert out[0]["site_addr"] == "2 Elm"
+
+def test_build_rows_empty_site_field_is_blank_not_error():
+    # Orange County has site_addr="" (no situs field) -> must not raise, returns ""
+    entry = {"field_map": {"acreage": "AC", "land_class": "LC", "bldg_val": "BV",
+                           "owner": "OWN", "mail_addr": "A1", "site_addr": ""},
+             "mail_concat": ["A1", "A2"]}
+    raw = [{"OWN": "X", "A1": "123 Rd", "A2": "Durham NC", "AC": 2, "LC": "v"}]
+    out = helpers.build_rows(raw, entry)
+    assert out[0]["site_addr"] == ""
+    assert out[0]["mail_addr"] == "123 Rd Durham NC"
+
+def test_build_rows_against_real_wake_entry():
+    # integration: real Wake registry entry + a realistic ArcGIS row
+    e = reg.resolve_county("Wake")
+    raw = [{"OWNER": "WAKE STONE CORP", "ADDR1": "PO BOX 190", "ADDR2": "",
+            "ADDR3": "KNIGHTDALE NC 27545", "SITE_ADDRESS": "0 OLD US 1",
+            "DEED_ACRES": 4.2, "LAND_CLASS_DECODE": "Vacant"}]
+    out = helpers.build_rows(raw, e)
+    assert out[0]["owner"] == "WAKE STONE CORP"
+    assert out[0]["mail_addr"] == "PO BOX 190 KNIGHTDALE NC 27545"

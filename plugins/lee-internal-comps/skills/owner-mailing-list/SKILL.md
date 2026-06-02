@@ -95,7 +95,7 @@ open_url: https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?add
 Then use `get_page_content` or `execute_javascript` to read the response and extract `result.addressMatches[0].coordinates` → `{ x: lon, y: lat }`.
 
 **Option B — Wake/county-specific geocoder:**
-If the Census geocoder fails, try the county's own GIS geocoder endpoint (e.g. for Wake: `https://maps.wake.gov/arcgis/rest/services/Locators/...`).
+If the Census geocoder fails, try the county's own GIS geocoder endpoint (e.g. for Wake: `https://maps.wakegov.com/arcgis/rest/services/Locators/...`).
 
 Record the center coordinates as `{ lat, lon }` for use in Step 4. Include the geocoded address in your response to the broker for traceability.
 
@@ -157,12 +157,14 @@ const where = [
 ].filter(Boolean).join(" AND ");
 
 const rows = await window.fetchAllParcels(
-  entry.service_url,                            // e.g. "https://maps.wake.gov/arcgis/rest/services/Property/Parcels/MapServer/0"
+  entry.service_url,                            // e.g. "https://maps.wakegov.com/arcgis/rest/services/Property/Parcels/MapServer/0"
   {
     where: where,
     geometry: JSON.stringify({ x: lon, y: lat }),
     distance: radius_mi,
-    outFields: Object.values(entry.field_map).join(","),  // only the fields we need
+    outFields: "*",   // request ALL fields — split-address continuation fields
+                      // (ADDR2/3, city, state, zip) live outside field_map and are
+                      // needed by helpers.build_rows; format_csv ignores the extras.
   }
 );
 return JSON.stringify({ count: rows.length, rows: rows });
@@ -186,36 +188,14 @@ If the counts differ by more than 2, re-run the full query once. If they still d
 
 ## Step 5 — Deduplicate and format
 
-Map the raw ArcGIS attributes through the county `field_map` to produce normalized rows. For counties where the mailing address is split across `ADDR1`/`ADDR2`/`ADDR3` fields (like Wake), concatenate them:
-
-```python
-mail_addr = " ".join(filter(None, [
-    r.get(entry["field_map"]["mail_addr"]),       # ADDR1
-    r.get("ADDR2", ""),                           # ADDR2 if present
-    r.get("ADDR3", ""),                           # ADDR3 if present
-])).strip()
-```
-
-Build the normalized rows list:
-```python
-normalized = [
-    {
-        "owner":      r.get(entry["field_map"]["owner"], ""),
-        "mail_addr":  mail_addr,
-        "site_addr":  r.get(entry["field_map"]["site_addr"], ""),
-        "acreage":    r.get(entry["field_map"]["acreage"], ""),
-        "land_class": r.get(entry["field_map"]["land_class"], ""),
-    }
-    for r in raw_rows
-]
-```
-
-Then deduplicate and write the CSV:
+Map the raw ArcGIS attributes to normalized rows with `helpers.build_rows`, then dedupe and write the CSV. `build_rows` honors each county's `mail_concat` / `site_concat`, so split mailing addresses (street + city + state + zip) are joined rather than dropped — **do not hand-roll the field mapping inline** (the continuation field names differ per county and live outside `field_map`; that is why Step 4b requests `outFields: "*"`):
 
 ```python
 import helpers
 from datetime import date
 
+# entry = the county registry entry resolved in Step 2; raw_rows = the rows from Step 4b
+normalized = helpers.build_rows(raw_rows, entry)
 deduped, report = helpers.dedupe_by_mailing_address(normalized)
 out_path = helpers.format_csv(deduped, request, date=str(date.today()))
 ```
@@ -268,7 +248,7 @@ Every error the broker might see must be in plain English:
 ## Files
 
 - `SKILL.md` — this file (orchestration recipe).
-- `helpers.py` — pure-Python helpers: `parse_request`, `dedupe_by_mailing_address`, `slugify`, `default_output_path`, `format_csv`. No network. Call these; do not re-implement inline.
+- `helpers.py` — pure-Python helpers: `parse_request`, `build_rows` (maps ArcGIS rows through the county field_map + mail_concat/site_concat), `dedupe_by_mailing_address`, `slugify`, `default_output_path`, `format_csv`. No network. Call these; do not re-implement inline.
 - `county_registry.py` — `COUNTY_REGISTRY` dict + `resolve_county(county_name)`. Source of truth for covered counties and their ArcGIS field names.
 - `arcgis_query.js` — paginated ArcGIS fetch template (`fetchAllParcels`). Inject via `execute_javascript` in Step 4.
 - `INSTALL_CLAUDE_FOR_CHROME.md` — broker install guide for the chrome-control extension (linked in Step 0).

@@ -30,9 +30,9 @@ Wilmington-coast, Triad, eastern NC.
 | Harnett | Sandhills | gis.harnett.org/.../Tax/Parcels/0 | ✅ | `ParcelBuildingValue = 0` | RESEARCHED |
 | New Hanover | Wilmington-coast | NC OneMap (native lacks value/mail) | ✅ | `improvval=0 AND cntyname='New Hanover'` | RESEARCHED |
 | Brunswick | Wilmington-coast | NC OneMap (native lacks value) | ✅ | `improvval=0 AND cntyname='Brunswick'` | RESEARCHED |
-| Pender | Wilmington-coast | gis.pendercountync.gov/.../Layers/4 | ✅ | `HEAT_SQ_FT IS NULL` (no $ value field) | RESEARCHED |
-| Guilford | Triad | gcgis.guilfordcountync.gov/.../Parcels_Ownership/0 | ✅ | `LAND_CLASS = 'VACANT'` (confirmed string) | RESEARCHED |
-| Alamance | Triad | apps.alamance-nc.com/.../AlamanceParcels/0 | ✅ | `AMVICD = 'V'` (confirmed code) | RESEARCHED |
+| Pender | Wilmington-coast | gis.pendercountync.gov/.../Layers/4 | ✅ | `NAME IS NOT NULL AND HEAT_SQ_FT IS NULL` (excludes empty placeholder rows) | RESEARCHED |
+| Guilford | Triad | gcgis.guilfordcountync.gov/.../Parcels_Ownership/0 | ✅ | `TOTAL_BLDG_VALUE_ASSESSED = 0` (LAND_CLASS='VACANT' too narrow: 2,893) | RESEARCHED |
+| Alamance | Triad | apps.alamance-nc.com/.../AlamanceParcels/0 | ✅ | `(AKICFM = 0 OR AKICFM IS NULL)` (AMVICD='V' too sparse: 161) | RESEARCHED |
 | Wilson | eastern NC | gis.wilson-co.com/.../Tax/Taxparcels/0 | ✅ | `ImproveASVCur = 0` | RESEARCHED |
 | Wayne | eastern NC | services5.arcgis.com/.../Parcels/14 | ✅ | `ParcelBuildingValue = 0` | RESEARCHED |
 | Nash | eastern NC | NC OneMap (county server dead) | ✅ directly confirmed | `improvval=0 AND cntyname='Nash'` | RESEARCHED — 55,717 parcels (15,305 vacant), owner/mail/acres populated |
