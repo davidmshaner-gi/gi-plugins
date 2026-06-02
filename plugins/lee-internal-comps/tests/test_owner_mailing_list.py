@@ -2,6 +2,7 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "owner-mailing-list"))
 import helpers
+import county_registry as reg
 
 def test_slugify_basic():
     assert helpers.slugify("100 Walnut St, Cary NC") == "100-walnut-st-cary-nc"
@@ -47,3 +48,14 @@ def test_format_csv_writes_flat_file(tmp_path):
     with open(out) as f:
         header = f.readline().strip()
     assert header == "owner,mail_addr,site_addr,acreage,land_class"
+
+def test_registry_resolves_wake_case_insensitive():
+    e = reg.resolve_county("Wake County")
+    assert e is not None
+    assert "arcgis" in e["service_url"].lower() or "MapServer" in e["service_url"]
+    fm = e["field_map"]
+    for k in ("acreage", "land_class", "bldg_val", "owner", "mail_addr", "site_addr"):
+        assert k in fm
+
+def test_registry_returns_none_for_uncovered():
+    assert reg.resolve_county("Mecklenburg County") is None
