@@ -13,7 +13,7 @@ can render a clean verdict. They only let truly unexpected exceptions bubble.
 
 from dataclasses import dataclass
 
-from playwright.sync_api import Page, TimeoutError as PWTimeout
+from playwright.sync_api import Page
 
 # Substrings (matched case-insensitively against the result body) that mean the
 # PIN search did NOT land on a real parcel -- a thrown error or an empty result.
@@ -43,15 +43,24 @@ def _norm(s: str) -> str:
 
 
 def _assert_parcel(body: str, county) -> tuple[bool, str]:
-    """Generic result check: an expected token is present and no failure marker is."""
-    low = body.lower()
-    for marker in FAILURE_MARKERS:
-        if marker in low:
-            return False, f"result page shows '{marker}' -- search form rejected the PIN"
+    """Did the result page actually show this parcel?
+
+    Success token FIRST: if the expected PIN/owner is on the page, it PASSES even
+    if some generic word like "invalid" appears elsewhere in the chrome (a footer
+    "report invalid data" link, a help tooltip). Only when NO expected token is
+    present do we scan the failure markers -- and at that point we already know
+    it's a fail, so the markers just pick the most specific reason. This ordering
+    keeps a portal changing its surrounding text from producing a false FAIL on
+    what is meant to be a trusted release gate.
+    """
     nbody = _norm(body)
     for token in county.expect_any:
         if _norm(token) in nbody:
             return True, f"parcel detail confirmed (matched {token!r})"
+    low = body.lower()
+    for marker in FAILURE_MARKERS:
+        if marker in low:
+            return False, f"result page shows '{marker}' -- search form rejected the PIN"
     return False, (
         "page loaded but the parcel detail did not show the expected PIN/owner "
         f"({', '.join(county.expect_any)}) -- the form may have silently changed"
@@ -67,7 +76,7 @@ def _click_first_visible(page: Page, texts) -> bool:
             if btn and btn.is_visible():
                 btn.click()
                 return True
-        except PWTimeout:
+        except Exception:  # noqa: BLE001 -- a bad selector on one disclaimer variant must not abort
             continue
     return False
 
