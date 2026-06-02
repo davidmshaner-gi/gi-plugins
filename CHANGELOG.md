@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.6.0] - 2026-06-02
+
+### Added
+- **New skill: `owner-mailing-list`.** Build a deduplicated owner + mailing-address list for an area + criteria request — e.g. "owners of 2–5 acre vacant land within 3 miles of 100 Walnut St, Cary." The skill drives Claude-for-Chrome against a county's public ArcGIS parcel service to find matching parcels, then returns a clean CSV of owner names + mailing + site addresses, deduped by mailing address. Covers **19 NC counties** (Triangle, Sandhills, Wilmington-coast, Triad, eastern NC), each live-validated against its parcel service. Requires the `chrome-control` extension; the skill detects it and walks the broker through enabling it if absent. (Avery-label printing is a separate forthcoming skill.) (#1)
+
 ## [1.5.3] - 2026-06-02
 
 Reconciling release: four broker-facing / owner-lookup changes had merged to `main` since `v1.5.2` without a version bump. Bundled here so the version string matches `main`.
