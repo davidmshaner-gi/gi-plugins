@@ -1,6 +1,6 @@
 ---
 name: add-comps
-description: Normalize a contributed comp set a Lee broker pastes or forwards (e.g. a forwarded email with several brokerage comp tables) into canonical AddCompRow records ready for ingestion via the lee_comps_add_write MCP tool. parse_email extracts the comp tables from a forwarded email body, attaches the contributing source (JLL, Foundry, etc.) to each row, and skips signature / confidentiality decoy tables. detect_transaction_type decides lease vs. sale from the column headers. apply_alias_map folds contributor headers into the canonical keys, coerces numerics (strips $ , %), preserves the verbatim Transaction Type as txn_subtype, and keeps any unmapped columns in raw_fields_json. validate_row flags (never drops) rows missing the minimum keys. Email adapter only in v0.1 — MCP write is the model's job.
+description: Normalize a contributed comp set a Lee broker pastes, forwards, or uploads (a forwarded email with several brokerage comp tables, an xlsx/csv export, a pasted tab/pipe table, or a screenshot) into canonical AddCompRow records ready for ingestion via the lee_comps_add_write MCP tool. parse_email extracts the comp tables from a forwarded email body, attaches the contributing source (JLL, Foundry, etc.) to each row, and skips signature / confidentiality decoy tables. parse_spreadsheet reads an xlsx or csv, picks the comp-shaped sheet(s) and skips prose/view tabs, and raises AmbiguousSheetError when more than one comp sheet is present so the operator can choose. parse_text parses a pasted tab- or pipe-delimited table. parse_image and llm_fallback extract rows via an injected model-vision callable (the skill's own Claude runtime) for screenshots or blobs the deterministic parsers can't handle. detect_transaction_type decides lease vs. sale from the column headers. apply_alias_map folds contributor headers into the canonical keys, coerces numerics (strips $ , %), preserves the verbatim Transaction Type as txn_subtype, and keeps any unmapped columns in raw_fields_json. validate_row flags (never drops) rows missing the minimum keys. dry_run_summary reports total + per-source counts + flagged rows for operator review, and build_write_payload assembles the exact AddCompsPayload (with parser_version) for the lee_comps_add_write MCP tool — the MCP write itself is the model's job.
 ---
 
 # Add Comps (Lee & Associates)
@@ -21,9 +21,11 @@ database. Typical shapes:
 - A forwarded email titled like "Full Set of 2025 Industrial Comps" with one
   table per contributing source, each preceded by a bold `<Source> Comps:`
   header.
-- A single pasted comp table.
+- A single pasted comp table (tab- or pipe-delimited).
+- An xlsx/csv export (possibly multi-tab).
+- A screenshot of a comp table.
 
-## What it does (v0.1 — normalization)
+## What it does (normalization)
 
 1. **`parse_email(html)`** — extracts every HTML table from the email body. For
    each table it finds the nearest preceding bold `<Source> Comps:` header and
@@ -44,17 +46,38 @@ database. Typical shapes:
 4. **`validate_row(row)`** — sets `flagged=1` plus a `flag_reason` when minimum
    keys are missing (lease: address + size + base rent + date; sale: address +
    sale price + sale date); otherwise `flagged=0`. Never drops a row.
+5. **`parse_spreadsheet(path)`** — reads an `.xlsx` or `.csv`. For a multi-tab
+   xlsx it considers only comp-shaped sheets (header row matches >= 3 alias
+   keys) and skips prose / view tabs; if more than one comp-shaped sheet is
+   found it raises `AmbiguousSheetError(sheet_names)` so the operator can choose
+   (never a silent pick). Each sheet is routed by `detect_transaction_type`, so
+   a SALE sheet fills the sale block and the lease block stays None.
+6. **`parse_text(blob)`** — parses a pasted tab- or pipe-delimited table (header
+   row + data rows) through the same detect + alias + validate pipeline.
+7. **`parse_image(image_ref, model_extract)`** / **`llm_fallback(blob,
+   model_extract)`** — extract rows via an injected `model_extract` vision
+   callable (the skill's own Claude runtime in production; a mock in tests).
+   The callable returns already-canonical row dicts; the adapter runs each
+   through `validate_row`. No network or API key inside the sandbox.
+8. **`dry_run_summary(rows)`** — returns `total`, per-`original_source` counts,
+   and the flagged rows (with `flag_reason`) for the operator to review before
+   the write.
+9. **`build_write_payload(rows, meta)`** — assembles the exact `AddCompsPayload`
+   dict the `lee_comps_add_write` MCP tool expects (`added_by`,
+   `import_method`, `raw_blob`, `parser_version` from the `PARSER_VERSION`
+   constant, `rows`, plus optional `client_id` / `source_label` /
+   `raw_blob_ref` / `notes`). The model performs the actual MCP write.
 
 ## Schema
 
 The output keys match the `lee_comps_add_write` MCP tool's `AddCompRow` exactly
 (see `helpers.py` `CANONICAL_KEYS`). Do not rename them.
 
-## Out of scope (v0.1)
+## Out of scope
 
 - The MCP write itself (`lee_comps_add_write`) — the model performs it after the
-  broker reviews the normalized rows.
-- Sources other than a forwarded email / pasted HTML tables (xlsx upload, etc.).
+  broker reviews the normalized rows (`build_write_payload` assembles the
+  payload; the model calls the tool).
 
 ## Tests
 
