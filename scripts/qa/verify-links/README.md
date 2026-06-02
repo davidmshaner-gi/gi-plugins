@@ -13,10 +13,12 @@ through each portal's **actual search form** and asserts the parcel comes back.
 
 Every one of these portals returns **HTTP 200 on the search page even when the
 search itself is broken**. A load-only check (`curl … | grep 200`) passes on all
-four — including Lee, where the form loads fine and then throws `An Error has
-Occurred` the moment you submit a PIN (the bug in gi-plugins #18 / lee-and-associates
-#18). Tyler iasWorld portals also gate behind a click-through disclaimer that sets a
-session cookie. Only a real browser submit reproduces what the broker experiences.
+four — the motivating example was Lee, whose form loaded fine and then threw `An
+Error has Occurred` the moment you submitted a PIN, because the footer linked the
+wrong Tyler search mode (`mode=parid`); this harness caught it and gi-plugins #18
+fixed it to `mode=realprop`. Tyler iasWorld portals also gate behind a click-through
+disclaimer that sets a session cookie. Only a real browser submit reproduces what the
+broker experiences.
 
 ## What it checks
 
@@ -37,10 +39,11 @@ this file and the skill always agree on what "good" looks like.
 | Wake | ✅ PASS | pass | `100 CONNEMARA DR` / PNC OF NORTH CAROLINA LLC renders in the info pane |
 | Durham | ✅ PASS | pass | resolves to `PropertySummary.aspx?PIN=0822419440` (DUKE UNIVERSITY) |
 | New Hanover | ✅ PASS | pass | results row echoes `R04720-007-011-000` |
-| Lee | ❌ FAIL | **fail (known #18)** | `mode=parid` throws `An Error has Occurred` on submit. Expected-broken until the sibling fix flips the footer to a working search mode (`mode=realprop`). |
+| Lee | ✅ PASS | pass | `mode=realprop` lands on the Real Estate Property search and returns the parcel. (`mode=parid` threw `An Error has Occurred` — that was gi-plugins #18, now fixed; the footer + this baseline use `realprop`.) |
 
-4/4 match baseline → exit 0. Had this harness existed, it would have caught the Lee
-bug. NHC was "TBD" in the issue; this run confirms it **passes**.
+4/4 match baseline → exit 0. This harness caught the Lee `mode=parid` bug (#18) that a
+load-only check passed; #18's fix flipped Lee to `realprop` and this baseline with it.
+NHC was "TBD" in the issue; this run confirms it **passes**.
 
 ## Run it
 
@@ -70,12 +73,13 @@ only fails loudly (exit 1) when **live state diverges from baseline**:
 - **A passing county now FAILS → `REGRESSION`.** The portal or our linked URL
   changed; brokers are blocked. Fix the SKILL.md footer (and `counties.py`) before
   the next release.
-- **A known-broken county now PASSES → `FIXED`.** The bug got fixed elsewhere (e.g.
-  Lee #18 lands). Flip that county's `expected` to `pass` in `counties.py` and update
-  the SKILL.md footer to the now-working URL.
+- **A known-broken county now PASSES → `FIXED`.** The bug got fixed elsewhere (this is
+  exactly what happened to Lee via #18). Flip that county's `expected` to `pass` in
+  `counties.py` and update the SKILL.md footer to the now-working URL.
 
-A *steady* known-broken county (Lee today) is reported but does **not** fail the run,
-so this can gate releases without being permanently blocked by a separately-tracked
+A *steady* known-broken county (none today — all four pass) is reported but does
+**not** fail the run, so this can gate releases without being permanently blocked by a
+separately-tracked
 bug. Divergences are retried once automatically to absorb a flaky-portal blip before
 they're trusted.
 

@@ -27,7 +27,7 @@ def test_norm_strips_dashes_and_spaces():
 def test_verdict_baseline_matrix():
     # (actual_pass, expected) -> ok_with_baseline
     assert _verdict(True, "pass")[0] is True          # healthy
-    assert _verdict(False, "fail")[0] is True          # known-broken, steady (Lee today)
+    assert _verdict(False, "fail")[0] is True          # known-broken, steady (none today)
     assert _verdict(False, "pass")[0] is False         # REGRESSION -> loud
     assert _verdict(True, "fail")[0] is False          # FIXED -> loud (update baseline)
     assert "REGRESSION" in _verdict(False, "pass")[1]
