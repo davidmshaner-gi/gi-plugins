@@ -30,7 +30,10 @@ import {
     assert.strictEqual(isExemptOwner(n), true, `should be exempt/dropped: ${JSON.stringify(n)}`);
   }
   for (const n of ["WAKE STONE CORP", "MATTHEWS, JOE", "REEDY CREEK INVESTMENTS LLC",
-    "HOWARD & SONS RENTALS", "DORA HIGHSMITH MARKHAM REVOCABLE LIVING TRUST", "SAS INSTITUTE INC"]) {
+    "HOWARD & SONS RENTALS", "DORA HIGHSMITH MARKHAM REVOCABLE LIVING TRUST", "SAS INSTITUTE INC",
+    // false-positive guards — private LLCs that bare-keyword patterns would wrongly drop:
+    "USA PARK INVESTMENTS LLC", "RAILROAD AVENUE LLC", "UTILITY SYSTEMS LLC",
+    "SMITH PROPERTY OWNERS LLC", "STATEWIDE HOLDINGS LLC"]) {
     assert.strictEqual(isExemptOwner(n), false, `should be KEPT (private): ${n}`);
   }
 }

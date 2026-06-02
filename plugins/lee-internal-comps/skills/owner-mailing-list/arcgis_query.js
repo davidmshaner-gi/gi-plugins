@@ -48,18 +48,22 @@ export async function fetchAllParcels(serviceUrl, params, fetchImpl = fetch) {
 // HOA/COA, cemetery, utility, and railroad parcels are noise — drop them. This is the
 // generic, county-agnostic complement to the per-county vacant filter (most counties use
 // a building-value=0 proxy, which catches every government/exempt parcel with no building).
+// Patterns are deliberately anchored to genuine government/exempt entity names rather
+// than bare keywords, so private LLCs ("USA PARK INVESTMENTS LLC", "RAILROAD AVENUE LLC",
+// "UTILITY SYSTEMS LLC") are NOT silently dropped. A wrongly-dropped private owner is an
+// invisible data loss — keep these tight, and add a test when you add a pattern.
 export const EXEMPT_OWNER_PATTERNS = [
   /\bCOUNTY\s*$/i,                          // "ONSLOW COUNTY", "NEW HANOVER COUNTY"
   /\b(CITY|TOWN|COUNTY|STATE)\s+OF\b/i,     // "CITY OF JACKSONVILLE", "STATE OF NORTH CAROLINA"
-  /BOARD OF EDUCATION|SCHOOL (BOARD|DISTRICT|ADMIN)/i,
+  /BOARD OF EDUCATION|SCHOOL (BOARD|DISTRICT|ADMINISTRATIVE)/i,
   /HOUSING AUTHORITY/i,
-  /\bDEPARTMENT OF\b|\bDEPT OF\b|DEPARTMENT OF TRANSPORTATION/i,
-  /UNITED STATES|\bU\.?S\.? GOV|US GOVERNMENT|\bUSA\b/i,
+  /\bDEPARTMENT OF\b|\bDEPT OF\b/i,
+  /UNITED STATES|\bU\.?S\.?\s+GOV(ERNMENT)?\b|FEDERAL GOVERNMENT/i,
   /PORTS? AUTHORITY|TRANSIT AUTHORITY|AIRPORT AUTHORITY/i,
-  /HOMEOWNERS|\bHOA\b|\bCOA\b|OWNERS (ASSOCIATION|ASSN)|CONDOMINIUM (ASSN|ASSOCIATION)|PROPERTY OWNERS/i,
+  /HOMEOWNERS|\bHOA\b|\bCOA\b|OWNERS (ASSOCIATION|ASSN)|CONDOMINIUM (ASSN|ASSOCIATION)|PROPERTY OWNERS\s*(ASSN|ASSOCIATION|CLUB|GROUP)/i,
   /CEMET[AE]RY|MEMORIAL GARDENS/i,
-  /POWER (&|AND) LIGHT|DUKE ENERGY|ELECTRIC MEMBERSHIP|\bUTILIT/i,
-  /RAILROAD|RAILWAY|\bR\/R\b/i,
+  /POWER (&|AND) LIGHT|DUKE ENERGY|DOMINION ENERGY|ELECTRIC MEMBERSHIP|PUBLIC UTILIT/i,
+  /\bR\/R\b|SEABOARD COAST LINE|NORFOLK SOUTHERN|\bCSX\b|RAIL(ROAD|WAY)\s+(CO|COMPANY|CORP|INC|LLC)\b/i,
 ];
 
 export function isExemptOwner(name) {
