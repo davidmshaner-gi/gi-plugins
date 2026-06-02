@@ -27,3 +27,13 @@ def test_parse_request_missing_radius_returns_none():
     r = helpers.parse_request("owners near 4204 Six Forks Rd, retail")
     assert r["radius_mi"] is None
     assert r["subject_property"]["address"].startswith("4204 Six Forks")
+
+def test_dedupe_by_mailing_address():
+    rows = [
+        {"owner": "ACME LLC", "mail_addr": "PO Box 5, Cary NC", "site_addr": "0 Maple"},
+        {"owner": "ACME LLC", "mail_addr": "po box 5, cary nc",  "site_addr": "0 Oak"},   # dup (case/space)
+        {"owner": "BETA LP",  "mail_addr": "1 Main St, Apex NC",  "site_addr": "2 Elm"},
+    ]
+    out, report = helpers.dedupe_by_mailing_address(rows)
+    assert len(out) == 2
+    assert report == {"input": 3, "output": 2, "dropped": 1}

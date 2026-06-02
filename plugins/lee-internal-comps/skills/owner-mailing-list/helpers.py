@@ -9,6 +9,20 @@ def default_output_path(request, date):
     addr = (request.get("subject_property") or {}).get("address", "area")
     return f"owners-{slugify(addr)}-{date}.csv"
 
+def _norm(s):
+    return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+def dedupe_by_mailing_address(rows):
+    seen, out = set(), []
+    for r in rows:
+        key = _norm(r.get("mail_addr"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    report = {"input": len(rows), "output": len(out), "dropped": len(rows) - len(out)}
+    return out, report
+
 def parse_request(text):
     t = text or ""
     # radius: "within N miles" / "N mi" / "N-mile"
