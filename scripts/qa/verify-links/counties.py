@@ -73,16 +73,13 @@ COUNTIES = [
         key="LEE",
         name="Lee",
         portal_name="Lee County Tax Access",
-        url="https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=parid",
+        # mode=realprop is Lee's working entry point. mode=parid throws an error
+        # page on this county's Tyler instance (was gi-plugins #18, fixed). Keep
+        # this URL identical to the SKILL.md footer for Lee.
+        url="https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=realprop",
         pin="9645-45-9484-00",
         adapter="tyler_iasworld",
-        expected="fail",
-        expected_note=(
-            "Known bug (gi-plugins #18 / lee-and-associates #18): Tyler iasWorld "
-            "rejects mode=parid on submit ('An Error has Occurred'). The page LOADS "
-            "but the PIN search throws. Flip to 'pass' once the sibling fix changes "
-            "the SKILL.md footer to the working search mode (mode=realprop)."
-        ),
+        expected="pass",
         expect_any=("9645459484", "9645-45-9484-00"),
     ),
 ]

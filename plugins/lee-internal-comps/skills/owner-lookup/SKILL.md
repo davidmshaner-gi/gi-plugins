@@ -81,7 +81,7 @@ These were verified via Chrome DevTools on 2026-05-23 with the sentinel PINs and
 | **WAKE** | Wake iMaps | `https://maps.raleighnc.gov/imaps/?pin={PIN}` | **Direct deep-link.** Opens iMaps with the parcel pre-selected; the broker accepts a one-time disclaimer and lands on the parcel's full Info pane (owner, mail, valuation, last sale, building). |
 | **DURHAM** | Durham Tax CAMA | `https://taxcama.dconc.gov/camapwa/#PIN` | Opens Durham's CAMA portal with the PIN search tab already expanded. Broker pastes the 10-digit PIN and clicks search. |
 | **NEW_HANOVER** | NHC etax | `https://etax.nhcgov.com/PT/search/commonsearch.aspx?mode=parid` | Tyler iasWorld. After accepting the disclaimer (once per session), opens the Parcel ID search form. Broker pastes the PIN and clicks Search. |
-| **LEE** | Lee County Tax Access | `https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=parid` | Same Tyler iasWorld pattern as NHC. Opens the Parcel search form; broker pastes the PIN and clicks Search. |
+| **LEE** | Lee County Tax Access | `https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=realprop` | Tyler iasWorld, like NHC — but Lee's working entry point is the Real Estate Property search (`mode=realprop`), **not** `mode=parid`, which throws an error page on this county's instance. Accept the disclaimer, paste the PIN, click Search. |
 
 ### Worked examples of the verification footer (copy this format exactly)
 
@@ -95,7 +95,7 @@ These were verified via Chrome DevTools on 2026-05-23 with the sentinel PINs and
 > Heads-up on freshness: this is from our bulk-staged copy of New Hanover County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[NHC etax](https://etax.nhcgov.com/PT/search/commonsearch.aspx?mode=parid)** — search by PIN: `R04720-007-011-000`.
 
 **Lee** (parcel `9645-45-9484-00`):
-> Heads-up on freshness: this is from our bulk-staged copy of Lee County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[Lee County Tax Access](https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=parid)** — search by PIN: `9645-45-9484-00`.
+> Heads-up on freshness: this is from our bulk-staged copy of Lee County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[Lee County Tax Access](https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=realprop)** — search by PIN: `9645-45-9484-00`.
 
 **Do NOT** ship the response without this footer, ever. **Do NOT** use a generic Wake-only link when the parcel is in Durham, NHC, or Lee.
 
