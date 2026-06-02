@@ -1,0 +1,40 @@
+name: pr-checks
+
+# PR-time gates for gi-plugins. Two jobs in one wall: it gives branch protection a
+# required status check (without one, "require branches up to date before merge" does
+# not actually enforce), and it catches a plugin/marketplace version desync before
+# merge rather than after (the continuous-delivery model requires the two manifests to
+# carry the same version). See plugin-development-process.md (parent repo) ->
+# "Release Cadence & Concurrency".
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  manifest-sync:
+    name: manifest-sync
+    runs-on: ubuntu-latest
+    steps:
+      # SHA-pinned (repo convention; see auto-tag-release.yml).
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Plugin + marketplace versions must match
+        run: |
+          set -euo pipefail
+          plugin_ver=$(jq -r '.version' plugins/lee-internal-comps/.claude-plugin/plugin.json)
+          # Single-plugin marketplace; [0] is the lee-internal-comps plugin.
+          mkt_ver=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+
+          if [ -z "$plugin_ver" ] || [ "$plugin_ver" = "null" ]; then
+            echo "::error::plugin.json has no .version"
+            exit 1
+          fi
+          if [ "$plugin_ver" != "$mkt_ver" ]; then
+            echo "::error::version desync -- plugin.json=$plugin_ver marketplace.json=$mkt_ver. Bump BOTH manifests in the same PR (Release Cadence rule)."
+            exit 1
+          fi
+          echo "Manifest versions in sync: ${plugin_ver}"
