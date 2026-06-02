@@ -135,6 +135,8 @@ The mirror exposes both `lease_comps_safe` and `sale_comps_safe`. `build_sql` br
 
 Sale uses a different display layout (`DISPLAY_COLUMNS_SALE`) and stat shape (sale price, $/SF, total volume) — both selected automatically by `format_excel` based on `validated["transaction_type"]`. Sheet name inserts `Sale` between asset and geography (e.g., `"Industrial Sale Garner, Raleigh Comps"`).
 
+**LAND sale exception:** when `asset_type == "land"` on a sale pull, `format_excel` uses `DISPLAY_COLUMNS_SALE_LAND`, which swaps the `$/SF` column for `$/Acre` (`price_per_acre = sale_price / acres`, computed in-loop, blank when acres is null/zero). The `Acres` column is retained; all other columns and the color scale are unchanged. $/SF is meaningless for raw land — brokers price land by acreage (broker request, gi-plugins#28).
+
 ## Confidentiality
 
 Confidential and NDA rows are filtered server-side at the `lease_comps_safe` view. The model never sees them.
