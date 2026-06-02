@@ -24,7 +24,8 @@ Pattern: the request names some combination of asset type, geography, size, date
 **Don't apply this skill to:**
 
 - Questions about the mirror, the schema, or how the skill itself works.
-- **Internal** (Dealius) comp requests — that's the `internal-comps` skill. If unclear which the broker wants, ask: *"Internal (Dealius) or external?"* Internal is the firm's own data; external is the weekly external-comps snapshot.
+- **Internal** (Dealius) comp requests — that's the `internal-comps` skill. Internal is the firm's own data; external is the weekly external-comps snapshot.
+- **Unqualified** comp requests (broker didn't say internal or external) — that's the default `internal-and-external-comps` skill, which pulls both. Use this skill only when the broker explicitly asks for external/CoStar.
 - Pure analysis on comps the broker has already pasted into chat (no DB lookup needed).
 - Requests for a Lee-branded PDF — surface the deferral message (see Process step 4).
 
