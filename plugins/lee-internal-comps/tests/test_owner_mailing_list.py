@@ -14,3 +14,16 @@ def test_default_output_path_is_flat_and_short():
     assert p == "owners-100-walnut-st-cary-nc-2026-06-02.csv"
     # whole filename comfortably under the 218-char budget worst case
     assert len(p) < 80
+
+def test_parse_request_extracts_core_fields():
+    text = "owners of 2-5 acre vacant land within 3 miles of 100 Walnut St, Cary NC"
+    r = helpers.parse_request(text)
+    assert r["subject_property"]["address"].startswith("100 Walnut St")
+    assert r["radius_mi"] == 3.0
+    assert r["size"] == {"min_acres": 2.0, "max_acres": 5.0}
+    assert "vacant" in r["land_class"].lower()
+
+def test_parse_request_missing_radius_returns_none():
+    r = helpers.parse_request("owners near 4204 Six Forks Rd, retail")
+    assert r["radius_mi"] is None
+    assert r["subject_property"]["address"].startswith("4204 Six Forks")
