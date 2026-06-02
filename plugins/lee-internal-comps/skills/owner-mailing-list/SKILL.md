@@ -109,11 +109,9 @@ The `arcgis_query.js` `fetchAllParcels` function handles pagination automaticall
 
 ### 4a — Inject the script
 
-Use `execute_javascript` to define `fetchAllParcels` in the page context. Read the full source of `arcgis_query.js` and inject it:
+Use the snippet below — the browser-adapted form of `arcgis_query.js` with `export` removed and the function assigned to `window` — directly as the `execute_javascript` payload. (The `arcgis_query.js` file itself keeps `export` for the Node test and is not injectable as-is; use this window-form snippet.)
 
 ```javascript
-// Paste the full contents of arcgis_query.js here (the export keyword
-// must be removed or the function assigned to window for browser context):
 window.fetchAllParcels = async function(serviceUrl, params, fetchImpl = fetch) {
   const all = [];
   let offset = 0;
@@ -148,13 +146,14 @@ return "ok";
 
 ### 4b — Build and run the query
 
-Build the `where` clause from the registry entry and the parsed request. For Wake County with a vacant + acreage filter:
+Build the `where` clause from the registry entry and the parsed request. Resolve the acreage field name from the registry once so this works for **any** county, not just Wake — never hardcode a county's column name:
 
 ```javascript
+const acreageField = entry.field_map.acreage;   // e.g. "DEED_ACRES" for Wake; other counties differ
 const where = [
   entry.vacant_filter,                          // e.g. "LAND_CLASS_DECODE = 'Vacant'"
-  `DEED_ACRES >= ${size.min_acres}`,
-  `DEED_ACRES <= ${size.max_acres}`,
+  `${acreageField} >= ${size.min_acres}`,
+  `${acreageField} <= ${size.max_acres}`,
 ].filter(Boolean).join(" AND ");
 
 const rows = await window.fetchAllParcels(
@@ -173,10 +172,10 @@ Use `execute_javascript` to run this in the page context. The `fetch` call goes 
 
 ### 4c — Verify completeness
 
-After the query completes, assert the returned count is stable by running a count-only re-query:
+After the query completes, assert the returned count is stable by running a count-only re-query. This is pseudo-code — substitute the same `where` clause and geometry/distance values you built in Step 4b; do not run the placeholders literally:
 
-```javascript
-const countCheck = await fetch(entry.service_url + "/query?f=json&where=<same_where>&geometry=...&returnCountOnly=true");
+```text
+const countCheck = await fetch(entry.service_url + "/query?f=json&where=<the where built in 4b>&geometry=<the geometry built in 4b>&geometryType=esriGeometryPoint&distance=<radius_mi>&units=esriSRUnit_StatuteMile&spatialRel=esriSpatialRelIntersects&inSR=4326&returnCountOnly=true");
 const cc = await countCheck.json();
 return cc.count;
 ```
@@ -273,4 +272,4 @@ Every error the broker might see must be in plain English:
 - `county_registry.py` — `COUNTY_REGISTRY` dict + `resolve_county(county_name)`. Source of truth for covered counties and their ArcGIS field names.
 - `arcgis_query.js` — paginated ArcGIS fetch template (`fetchAllParcels`). Inject via `execute_javascript` in Step 4.
 - `INSTALL_CLAUDE_FOR_CHROME.md` — broker install guide for the chrome-control extension (linked in Step 0).
-- `QA_MATRIX.md` — per-county QA ledger. Covered counties are PASS or explicitly "not yet covered." No silent gaps.
+- `QA_MATRIX.md` — per-county QA ledger (created in Task 10, after per-county QA). Covered counties are PASS or explicitly "not yet covered." No silent gaps.
