@@ -29,6 +29,11 @@ def test_parse_request_missing_radius_returns_none():
     assert r["radius_mi"] is None
     assert r["subject_property"]["address"].startswith("4204 Six Forks")
 
+def test_parse_request_from_connector():
+    r = helpers.parse_request("2 miles from 4204 Six Forks Rd, Cary NC")
+    assert r["radius_mi"] == 2.0
+    assert r["subject_property"]["address"].startswith("4204")
+
 def test_dedupe_by_mailing_address():
     rows = [
         {"owner": "ACME LLC", "mail_addr": "PO Box 5, Cary NC", "site_addr": "0 Maple"},
@@ -38,6 +43,16 @@ def test_dedupe_by_mailing_address():
     out, report = helpers.dedupe_by_mailing_address(rows)
     assert len(out) == 2
     assert report == {"input": 3, "output": 2, "dropped": 1}
+
+def test_dedupe_preserves_no_address_rows():
+    rows = [
+        {"owner": "ACME LLC", "mail_addr": None,   "site_addr": "0 Maple"},
+        {"owner": "BETA LP",  "mail_addr": "",      "site_addr": "2 Elm"},
+        {"owner": "GAMMA INC", "mail_addr": "  ",   "site_addr": "4 Oak"},
+    ]
+    out, report = helpers.dedupe_by_mailing_address(rows)
+    assert len(out) == 3
+    assert report == {"input": 3, "output": 3, "dropped": 0}
 
 def test_format_csv_writes_flat_file(tmp_path):
     rows = [{"owner": "ACME LLC", "mail_addr": "PO Box 5", "site_addr": "0 Maple",
