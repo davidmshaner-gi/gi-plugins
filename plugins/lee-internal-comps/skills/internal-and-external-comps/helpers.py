@@ -139,3 +139,91 @@ def combine(internal_core: list, external_core: list, tx_type: str) -> list:
     rows = list(internal_core) + list(external_core)
     rows.sort(key=lambda r: (r.get("Date") or ""), reverse=True)
     return rows
+
+
+# =====================================================================
+# Unified output: chat table + Excel
+# =====================================================================
+
+CORE_COLUMNS_SALE = ["Source", "Comp ID", "Address", "City", "County", "Asset Type",
+                     "Size (SF)", "Sale Price", "$/SF", "Cap Rate", "Date"]
+CORE_COLUMNS_LEASE = ["Source", "Comp ID", "Address", "City", "County", "Asset Type",
+                      "Leased SF", "Rent", "Date", "Lease Type"]
+
+LEE_BRAND_MAROON = "97012D"
+_W1_FOOTNOTE = ("Note: for External (CoStar) lease rows, \"Leased SF\" reflects building "
+                "size, not leased area.")
+
+
+def _core_columns(tx_type: str) -> list:
+    return CORE_COLUMNS_SALE if tx_type == "sale" else CORE_COLUMNS_LEASE
+
+
+def _fmt(value) -> str:
+    """Plain display formatting for a cell value (markdown + Excel fallback)."""
+    if value is None or value == "":
+        return ""
+    return str(value)
+
+
+def _has_w1(core_rows: list) -> bool:
+    return any(r.get("_leased_sf_is_building_size") for r in core_rows)
+
+
+def unified_markdown_table(core_rows: list, validated: dict) -> str:
+    """Combined chat table over the core columns, Source first. Appends the W1 footnote
+    when any external lease row is present."""
+    tx_type = validated.get("comp_type") or validated.get("transaction_type") or "sale"
+    cols = _core_columns(tx_type)
+    lines = ["| " + " | ".join(cols) + " |",
+             "| " + " | ".join("---" for _ in cols) + " |"]
+    for r in core_rows:
+        lines.append("| " + " | ".join(_fmt(r.get(c)) for c in cols) + " |")
+    md = "\n".join(lines)
+    if tx_type == "lease" and _has_w1(core_rows):
+        md += "\n\n_" + _W1_FOOTNOTE + "_"
+    return md
+
+
+def format_unified_excel(core_rows: list, internal_native: list, external_native: list,
+                         validated: dict, xlsx_path: str) -> str:
+    """Write a 3-sheet workbook: 'All Comps' (core rows, Source first) + native detail
+    sheets for each source. Returns xlsx_path. Lee-maroon header row on every sheet."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    header_fill = PatternFill("solid", start_color=LEE_BRAND_MAROON)
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    wrap = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    tx_type = validated.get("comp_type") or validated.get("transaction_type") or "sale"
+
+    def _write_sheet(ws, columns, rows):
+        for ci, col in enumerate(columns, start=1):
+            c = ws.cell(row=1, column=ci, value=col)
+            c.fill = header_fill
+            c.font = header_font
+            c.alignment = wrap
+        for ri, row in enumerate(rows, start=2):
+            for ci, col in enumerate(columns, start=1):
+                ws.cell(row=ri, column=ci, value=row.get(col))
+
+    wb = Workbook()
+    # Sheet 1 — All Comps (core)
+    ws_all = wb.active
+    ws_all.title = "All Comps"
+    _write_sheet(ws_all, _core_columns(tx_type), core_rows)
+    if tx_type == "lease" and _has_w1(core_rows):
+        ws_all.cell(row=len(core_rows) + 3, column=1, value=_W1_FOOTNOTE)
+
+    # Sheet 2 — Internal (Dealius) native
+    ws_int = wb.create_sheet("Internal (Dealius)")
+    int_cols = list(internal_native[0].keys()) if internal_native else ["(no internal rows)"]
+    _write_sheet(ws_int, int_cols, internal_native)
+
+    # Sheet 3 — External (CoStar) native
+    ws_ext = wb.create_sheet("External (CoStar)")
+    ext_cols = list(external_native[0].keys()) if external_native else ["(no external rows)"]
+    _write_sheet(ws_ext, ext_cols, external_native)
+
+    wb.save(xlsx_path)
+    return xlsx_path

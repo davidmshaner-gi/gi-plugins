@@ -82,3 +82,47 @@ def test_combine_keeps_both_rows_and_sorts_desc():
     assert len(out) == 2                       # same address in both → BOTH kept (no dedup)
     assert out[0]["Date"] == "2025-09-01"      # most recent first
     assert {r["Source"] for r in out} == {SOURCE_INTERNAL, SOURCE_EXTERNAL}
+
+
+from helpers import unified_markdown_table, format_unified_excel
+
+
+def _sale_combo():
+    internal = [to_core({"comps_id": "i1", "street_address": "1 A St",
+                         "actual_close_date": "2025-01-01", "building_size": 50000,
+                         "sale_price": 5000000, "price_per_sf": 100, "property_type": "Industrial",
+                         "city": "Garner", "county": "Wake"}, SOURCE_INTERNAL, "sale")]
+    external = [to_core({"external_id": "e1", "property_address": "2 B St",
+                         "sale_date": "2025-02-01", "building_sf": 60000,
+                         "sale_price": 7200000, "price_per_sf": 120, "property_type": "Industrial",
+                         "property_city": "Cary", "county": "Wake"}, SOURCE_EXTERNAL, "sale")]
+    return combine(internal, external, "sale"), internal, external
+
+
+def test_unified_markdown_table_has_source_column():
+    rows, _, _ = _sale_combo()
+    md = unified_markdown_table(rows, {"comp_type": "sale"})
+    assert md.splitlines()[0].startswith("| Source")
+    assert "Internal — Dealius" in md
+    assert "External — CoStar" in md
+
+
+def test_unified_markdown_lease_w1_footnote():
+    ext = [to_core({"external_id": "e2", "property_address": "4 D St", "building_sf": 40000,
+                    "base_rent": 11.0, "lease_start_date": "2025-05-01", "rent_type": "Gross"},
+                   SOURCE_EXTERNAL, "lease")]
+    md = unified_markdown_table(combine([], ext, "lease"), {"comp_type": "lease"})
+    assert "Leased SF" in md.splitlines()[0]
+    assert "building size, not leased area" in md
+
+
+def test_format_unified_excel_writes_three_sheets(tmp_path):
+    core, internal, external = _sale_combo()
+    p = tmp_path / "comps-all-industrial-2026-06-02.xlsx"
+    format_unified_excel(core, internal_native=[{"comps_id": "i1"}],
+                         external_native=[{"external_id": "e1"}],
+                         validated={"comp_type": "sale"}, xlsx_path=str(p))
+    import openpyxl
+    wb = openpyxl.load_workbook(p)
+    assert set(wb.sheetnames) >= {"All Comps", "Internal (Dealius)", "External (CoStar)"}
+    assert wb["All Comps"].cell(row=1, column=1).value == "Source"
