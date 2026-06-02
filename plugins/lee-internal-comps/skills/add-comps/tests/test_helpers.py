@@ -241,3 +241,23 @@ def test_silas_email_rows_are_validated():
     rows = parse_email(html)
     assert all("flagged" in r for r in rows)
     assert all(r["flagged"] in (0, 1) for r in rows)
+
+
+def test_unsourced_table_does_not_inherit_previous_source():
+    """Regression: a comp table with no <Source> header of its own must NOT
+    inherit the preceding table's source (stale-bold leak)."""
+    cols = "<tr><th>Tenant</th><th>Sign Date</th><th>SF</th><th>Year One Base Rent NNN</th><th>Term (months)</th><th>Address (Park)</th><th>City</th></tr>"
+    a = "<tr><td>Acme</td><td>2025Q1</td><td>20,000</td><td>$10.00</td><td>60</td><td>1 A St</td><td>Garner</td></tr>"
+    b = "<tr><td>Beta</td><td>2025Q2</td><td>30,000</td><td>$11.00</td><td>60</td><td>2 B St</td><td>Durham</td></tr>"
+    html = (
+        "<html><body>"
+        f"<p><b>JLL Comps:</b></p><table>{cols}{a}</table>"
+        f"<table>{cols}{b}</table>"   # no source header of its own
+        "</body></html>"
+    )
+    rows = parse_email(html)
+    assert len(rows) == 2
+    jll = [r for r in rows if r.get("tenant_name") == "Acme"][0]
+    orphan = [r for r in rows if r.get("tenant_name") == "Beta"][0]
+    assert jll["original_source"] == "JLL"
+    assert orphan.get("original_source") in (None, "")  # must NOT be "JLL"

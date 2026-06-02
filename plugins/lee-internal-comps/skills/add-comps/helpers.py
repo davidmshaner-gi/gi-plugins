@@ -312,6 +312,10 @@ class _EmailParser(HTMLParser):
             })
             self._in_table = False
             self._cur_rows = []
+            # A source header is consumed by exactly one table. Clear it so a
+            # following table with no header of its own does NOT inherit this
+            # source (which would mis-attribute original_source / provenance).
+            self._last_bold = None
         elif tag == "tr" and self._in_table:
             if self._cur_row is not None:
                 self._cur_rows.append(self._cur_row)
