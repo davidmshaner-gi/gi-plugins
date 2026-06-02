@@ -1,4 +1,6 @@
 """Owner mailing list helpers (pure Python, no network)."""
+import csv
+import os
 import re
 
 def slugify(text):
@@ -45,3 +47,15 @@ def parse_request(text):
         "land_class": land_class,
         "raw": t,
     }
+
+CSV_FIELDS = ["owner", "mail_addr", "site_addr", "acreage", "land_class"]
+
+def format_csv(rows, request, date, out_dir="."):
+    name = default_output_path(request, date)
+    path = os.path.join(out_dir, name) if out_dir not in ("", ".") else name
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CSV_FIELDS, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in CSV_FIELDS})
+    return path

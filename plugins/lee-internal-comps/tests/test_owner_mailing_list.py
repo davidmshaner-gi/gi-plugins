@@ -37,3 +37,13 @@ def test_dedupe_by_mailing_address():
     out, report = helpers.dedupe_by_mailing_address(rows)
     assert len(out) == 2
     assert report == {"input": 3, "output": 2, "dropped": 1}
+
+def test_format_csv_writes_flat_file(tmp_path):
+    rows = [{"owner": "ACME LLC", "mail_addr": "PO Box 5", "site_addr": "0 Maple",
+             "acreage": "3.1", "land_class": "Vacant"}]
+    req = {"subject_property": {"address": "100 Walnut St, Cary NC"}}
+    out = helpers.format_csv(rows, req, date="2026-06-02", out_dir=str(tmp_path))
+    assert out.endswith("owners-100-walnut-st-cary-nc-2026-06-02.csv")
+    with open(out) as f:
+        header = f.readline().strip()
+    assert header == "owner,mail_addr,site_addr,acreage,land_class"
