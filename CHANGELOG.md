@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.7.1] - 2026-06-02
+
+### Fixed
+- **`owner-mailing-list`: faster, cleaner pulls (post-live-QA).** Three fixes from the first live runs: (1) the skill now drives the **Claude in Chrome** extension's `javascript_tool` instead of "Control Chrome" (whose JS execution fails) — no more wasted retries and a failed false-start; (2) the whole fetch → dedupe → CSV pipeline now runs in **one** browser call (`buildOwnerMailingCsv` in `arcgis_query.js`, node-tested) and the file is written in deterministic line-batches, cutting a pull from ~139 tool calls to a handful; (3) results are **filtered to private owners** — government, municipal, exempt, HOA/COA, cemetery, utility, and railroad parcels (plus blank-owner rows) are dropped, so the list is broker-mailable prospects. Example: New Hanover went from 71 raw parcels to 29 private owners; Onslow 76 → 46. (#1)
+
 ## [1.7.0] - 2026-06-02
 
 ### Added
