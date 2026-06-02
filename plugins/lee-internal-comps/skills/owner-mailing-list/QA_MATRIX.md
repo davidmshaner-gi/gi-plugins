@@ -22,7 +22,7 @@ Wilmington-coast, Triad, eastern NC.
 | Wake | Triangle | maps.wakegov.com/.../Property/Parcels/0 | ✅ | `LAND_CLASS_DECODE='Vacant'` | **PASS (live)** — 100 Walnut → 69 |
 | Durham | Triangle | webgis.durhamnc.gov/.../Property/4 | ✅ (live ?f=json) | `TOTAL_BLDG_VALUE_ASSESSED = 0` (LAND_CLASS code 'VL' unconfirmed) | RESEARCHED |
 | Orange | Triangle | gis.orangecountync.gov/.../WebParcelService/0 | ✅ | `BLDGVALUE = 0` | RESEARCHED — no site-address field (gap) |
-| Johnston | Triangle | NC OneMap (no county server) | ✅ | `parusedesc='Vacant Land' AND cntyname='Johnston'` | RESEARCHED |
+| Johnston | Triangle | NC OneMap (no county server) | ✅ | `improvval=0 AND cntyname='Johnston'` | RESEARCHED |
 | Chatham | Triangle | gisservices.chathamcountync.gov/.../Chatham_CamaParcels/0 | ✅ | `jan1_bldg_ASV = 0` (land_use='Vacant' unconfirmed) | RESEARCHED |
 | Lee | Sandhills | lee-arcgis.leecountync.gov/.../ParcelsPictometryTyler/0 | ✅ | `APRBLDG = 0` (no land-class vacant code) | RESEARCHED |
 | Moore | Sandhills | gis.moorecountync.gov/.../Planning/6 | ✅ | `CLASS IN ('FV','RV','CV')` | RESEARCHED — site addr composite |
@@ -35,7 +35,7 @@ Wilmington-coast, Triad, eastern NC.
 | Alamance | Triad | apps.alamance-nc.com/.../AlamanceParcels/0 | ✅ | `AMVICD = 'V'` (confirmed code) | RESEARCHED |
 | Wilson | eastern NC | gis.wilson-co.com/.../Tax/Taxparcels/0 | ✅ | `ImproveASVCur = 0` | RESEARCHED |
 | Wayne | eastern NC | services5.arcgis.com/.../Parcels/14 | ✅ | `ParcelBuildingValue = 0` | RESEARCHED |
-| Nash | eastern NC | — (county 403; ConnectGIS timeout) | — | — | **NOT COVERED** |
+| Nash | eastern NC | NC OneMap (county server dead) | ✅ directly confirmed | `improvval=0 AND cntyname='Nash'` | RESEARCHED — 55,717 parcels (15,305 vacant), owner/mail/acres populated |
 | Craven | eastern NC | gis.cravencountync.gov/.../JustParcels/0 | ✅ | `totbld = 0` (rich LUDESC taxonomy available) | RESEARCHED |
 | Onslow | eastern NC | gismaps.onslowcountync.gov/.../County_Map_Layers/0 | ✅ | `(FINALFULLBUILDINGVALUE = 0 OR ... IS NULL)` | RESEARCHED |
 
@@ -58,5 +58,11 @@ Moore, Johnston), it's already code-confirmed by research. Then flip the row to 
 
 ## Ship gate
 The skill is releasable (Task 12) once every county here is PASS (live) or NOT COVERED.
-Today: Wake = PASS, Nash = NOT COVERED, 16 = RESEARCHED (registry-ready, awaiting a live
-confirmation run). David is holding the push until the full sweep is PASS/NOT-COVERED.
+Today: Wake = PASS, 18 covered counties RESEARCHED (registry-ready, awaiting a live
+confirmation run), 0 NOT COVERED. David is holding the push until the full sweep is
+PASS/NOT-COVERED.
+
+> Note: the research sweep initially mis-flagged Nash as NOT COVERED (it only checked the
+> dead county server). Direct probing confirmed NC OneMap covers Nash fully. Treat every
+> "NOT COVERED" verdict as needing a direct NC OneMap (`cntyname='<County>'`) check before
+> it's accepted — the statewide service backstops most missing county servers.

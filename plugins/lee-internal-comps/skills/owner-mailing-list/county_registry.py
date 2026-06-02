@@ -75,7 +75,9 @@ COUNTY_REGISTRY = {
             "mail_addr": "mailadd",
             "site_addr": "siteadd",
         },
-        "vacant_filter": "parusedesc = 'Vacant Land' AND cntyname = 'Johnston'",
+        # NC OneMap parusedesc is NOT standardized across counties (Nash='V-Vacant',
+        # others differ), so use the reliable improvval=0 proxy + cntyname scoping.
+        "vacant_filter": "improvval = 0 AND cntyname = 'Johnston'",
     },
     "CHATHAM COUNTY": {
         "service_url": "https://gisservices.chathamcountync.gov/opendataagol/rest/services/Cadastral/Chatham_CamaParcels/MapServer/0",
@@ -229,6 +231,20 @@ COUNTY_REGISTRY = {
         "mail_concat": ["TaxpayerAddress1", "TaxpayerAddress2", "TaxpayerAddress3", "TaxpayerAddress4"],
         "vacant_filter": "ImproveASVCur = 0",
     },
+    "NASH COUNTY": {
+        # County server is dead, but NC OneMap has 55,717 Nash parcels (15,305 vacant),
+        # owner/mailing/acreage populated — directly confirmed 2026-06-02.
+        "service_url": "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/MapServer/1",
+        "field_map": {
+            "acreage": "gisacres",
+            "land_class": "parusedesc",  # county-specific values, e.g. 'V-Vacant'
+            "bldg_val": "improvval",
+            "owner": "ownname",
+            "mail_addr": "mailadd",
+            "site_addr": "siteadd",
+        },
+        "vacant_filter": "improvval = 0 AND cntyname = 'Nash'",
+    },
     "WAYNE COUNTY": {
         "service_url": "https://services5.arcgis.com/q2nSlChj7QgGTANO/arcgis/rest/services/Parcels/FeatureServer/14",
         "field_map": {
@@ -271,10 +287,10 @@ COUNTY_REGISTRY = {
     },
 }
 
-# Counties intentionally NOT covered (resolve_county -> None -> skill graceful-halts):
-#   Nash — county ArcGIS server returns 403; ConnectGIS portal times out; NC OneMap
-#          population for Nash unverified. Promote to a registry entry once a live
-#          NC OneMap (cntyname='Nash') pull is confirmed in Task 11.
+# All 18 covered counties are present above. Any county not in this dict (e.g. one outside
+# the Lee Raleigh footprint) resolves to None and the skill graceful-halts ("not covered yet").
+# Nash was briefly mis-flagged NOT COVERED by the research sweep (it only saw the dead county
+# server); NC OneMap covers it and the entry above is directly confirmed.
 
 
 def resolve_county(county_name):
