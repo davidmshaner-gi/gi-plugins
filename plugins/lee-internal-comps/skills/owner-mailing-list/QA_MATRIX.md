@@ -6,39 +6,57 @@ before the skill ships for that county. A county with no usable public REST serv
 marked **NOT COVERED** — the skill graceful-halts for it (no silent gaps).
 
 Coverage footprint mirrors external comps (`/upload` page): Triangle, Sandhills,
-Wilmington-coast, Triad, eastern NC. **QA-0 (open):** confirm the authoritative
-covered-county list with David (= counties present in the external-comps D1 set).
+Wilmington-coast, Triad, eastern NC.
 
-| County | Region | Service confirmed | field_map | Test query | Full extraction | Result | Status |
-|---|---|---|---|---|---|---|---|
-| Wake | Triangle | ✅ `maps.wakegov.com/.../Property/Parcels/MapServer/0` | ✅ DEED_ACRES / LAND_CLASS_DECODE / BLDG_VAL / OWNER / ADDR1-3 / SITE_ADDRESS | 2–5 ac vacant within 3 mi of 100 Walnut St, Cary | ✅ paged past `exceededTransferLimit` | **69 parcels** | **PASS** |
-| Durham | Triangle | — | — | — | — | — | TODO |
-| Orange | Triangle | — | — | — | — | — | TODO |
-| Johnston | Triangle | — | — | — | — | — | TODO |
-| Chatham | Triangle | — | — | — | — | — | TODO |
-| Lee | Sandhills | — | — | — | — | — | TODO |
-| Moore | Sandhills | — | — | — | — | — | TODO |
-| Cumberland | Sandhills | — | — | — | — | — | TODO |
-| Harnett | Sandhills | — | — | — | — | — | TODO |
-| New Hanover | Wilmington-coast | — | — | — | — | — | TODO |
-| Brunswick | Wilmington-coast | — | — | — | — | — | TODO |
-| Pender | Wilmington-coast | — | — | — | — | — | TODO |
-| Guilford | Triad | — | — | — | — | — | TODO |
-| Alamance | Triad | — | — | — | — | — | TODO |
-| Wilson | eastern NC | — | — | — | — | — | TODO |
-| Wayne | eastern NC | — | — | — | — | — | TODO |
-| Nash | eastern NC | — | — | — | — | — | TODO |
-| Craven | eastern NC | — | — | — | — | — | TODO |
-| Onslow | eastern NC | — | — | — | — | — | TODO |
+## Status legend
+- **PASS (live)** — confirmed live: real query run, count verified, no truncation.
+- **RESEARCHED** — service URL + every field name read from the live `?f=json` metadata
+  (Task 11 pre-research). Still needs a live confirmation run: validate the vacant filter
+  and eyeball a result count. The registry entry is populated and ready to test.
+- **NOT COVERED** — no usable public REST parcel service; skill graceful-halts.
 
-## Wake — PASS detail
-- **Source of truth:** the recorded 100 Walnut St, Cary NC run (Claude Desktop + chrome-control), reproduced here.
-- **Service:** `https://maps.wakegov.com/arcgis/rest/services/Property/Parcels/MapServer/0` (the registry seed `maps.wake.gov` was wrong; corrected to `maps.wakegov.com`).
-- **Filters that produced the known-good set:** `LAND_CLASS_DECODE = 'Vacant'` + `DEED_ACRES` between 2 and 5, point + 3-statute-mile buffer of the geocoded subject.
-- **Truncation:** the run paged past `exceededTransferLimit` to retrieve the full set (the partial-result trap was hit and handled).
-- **Result:** 69 vacant parcels — matches the known-good count.
+## Matrix
+
+| County | Region | Service | Fields verified | Vacant filter | Status |
+|---|---|---|---|---|---|
+| Wake | Triangle | maps.wakegov.com/.../Property/Parcels/0 | ✅ | `LAND_CLASS_DECODE='Vacant'` | **PASS (live)** — 100 Walnut → 69 |
+| Durham | Triangle | webgis.durhamnc.gov/.../Property/4 | ✅ (live ?f=json) | `TOTAL_BLDG_VALUE_ASSESSED = 0` (LAND_CLASS code 'VL' unconfirmed) | RESEARCHED |
+| Orange | Triangle | gis.orangecountync.gov/.../WebParcelService/0 | ✅ | `BLDGVALUE = 0` | RESEARCHED — no site-address field (gap) |
+| Johnston | Triangle | NC OneMap (no county server) | ✅ | `parusedesc='Vacant Land' AND cntyname='Johnston'` | RESEARCHED |
+| Chatham | Triangle | gisservices.chathamcountync.gov/.../Chatham_CamaParcels/0 | ✅ | `jan1_bldg_ASV = 0` (land_use='Vacant' unconfirmed) | RESEARCHED |
+| Lee | Sandhills | lee-arcgis.leecountync.gov/.../ParcelsPictometryTyler/0 | ✅ | `APRBLDG = 0` (no land-class vacant code) | RESEARCHED |
+| Moore | Sandhills | gis.moorecountync.gov/.../Planning/6 | ✅ | `CLASS IN ('FV','RV','CV')` | RESEARCHED — site addr composite |
+| Cumberland | Sandhills | gis.co.cumberland.nc.us/.../Tax/Parcels/0 | ✅ | `TOTAL_BLDG_VALUE_ASSESSED = 0` | RESEARCHED |
+| Harnett | Sandhills | gis.harnett.org/.../Tax/Parcels/0 | ✅ | `ParcelBuildingValue = 0` | RESEARCHED |
+| New Hanover | Wilmington-coast | NC OneMap (native lacks value/mail) | ✅ | `improvval=0 AND cntyname='New Hanover'` | RESEARCHED |
+| Brunswick | Wilmington-coast | NC OneMap (native lacks value) | ✅ | `improvval=0 AND cntyname='Brunswick'` | RESEARCHED |
+| Pender | Wilmington-coast | gis.pendercountync.gov/.../Layers/4 | ✅ | `HEAT_SQ_FT IS NULL` (no $ value field) | RESEARCHED |
+| Guilford | Triad | gcgis.guilfordcountync.gov/.../Parcels_Ownership/0 | ✅ | `LAND_CLASS = 'VACANT'` (confirmed string) | RESEARCHED |
+| Alamance | Triad | apps.alamance-nc.com/.../AlamanceParcels/0 | ✅ | `AMVICD = 'V'` (confirmed code) | RESEARCHED |
+| Wilson | eastern NC | gis.wilson-co.com/.../Tax/Taxparcels/0 | ✅ | `ImproveASVCur = 0` | RESEARCHED |
+| Wayne | eastern NC | services5.arcgis.com/.../Parcels/14 | ✅ | `ParcelBuildingValue = 0` | RESEARCHED |
+| Nash | eastern NC | — (county 403; ConnectGIS timeout) | — | — | **NOT COVERED** |
+| Craven | eastern NC | gis.cravencountync.gov/.../JustParcels/0 | ✅ | `totbld = 0` (rich LUDESC taxonomy available) | RESEARCHED |
+| Onslow | eastern NC | gismaps.onslowcountync.gov/.../County_Map_Layers/0 | ✅ | `(FINALFULLBUILDINGVALUE = 0 OR ... IS NULL)` | RESEARCHED |
+
+## What "RESEARCHED" means for the live confirmation pass (Task 11)
+For each RESEARCHED county, the field NAMES are already live-verified (read from `?f=json`),
+so the live pass is fast: run one known area+criteria query through the skill and confirm
+(a) it returns a plausible, non-zero parcel set, (b) pagination retrieved everything (no
+truncation), and (c) the vacant filter isolates vacant land. Where the vacant filter is a
+`bldg_val = 0` proxy (Durham, Chatham, Lee, Cumberland, Harnett, Wilson, Wayne, Craven,
+Onslow), confirm it matches broker intent; where it's a land-class value (Guilford, Alamance,
+Moore, Johnston), it's already code-confirmed by research. Then flip the row to PASS (live).
+
+## Per-county data gotchas (carry into the live pass)
+- **Orange:** parcel layer has NO site-address field — `site_addr` is empty; join an address layer if needed.
+- **Moore:** site address is composite (`PROPNUM+PROPDIR+PROPST`), no single field (`site_concat` in registry).
+- **Pender:** `bldg_val` = `HEAT_SQ_FT` (a size proxy, not dollars); `mail_addr` is one unstructured string.
+- **Cumberland:** `LOCATION_ADDR` has placeholder junk on some rows ("0 N/A DR").
+- **Lee / Harnett / Wilson / Onslow:** land-class field unreliable/empty — vacant filter is a building-value proxy.
+- **New Hanover / Brunswick / Johnston:** routed through NC OneMap (county server absent or value-less); `cntyname` scoping is baked into the vacant filter.
 
 ## Ship gate
-The skill is releasable (Task 12) once every county in the authoritative covered list is
-either **PASS** or explicitly **NOT COVERED** here. Today only Wake is PASS; the rest are
-TODO and require a live Claude Desktop + chrome-control session per county.
+The skill is releasable (Task 12) once every county here is PASS (live) or NOT COVERED.
+Today: Wake = PASS, Nash = NOT COVERED, 16 = RESEARCHED (registry-ready, awaiting a live
+confirmation run). David is holding the push until the full sweep is PASS/NOT-COVERED.
