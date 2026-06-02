@@ -61,6 +61,18 @@ def test_assert_parcel_fails_when_pin_absent():
     assert "did not show" in detail
 
 
+def test_assert_parcel_success_token_beats_generic_failure_word():
+    # The correct parcel IS shown, but the page chrome contains a generic word
+    # from FAILURE_MARKERS ("invalid"). Token-first ordering must still PASS --
+    # otherwise a footer/help-text change would false-FAIL the release gate.
+    body = (
+        "Parcel R04720-007-011-000 — OWNER: ACME HOLDINGS LLC\n"
+        "Footer: to report invalid assessment data, contact the county."
+    )
+    ok, detail = _assert_parcel(body, _c("R04720007011000"))
+    assert ok is True, detail
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for t in tests:

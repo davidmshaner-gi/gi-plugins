@@ -30,6 +30,12 @@ session cookie. Only a real browser submit reproduces what the broker experience
 The sentinel PINs are the real worked-example parcels from the SKILL.md footer, so
 this file and the skill always agree on what "good" looks like.
 
+**Coverage note:** Durham / NHC / Lee are full *form-submit* checks (fill the search
+box, submit, assert the result). Wake has no search form — the `?pin=` URL *is* the
+round-trip — so Wake is a *deep-link-resolution* check: it confirms the parcel pane
+resolves the PIN. A Wake regression in pane resolution is caught; there is no separate
+"search path" to break for Wake.
+
 ## Current state (last full run: 2026-06-02)
 
 | County | Result | Baseline | Notes |

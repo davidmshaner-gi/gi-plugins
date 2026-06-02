@@ -99,10 +99,18 @@ def run(counties, *, headed: bool, out: Path, screenshots: bool):
             # from baseline is the thing we act on (regression or fix), so confirm
             # it with one retry before trusting it -- avoids a network blip blocking
             # a release. A result that already matches baseline is left as-is.
-            if not _matches_baseline(probe, error, c):
+            flaky = False
+            first_matched = _matches_baseline(probe, error, c)
+            if not first_matched:
                 print(f"[{c.key}] diverged from baseline; retrying once to rule out a transient hiccup...")
                 probe, error, shot = _drive(browser, c, out=out, screenshots=screenshots)
-            rows.append({"county": c, "probe": probe, "error": error, "shot": shot})
+                # The two attempts DISAGREED -> the portal is unstable. Never let a
+                # retry silently overwrite the divergence: flag it so a flap-to-green
+                # (a real intermittent break masked as a pass) is visible, not swallowed.
+                if _matches_baseline(probe, error, c) != first_matched:
+                    flaky = True
+                    print(f"[{c.key}] WARNING: result flapped across two attempts -- portal is unstable")
+            rows.append({"county": c, "probe": probe, "error": error, "shot": shot, "flaky": flaky})
         browser.close()
     return rows
 
@@ -121,9 +129,12 @@ def render(rows, *, out: Path):
     ]
     all_ok = True
     had_harness_error = False
+    had_flaky = False
     details = []
     for r in rows:
         c, probe, error = r["county"], r["probe"], r["error"]
+        flaky = r.get("flaky", False)
+        flaky_tag = " ⚠️ FLAPPED" if flaky else ""
         if error is not None:
             had_harness_error = True
             result_cell, ok, label = "⚠️ ERROR", False, "harness error driving portal"
@@ -133,10 +144,15 @@ def render(rows, *, out: Path):
             ok, label = _verdict(actual_pass, c.expected)
             result_cell = "✅ PASS" if actual_pass else "❌ FAIL"
             note = f"  ({c.expected_note})" if (c.expected == "fail" and c.expected_note) else ""
-            details.append(f"- **{c.name}** {result_cell}: {probe.detail}{note}")
+            flaky_note = (
+                "  ⚠️ UNSTABLE: the two attempts disagreed; this verdict is the *retry* and "
+                "should not be trusted as steady — re-run to confirm." if flaky else ""
+            )
+            details.append(f"- **{c.name}** {result_cell}: {probe.detail}{note}{flaky_note}")
+        had_flaky = had_flaky or flaky
         all_ok = all_ok and ok
         baseline_cell = c.expected + (" (known #18)" if c.expected == "fail" else "")
-        verdict_cell = ("✓ " if ok else "🔴 ") + label
+        verdict_cell = ("✓ " if ok else "🔴 ") + label + flaky_tag
         lines.append(
             f"| {c.name} | {c.portal_name} | `{c.pin}` | {result_cell} | {baseline_cell} | {verdict_cell} |"
         )
@@ -144,6 +160,10 @@ def render(rows, *, out: Path):
     matched = sum(1 for r in rows if r["error"] is None and _verdict(r["probe"].found, r["county"].expected)[0])
     total = len(rows)
     lines.append(f"**Summary:** {matched}/{total} counties match baseline.")
+    if had_flaky:
+        lines.append("⚠️ **One or more counties FLAPPED** (the two attempts disagreed). A retry that "
+                     "flips a divergence to green can mask an intermittently-broken portal — treat any "
+                     "flapped county as unconfirmed and re-run before relying on this as a release gate.")
     if all_ok and not had_harness_error:
         lines.append("All portals behave as expected. No broker-facing regression.")
     else:
