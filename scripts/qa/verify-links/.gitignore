@@ -1,0 +1,3 @@
+# Run artifacts (report.md + per-county screenshots). Regenerated every run;
+# current-state results live in README.md instead.
+out/
