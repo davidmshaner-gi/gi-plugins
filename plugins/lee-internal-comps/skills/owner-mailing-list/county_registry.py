@@ -186,7 +186,10 @@ COUNTY_REGISTRY = {
             "mail_addr": "ADDR",        # single unstructured string (may be a c/o name)
             "site_addr": "PROPERTY_ADDRESS",  # null on many rural parcels
         },
-        "vacant_filter": "HEAT_SQ_FT IS NULL",
+        # NAME IS NOT NULL excludes ~300 attribute-less placeholder records that HEAT_SQ_FT
+        # IS NULL alone matches. Live-confirmed: 22,918 real vacant parcels with owners.
+        # (NC OneMap is NOT usable for Pender — owner fields come back blank.)
+        "vacant_filter": "NAME IS NOT NULL AND HEAT_SQ_FT IS NULL",
     },
 
     # --- Triad --------------------------------------------------------------------
@@ -201,20 +204,23 @@ COUNTY_REGISTRY = {
             "site_addr": "LOCATION_ADDR",
         },
         "mail_concat": ["OWNER_MAIL_1", "OWNER_MAIL_2", "OWNER_MAIL_3"],
-        "vacant_filter": "LAND_CLASS = 'VACANT'",  # confirmed exact string
+        # LAND_CLASS='VACANT' is a narrow assessor subcategory (only 2,893); the bldg-value
+        # proxy is the inclusive "no building" definition (34,781), consistent with Wake.
+        "vacant_filter": "TOTAL_BLDG_VALUE_ASSESSED = 0",
     },
     "ALAMANCE COUNTY": {
         "service_url": "https://apps.alamance-nc.com/arcgis/rest/services/Tax/AlamanceParcels/FeatureServer/0",
         "field_map": {
             "acreage": "ACRES",
-            "land_class": "AMVICD",  # Vacant/Improved code: 'V' = vacant, 'I' = improved
+            "land_class": "AMVICD",  # Vacant/Improved code; sparsely populated (only 161='V')
             "bldg_val": "AKICFM",
             "owner": "OWNAM1",
             "mail_addr": "OWADR1",
             "site_addr": "CAKPSAD",
         },
         "mail_concat": ["OWADR1", "OWADR2", "OWADR3", "OWADR4"],
-        "vacant_filter": "AMVICD = 'V'",
+        # AMVICD='V' is too sparse (161); the improvement-value proxy gives 14,443.
+        "vacant_filter": "(AKICFM = 0 OR AKICFM IS NULL)",
     },
 
     # --- Eastern NC ---------------------------------------------------------------

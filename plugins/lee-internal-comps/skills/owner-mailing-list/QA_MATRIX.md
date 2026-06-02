@@ -56,11 +56,29 @@ Moore, Johnston), it's already code-confirmed by research. Then flip the row to 
 - **Lee / Harnett / Wilson / Onslow:** land-class field unreliable/empty — vacant filter is a building-value proxy.
 - **New Hanover / Brunswick / Johnston:** routed through NC OneMap (county server absent or value-less); `cntyname` scoping is baked into the vacant filter.
 
+## Live data validation — 2026-06-02 (direct query, all 19 counties)
+Every county's `service_url` + `field_map` + `vacant_filter` was exercised directly against
+the live service: vacant-parcel count, a real owner-name sample, AND a 3-mile point+buffer
+spatial query with `inSR=4326` (confirming radius search works across State Plane / Web
+Mercator / NC OneMap projections). **All 19 returned real owner data and sane counts.**
+
+Vacant counts (countywide): Wake 30,009 · Durham 20,591 · Orange 10,160 · Johnston 24,812 ·
+Chatham 13,170 · Lee 10,276 · Moore 21,794 · Cumberland 23,068 · Harnett 26,885 ·
+New Hanover 13,094 · Brunswick 58,902 · Pender 22,918 · Guilford 34,781 · Alamance 14,443 ·
+Wilson 9,927 · Nash 15,305 · Wayne 26,556 · Craven 16,572 · Onslow 19,769.
+
+Filter corrections made during validation: Guilford (`LAND_CLASS='VACANT'` 2,893 → `bldg=0`
+34,781), Alamance (`AMVICD='V'` 161 → `bldg=0` 14,443), Pender (added `NAME IS NOT NULL` to
+exclude empty placeholder records). Johnston/Nash standardized to `improvval=0` on NC OneMap.
+
 ## Ship gate
-The skill is releasable (Task 12) once every county here is PASS (live) or NOT COVERED.
-Today: Wake = PASS, 18 covered counties RESEARCHED (registry-ready, awaiting a live
-confirmation run), 0 NOT COVERED. David is holding the push until the full sweep is
-PASS/NOT-COVERED.
+The skill is releasable (Task 12) once every county is confirmed or NOT COVERED.
+- **Wake:** PASS (full live run, 100 Walnut → 69).
+- **Other 18:** DATA-CONFIRMED — service + fields + vacant filter + spatial radius all verified
+  by direct query (above). 0 NOT COVERED.
+- **Remaining:** the only unrun step is an end-to-end pass through the *installed* skill inside
+  a Cowork session (geocode → recipe → CSV), which requires the gi-plugins push first. The data
+  risk — wrong URL / wrong field / broken filter / projection failure — is retired for all 19.
 
 > Note: the research sweep initially mis-flagged Nash as NOT COVERED (it only checked the
 > dead county server). Direct probing confirmed NC OneMap covers Nash fully. Treat every
