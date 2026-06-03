@@ -32,17 +32,33 @@ def test_to_core_internal_sale():
 
 
 def test_to_core_external_sale():
-    row = {"external_id": "e1", "property_address": "2 B St", "property_city": "Cary",
+    # external_id is a 64-char hash and must NOT be the broker-facing Comp ID;
+    # use external_comp_id (short int) / costar_property_id instead.
+    row = {"external_id": "e31389800c8f344fa0ad7fe718fdf8f498ed52b5a994f6119ed4f50973b32f5c",
+           "external_comp_id": 98, "property_address": "2 B St", "property_city": "Cary",
            "county": "Wake", "property_type": "Industrial", "building_sf": 60000,
            "sale_price": 7200000, "price_per_sf": 120, "actual_cap_rate": 6.0,
            "sale_date": "2025-06-01", "costar_property_url": "https://costar/e1"}
     core = to_core(row, SOURCE_EXTERNAL, "sale")
-    assert core["Comp ID"] == "e1"
+    assert core["Comp ID"] == 98                       # short id, never the hash
+    assert row["external_id"] not in core.values()     # the hash never leaks into any cell
     assert core["City"] == "Cary"
     assert core["Size (SF)"] == 60000
     assert core["Date"] == "2025-06-01"
     assert core["Source URL"] == "https://costar/e1"
     assert core["square_feet_sold"] == 60000  # external building_sf mapped to stat key
+
+
+def test_to_core_external_comp_id_prefers_costar_id_then_falls_back():
+    # costar_property_id wins when present
+    r1 = {"external_id": "hash", "external_comp_id": 7, "costar_property_id": "CS-12345"}
+    assert to_core(r1, SOURCE_EXTERNAL, "sale")["Comp ID"] == "CS-12345"
+    # falls back to external_comp_id when no costar id
+    r2 = {"external_id": "hash", "external_comp_id": 7}
+    assert to_core(r2, SOURCE_EXTERNAL, "sale")["Comp ID"] == 7
+    # never the hash
+    r3 = {"external_id": "e31389800c8f344fa0ad7fe718fdf8f498ed52b5a994f6119ed4f50973b32f5c"}
+    assert to_core(r3, SOURCE_EXTERNAL, "sale")["Comp ID"] == ""
 
 
 def test_to_core_internal_lease():

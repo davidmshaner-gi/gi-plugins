@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.8.1] - 2026-06-03
+
+### Fixed
+- **Unified "all comps": external Comp ID now shows a short, broker-readable id** (CoStar property id / `external_comp_id`) instead of the 64-char `external_id` address hash that was dumped into the Comp ID column. Internal ids unchanged. (#57)
+
 ## [1.8.0] - 2026-06-02
 
 ### Added
