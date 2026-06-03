@@ -68,6 +68,27 @@ database. Typical shapes:
    constant, `rows`, plus optional `client_id` / `source_label` /
    `raw_blob_ref` / `notes`). The model performs the actual MCP write.
 
+## Importing the helpers (read before writing a script)
+
+`helpers.py` lives in THIS skill's own directory, which is **not** on the Cowork
+sandbox's default Python path — so a bare `from helpers import ...` in a script
+you write to your working dir raises `ModuleNotFoundError: No module named
+'helpers'`. Locate the skill dir and put it on `sys.path` first:
+
+```python
+import sys, os, glob
+_hits = (glob.glob('/sessions/*/mnt/.remote-plugins/*/skills/add-comps/helpers.py')
+         or glob.glob(os.path.join(os.path.expanduser('~'), '**/skills/add-comps/helpers.py'), recursive=True))
+sys.path.insert(0, os.path.dirname(_hits[0]))
+from helpers import (validate_row, apply_alias_map, detect_transaction_type,
+                     parse_email, parse_spreadsheet, parse_text,
+                     dry_run_summary, build_write_payload)
+```
+
+(Alternatively, copy `helpers.py` next to your script first.) The skill's base
+directory is also printed in the launch message ("Base directory for this
+skill: ...") if you prefer that path directly.
+
 ## Schema
 
 The output keys match the `lee_comps_add_write` MCP tool's `AddCompRow` exactly
