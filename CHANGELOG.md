@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.8.2] - 2026-06-03
+
+### Fixed
+- **`add-comps`: documented the helpers `sys.path` import** so a script that uses the deterministic helpers doesn't hit `ModuleNotFoundError` in the Cowork sandbox (where `helpers.py` is mounted under `.remote-plugins/`, not the working dir). Surfaced during the first live `/add-comps` run, which self-recovered; this makes the next run clean. (#11 follow-up)
+
 ## [1.8.1] - 2026-06-03
 
 ### Fixed
