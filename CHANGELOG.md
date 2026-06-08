@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.9.0] - 2026-06-08
+
+### Added
+- **`process-mapping` skill** — a guided interview that helps anyone at the firm (any function — brokerage, marketing, operations, finance, research, leadership) map one of their own repeatable processes into a clean, linear, text-only process-map document, before any automation. Opens with Grounded Intelligence branding, walks five gates, and ends by drafting an email that hands the finished map back to GI for the next phase. CRE appears only as firm context; the user's role stays agnostic. (#69)
+
 ## [1.8.2] - 2026-06-03
 
 ### Fixed

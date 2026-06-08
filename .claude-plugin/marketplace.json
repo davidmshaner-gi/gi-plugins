@@ -9,8 +9,8 @@
     {
       "name": "lee-internal-comps",
       "source": "./plugins/lee-internal-comps",
-      "description": "Internal (Dealius) and external lease & sale comps for Lee & Associates Raleigh brokers. Two skills: internal-comps (Dealius, Excel + Lee-branded PDF) and external-comps (weekly external snapshot via typed MCP tools, Excel + Markdown table; PDF deferred to v1.1).",
-      "version": "1.8.2"
+      "description": "Internal (Dealius) and external lease & sale comps for Lee & Associates Raleigh brokers. Two skills: internal-comps (Dealius, Excel + Lee-branded PDF) and external-comps (weekly external snapshot via typed MCP tools, Excel + Markdown table; PDF deferred to v1.1). Plus process-mapping: a guided interview that maps any team member's repeatable process into a clean process-map document for GI (CRE = firm context, role-agnostic).",
+      "version": "1.9.0"
     }
   ]
 }
