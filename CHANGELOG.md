@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.10.0] - 2026-06-08
+
+### Added
+- **`labor-shed` skill** — show the labor force around a commercial site for any NC address, sliced by industry, for 1/3/5-mile rings: the resident labor pool a tenant can recruit (RAC) and the existing employer mix already in the area (WAC), with the industrial-family workforce (construction, manufacturing, wholesale trade, transportation & warehousing) called out. Thin orchestrator over the `lee-raleigh-mcp` `pull_labor_shed` tool (lee-raleigh-mcp v0.8.0). (#25, lee-and-associates #25)
+
 ## [1.9.0] - 2026-06-08
 
 ### Added
