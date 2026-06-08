@@ -1,0 +1,112 @@
+---
+name: add-comps
+description: Normalize a contributed comp set a Lee broker pastes, forwards, or uploads (a forwarded email with several brokerage comp tables, an xlsx/csv export, a pasted tab/pipe table, or a screenshot) into canonical AddCompRow records ready for ingestion via the lee_comps_add_write MCP tool. parse_email extracts the comp tables from a forwarded email body, attaches the contributing source (JLL, Foundry, etc.) to each row, and skips signature / confidentiality decoy tables. parse_spreadsheet reads an xlsx or csv, picks the comp-shaped sheet(s) and skips prose/view tabs, and raises AmbiguousSheetError when more than one comp sheet is present so the operator can choose. parse_text parses a pasted tab- or pipe-delimited table. parse_image and llm_fallback extract rows via an injected model-vision callable (the skill's own Claude runtime) for screenshots or blobs the deterministic parsers can't handle. detect_transaction_type decides lease vs. sale from the column headers. apply_alias_map folds contributor headers into the canonical keys, coerces numerics (strips $ , %), preserves the verbatim Transaction Type as txn_subtype, and keeps any unmapped columns in raw_fields_json. validate_row flags (never drops) rows missing the minimum keys. dry_run_summary reports total + per-source counts + flagged rows for operator review, and build_write_payload assembles the exact AddCompsPayload (with parser_version) for the lee_comps_add_write MCP tool — the MCP write itself is the model's job.
+---
+
+# Add Comps (Lee & Associates)
+
+Turn a contributed comp set — most often a forwarded email where another
+brokerage shop has pasted several comp tables — into clean, canonical
+`AddCompRow` records the broker can review and then push into the internal
+comps database via the `lee_comps_add_write` MCP tool.
+
+The helpers are deterministic and run in the Cowork sandbox. The model
+orchestrates and performs the MCP write; the sandbox has no MCP access.
+
+## When to use
+
+When a broker pastes or forwards a set of comps they want added to the internal
+database. Typical shapes:
+
+- A forwarded email titled like "Full Set of 2025 Industrial Comps" with one
+  table per contributing source, each preceded by a bold `<Source> Comps:`
+  header.
+- A single pasted comp table (tab- or pipe-delimited).
+- An xlsx/csv export (possibly multi-tab).
+- A screenshot of a comp table.
+
+## What it does (normalization)
+
+1. **`parse_email(html)`** — extracts every HTML table from the email body. For
+   each table it finds the nearest preceding bold `<Source> Comps:` header and
+   stamps every row's `original_source` with the source name (`JLL Comps:` ->
+   `JLL`, `Tri Property Comps:` -> `Tri Property`). Tables with no comp-shaped
+   header row — email signatures, confidentiality notices — are skipped. Each
+   data row is run through detection, alias folding, and validation. Returns a
+   list of normalized rows.
+2. **`detect_transaction_type(headers)`** — returns `"lease"` for a header set
+   with Sign Date / Term / Base Rent / Tenant; `"sale"` for Sale Date / Sale
+   Price / Buyer / Seller / Cap.
+3. **`apply_alias_map(raw_row, txn_type)`** — folds contributor headers into the
+   canonical AddCompRow keys, coerces numerics (strips `$`, `,`, `%`; sizes and
+   term to int, rents to float), preserves the verbatim Transaction Type value
+   as `txn_subtype` (`New Lease`, `Sublease`, `Renewal`, `Renewal/Expansion`,
+   `New (pending)`), and stores any unmapped columns in `raw_fields_json` so
+   nothing the contributor typed is lost.
+4. **`validate_row(row)`** — sets `flagged=1` plus a `flag_reason` when minimum
+   keys are missing (lease: address + size + base rent + date; sale: address +
+   sale price + sale date); otherwise `flagged=0`. Never drops a row.
+5. **`parse_spreadsheet(path)`** — reads an `.xlsx` or `.csv`. For a multi-tab
+   xlsx it considers only comp-shaped sheets (header row matches >= 3 alias
+   keys) and skips prose / view tabs; if more than one comp-shaped sheet is
+   found it raises `AmbiguousSheetError(sheet_names)` so the operator can choose
+   (never a silent pick). Each sheet is routed by `detect_transaction_type`, so
+   a SALE sheet fills the sale block and the lease block stays None.
+6. **`parse_text(blob)`** — parses a pasted tab- or pipe-delimited table (header
+   row + data rows) through the same detect + alias + validate pipeline.
+7. **`parse_image(image_ref, model_extract)`** / **`llm_fallback(blob,
+   model_extract)`** — extract rows via an injected `model_extract` vision
+   callable (the skill's own Claude runtime in production; a mock in tests).
+   The callable returns already-canonical row dicts; the adapter runs each
+   through `validate_row`. No network or API key inside the sandbox.
+8. **`dry_run_summary(rows)`** — returns `total`, per-`original_source` counts,
+   and the flagged rows (with `flag_reason`) for the operator to review before
+   the write.
+9. **`build_write_payload(rows, meta)`** — assembles the exact `AddCompsPayload`
+   dict the `lee_comps_add_write` MCP tool expects (`added_by`,
+   `import_method`, `raw_blob`, `parser_version` from the `PARSER_VERSION`
+   constant, `rows`, plus optional `client_id` / `source_label` /
+   `raw_blob_ref` / `notes`). The model performs the actual MCP write.
+
+## Importing the helpers (read before writing a script)
+
+`helpers.py` lives in THIS skill's own directory, which is **not** on the Cowork
+sandbox's default Python path — so a bare `from helpers import ...` in a script
+you write to your working dir raises `ModuleNotFoundError: No module named
+'helpers'`. Locate the skill dir and put it on `sys.path` first:
+
+```python
+import sys, os, glob
+_hits = (glob.glob('/sessions/*/mnt/.remote-plugins/*/skills/add-comps/helpers.py')
+         or glob.glob(os.path.join(os.path.expanduser('~'), '**/skills/add-comps/helpers.py'), recursive=True))
+sys.path.insert(0, os.path.dirname(_hits[0]))
+from helpers import (validate_row, apply_alias_map, detect_transaction_type,
+                     parse_email, parse_spreadsheet, parse_text,
+                     dry_run_summary, build_write_payload)
+```
+
+(Alternatively, copy `helpers.py` next to your script first.) The skill's base
+directory is also printed in the launch message ("Base directory for this
+skill: ...") if you prefer that path directly.
+
+## Schema
+
+The output keys match the `lee_comps_add_write` MCP tool's `AddCompRow` exactly
+(see `helpers.py` `CANONICAL_KEYS`). Do not rename them.
+
+## Out of scope
+
+- The MCP write itself (`lee_comps_add_write`) — the model performs it after the
+  broker reviews the normalized rows (`build_write_payload` assembles the
+  payload; the model calls the tool).
+
+## Tests
+
+```
+cd plugins/lee-internal-comps/skills/add-comps
+python3 -m pytest tests/ -v
+```
+
+The golden fixture `tests/fixtures/silas_email.html` is a structurally faithful
+synthetic email (4 comp tables: JLL 12, Foundry 4, Tri Property 9, Prologis 5 =
+30 rows, plus 2 decoys) — parse_email must yield exactly 30 lease rows.

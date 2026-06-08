@@ -454,6 +454,15 @@ DISPLAY_COLUMNS_SALE: list[tuple[str, str]] = [
     ("Comp Profile",     "link_to_comp_profile"),
 ]
 
+# Land sale variant: brokers price raw land by acreage, so swap the $/SF column
+# (col 12) for $/Acre (price_per_acre, computed sale_price/acres). Same column
+# count and positions as DISPLAY_COLUMNS_SALE so format_excel's positional
+# index sets stay valid; the "Acres" column (col 8) is retained.
+DISPLAY_COLUMNS_SALE_LAND: list[tuple[str, str]] = [
+    ("$/Acre", "price_per_acre") if key == "price_per_sf" else (label, key)
+    for label, key in DISPLAY_COLUMNS_SALE
+]
+
 ASSET_TITLE_MAP: dict[str, str] = {
     "industrial":     "Industrial",
     "flex":           "Flex",
@@ -831,9 +840,16 @@ def format_excel(
     asset_title = _asset_title(validated.get("asset_type", ""))
     geo_label = _geography_label(validated.get("geography", {}))
     is_sale = validated.get("transaction_type") == "sale"
+    # LAND sale comps price on $/Acre, not $/SF (broker request, gi-plugins#28).
+    is_land_sale = is_sale and validated.get("asset_type") == "land"
     txn_token = " Sale" if is_sale else ""
     sheet_name = f"{asset_title}{txn_token} {geo_label} Comps".strip().replace("  ", " ")
-    display_columns = DISPLAY_COLUMNS_SALE if is_sale else DISPLAY_COLUMNS_LEASE
+    if is_land_sale:
+        display_columns = DISPLAY_COLUMNS_SALE_LAND
+    elif is_sale:
+        display_columns = DISPLAY_COLUMNS_SALE
+    else:
+        display_columns = DISPLAY_COLUMNS_LEASE
 
     wb = Workbook()
     default_font = Font(name="Calibri", size=11)
@@ -888,15 +904,21 @@ def format_excel(
             int_cols = {7, 9}                          # Building SF, Year Built
             acres_cols = {8}                           # Acres (decimal)
             large_money_cols = {10, 11}                # Asking Price, Sale Price
-            money_per_sf_cols = {12}                   # $/SF
             pct_cols = {13, 14}                        # Asking Cap %, Actual Cap %
-            color_scale_col = "L"                      # $/SF
+            color_scale_col = "L"                      # col 12: $/SF, or $/Acre for land
+            if is_land_sale:
+                money_per_sf_cols = set()
+                money_per_acre_cols = {12}             # $/Acre (whole dollars)
+            else:
+                money_per_sf_cols = {12}               # $/SF
+                money_per_acre_cols = set()
         else:
             left_align_cols = {3, 4, 5, 6, 15, 19, 20, 21, 22, 23}
             int_cols = {7, 8, 16}                      # SF, free rent months
             acres_cols = set()
             large_money_cols = set()
             money_per_sf_cols = {12, 13, 14, 17}       # asking, base, effective, TI
+            money_per_acre_cols = set()
             pct_cols = {18}                            # avg escalation
             color_scale_col = "N"                      # Effective $/SF
 
@@ -910,9 +932,17 @@ def format_excel(
                     raw = row.get("square_feet_sold")
                 if is_sale and key == "square_feet_sold" and (raw is None or raw == ""):
                     raw = row.get("building_size")
+                # $/Acre is computed, not stored: sale_price / acres. Blank (not
+                # an error) when acres is null or zero.
+                if key == "price_per_acre":
+                    sp = _to_number(row.get("sale_price"))
+                    ac = _to_number(row.get("acres"))
+                    raw = (sp / ac) if (
+                        isinstance(sp, (int, float)) and isinstance(ac, (int, float)) and ac
+                    ) else None
                 if col_idx in int_cols:
                     val = _to_int(raw)
-                elif col_idx in (money_per_sf_cols | large_money_cols | pct_cols | acres_cols):
+                elif col_idx in (money_per_sf_cols | money_per_acre_cols | large_money_cols | pct_cols | acres_cols):
                     val = _to_number(raw)
                 else:
                     val = raw
@@ -933,6 +963,8 @@ def format_excel(
                     ws.cell(row=r, column=col_idx).number_format = "$#,##0"
                 for col_idx in money_per_sf_cols:
                     ws.cell(row=r, column=col_idx).number_format = "$#,##0.00"
+                for col_idx in money_per_acre_cols:
+                    ws.cell(row=r, column=col_idx).number_format = "$#,##0"
                 for col_idx in pct_cols:
                     ws.cell(row=r, column=col_idx).number_format = '0.0"%"'
 
@@ -1055,6 +1087,17 @@ def format_excel(
             b.alignment = Alignment(wrap_text=True, vertical="top")
             ws3.row_dimensions[r].height = 30
 
+        # Guard (defense-in-depth for the Windows 218-char path limit).
+        # Brokers open this in Excel on Windows, where the full path cannot
+        # exceed 218 chars and the Cowork base dir is already ~125 deep. Flatten
+        # any directory the caller prepended and cap the filename so a deep or
+        # long path can't survive even if the model ignores the SKILL.md rule.
+        _name = os.path.basename(output_path.replace("\\", "/")) or "comps.xlsx"
+        if not _name.lower().endswith(".xlsx"):
+            _name += ".xlsx"
+        if len(_name) > 50:
+            _name = _name[:-5][:45] + ".xlsx"
+        output_path = _name
         wb.save(output_path)
 
         return {
