@@ -7,6 +7,12 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.11.0] - 2026-06-08
+
+### Added
+- **`lee-flyer-brief` skill** — a broker says "build a flyer for my listing" (or drops a listing agreement) and gets walked through assembling everything a marketing flyer needs: the skill auto-pulls owner of record, business key facts, and demographics, then runs the comp set, key facts, and demographics each through a **present → augment → select → narrate** loop so the broker adds their own data and picks exactly what appears. It writes a provenance-tagged **flyer brief** (every figure tagged `internal comps DB` / `external (CoStar cache)` / `broker-provided` / `listing agreement` / `county record` / `Census`) and hands the broker carry-over instructions into **Claude Design** (Lee design system) for visual polish. Replaces Lee marketing's Formstack "New Listing Marketing Request" intake. Write-back of broker-provided comps + the subject listing to the comps DB is **confirmation-gated** (no auto-write). Prototype validated through Rings 1–3 (simulated + two live Cowork runs + Claude Design number-fidelity diffs). (#67)
+  - **Pending (does not block this release, gates broker self-serve distribution):** the listing-agreement **compliance-gate** decision (David/Jamie — must an agreement be confirmed on file before a flyer ships?); Ring 4 (verify `lee_comps_add_write` accepts an on-market/subject-listing record) and Ring 5 (Will's first live end-to-end run). Reliability deps lee-and-associates #75 (comps MCP hardening) and #29 (external lease backfill) are non-blocking — the skill carries inline workarounds and degrades gracefully.
+
 ## [1.10.0] - 2026-06-08
 
 ### Added
