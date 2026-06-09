@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.12.0] - 2026-06-09
+
+### Added
+- **`vpd-lookup` skill** — a broker asks "traffic counts near [address]" (or `/vpd-lookup <address>`) and gets the top-5 nearby road segments by AADT (vehicles per day) for any NC address: ranked by road class then traffic volume, each with the annual average daily traffic, the count year, and distance from the site, plus a ready-to-place `vpd-card` flyer fragment for a retail / QSR / flex listing. Thin orchestrator over the lee-raleigh-mcp `pull_vpd_lookup` tool (NCDOT AADT, ~49k stations staged statewide to D1). NC-only, single address, top-5 within 1.5 mi in v1. (#73)
+
 ## [1.11.0] - 2026-06-08
 
 ### Added
