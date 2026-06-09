@@ -34,8 +34,8 @@ Triggers:
 
 1. Parse the broker's request to extract the address as a single free-text string. Don't canonicalize or pre-validate; the Census Geocoder does that server-side.
 2. Call the MCP tool `pull_vpd_lookup` with `{address: "<the extracted address>"}`.
-3. The response is structured JSON: `subject` (geocoded address + 1.5-mi radius), `segments` (the ranked top-5 road segments — each with `route`, `rte_cls_label`, `value` / `value_rounded` AADT, `year`, `distance_miles`, and a `display.callout`), `meta` (provenance), and `fragment_html` (a self-contained flyer card). Lead with the busiest road, then offer the full top-5.
-4. Surface `fragment_html` as the drop-in flyer card when the broker is building a flyer / OM / BOV — it is the same `vpd-card` fragment the lee-listing-flyer composes. If they just asked a question, the conversational summary is enough; mention the card is available.
+3. The response is structured JSON: `subject` (geocoded address + 1.5-mi radius), `segments` (the ranked top-5 road segments — each with `route`, `rte_cls_label`, `value` / `value_rounded` AADT, `year`, `distance_miles`, and a `display.callout`), `meta` (provenance), `pdf_url` (a signed link to the rendered flyer card, or `null`), and `fragment_html` (the same card as a composable HTML fragment). Lead with the busiest road, then offer the full top-5.
+4. If `pdf_url` is a non-null string, surface it as a "📄 Open PDF" link with a 1-hour expiry note: *"Link expires in ~1 hour, download or share it now."* — that is the polished Lee-branded traffic-counts card a broker drops into a flyer / OM / BOV. If `pdf_url` is `null`, deliver the inline top-5 and note the card couldn't render this time (suggest a re-run). `fragment_html` is the same card as a raw HTML fragment for the lee-listing-flyer composition path — mention it only if the broker is assembling a flyer programmatically.
 
 ## How to present it
 
