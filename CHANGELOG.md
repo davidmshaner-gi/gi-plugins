@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.13.0] - 2026-06-09
+
+### Added
+- **`nearby-businesses` skill** — a broker asks "what's around [address]" / "map the nearby amenities" (or `/nearby-businesses <address>`) and gets an **Area Amenities map kit** for any NC address: the recognizable nearby businesses (grocery, retail, restaurants, coffee, gyms, pharmacies, hotels, healthcare) ranked by prominence with their brand logos, laid out on a basemap with 1/3/5-mile rings, returned as a downloadable designer kit (basemap + `logos/` + `placements.json` manifest + Lee `brand.json`) behind a 15-minute signed link. The marketing team composes the flyer's amenities map in Claude Design. Thin orchestrator over the lee-raleigh-mcp `pull_nearby_businesses` tool (lee-raleigh-mcp v0.10.0; Google Places discovery + Wikidata/favicon logos warm-cached in R2). Basemap is a PDF in v1 (high-res PNG tracked separately). (#57)
+
 ## [1.12.1] - 2026-06-09
 
 ### Changed
