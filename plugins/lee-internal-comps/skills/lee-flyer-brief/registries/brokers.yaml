@@ -1,0 +1,378 @@
+# Lee & Associates Raleigh-Durham — broker contact registry
+# Canonical source for flyer/brief contact blocks. The skill resolves contacts
+# HERE first; web lookup is bootstrap-only and must never override a confirmed
+# registry entry. Pattern follows lee-listing-flyer/registries/brokers.yaml.
+#
+# status: confirmed = verified by a person; web-sourced = scraped, confirm
+# before print. Update status + date when a human verifies a field.
+#
+# Full broker roster (35) registered 2026-06-07 from the official Lee website
+# Buildout feed behind lee-associates.com/raleigh/meet-our-team/ (broker rows
+# + vcards). Covers Raleigh Durham + Wilmington (one firm: Lee RDW). The
+# company-wide people directory (incl. marketing/staff) is the `roster:`
+# section of 30_clients/lee_and_associates/comms-registry.yaml. phone_cell
+# omitted when unpublished or identical to the direct line.
+
+brokers:
+  - key: james-bailey
+    name: "James Bailey"
+    designations: "JD, SIOR"
+    title: "Vice President, Principal"
+    email: "jbailey@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2514"
+    phone_cell: "336.602.3022"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: lannin-braddock
+    name: "Lannin Braddock"
+    title: "Senior Director"
+    email: "lbraddock@lee-associates.com"
+    phone_office: ""   # Wilmington office main line not published in the Buildout feed
+    phone_direct: "910.800.2259"
+    phone_cell: "910.508.3886"
+    office: "Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: christina-coffey
+    name: "Christina Coffey"
+    title: "Vice President"
+    email: "ccoffey@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2273"
+    phone_cell: "919.522.9915"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: dee-creech-osborne
+    name: "Aldene \"Dee\" Creech Osborne"
+    designations: "SIOR"
+    title: "Vice President"
+    email: "dcreech@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: ""
+    phone_cell: "919.622.7272"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: david-divine
+    name: "David Divine"
+    designations: "SIOR"
+    title: "Senior Director"
+    email: "ddivine@lee-associates.com"
+    phone_office: ""   # Wilmington office main line not published in the Buildout feed
+    phone_direct: "910.800.2257"
+    phone_cell: "919.669.4931"
+    office: "Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: brian-farmer
+    name: "Brian Farmer"
+    designations: "SIOR"
+    title: "Managing Director, Principal"
+    email: "bfarmer@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2503"
+    phone_cell: "919.730.6584"
+    office: "Raleigh Durham"
+    status: "title + lines web-sourced 2026-06-07 (official Lee Buildout feed; supersedes the stale 2020 Buildout bio title); confirm before print"
+
+  - key: silas-fortuin
+    name: "Silas Fortuin"
+    title: "Broker"
+    email: "sfortuin@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2271"
+    phone_cell: "208.316.3718"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: loup-gajigianis
+    name: "Loup Gajigianis"
+    title: "Associate Broker"
+    email: "lgajigianis@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "984.684.5008"
+    phone_cell: "919.338.4018"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: aimee-gibbs
+    name: "Aimée Gibbs"
+    designations: "JD"
+    title: "Broker"
+    email: "agibbs@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: ""
+    phone_cell: ""
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: mike-glennon
+    name: "Mike Glennon"
+    title: "Broker"
+    email: "mglennon@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "703.772.2339"
+    phone_cell: ""
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: grier-godwin
+    name: "Grier Godwin"
+    title: "Broker"
+    email: "ggodwin@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2272"
+    phone_cell: "919.524.5407"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: kyle-gross
+    name: "Kyle Gross"
+    title: "Senior Director"
+    email: "kgross@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2276"
+    phone_cell: "919.710.6400"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: scott-hadley
+    name: "Scott Hadley"
+    title: "Vice President, Principal"
+    email: "shadley@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2504"
+    phone_cell: "919.906.0524"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: jonathon-harriss
+    name: "Jonathon Harriss"
+    title: "Broker"
+    email: "jharriss@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2278"
+    phone_cell: "980.226.6738"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: karah-jennings-mcconnell
+    name: "Karah Jennings McConnell"
+    title: "Executive Vice President, Principal"
+    email: "kjennings@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2502"
+    phone_cell: "919.817.0705"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: will-judy
+    name: "Will Judy"
+    title: "Vice President, Principal"
+    email: "wjudy@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2513"
+    phone_cell: "919.606.1956"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: alan-kerry
+    name: "Alan Kerry"
+    title: "Senior Director"
+    email: "akerry@lee-associates.com"
+    phone_office: ""   # Wilmington office main line not published in the Buildout feed
+    phone_direct: "910.685.2293"
+    phone_cell: ""
+    office: "Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: dan-koeller
+    name: "Dan Koeller"
+    title: "Vice President, Principal"
+    email: "dkoeller@lee-associates.com"
+    phone_office: ""   # Wilmington office main line not published in the Buildout feed
+    phone_direct: "919.591.2274"
+    phone_cell: "919.349.7857"
+    office: "Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: chip-lanier
+    name: "Chip Lanier"
+    designations: "MBA"
+    title: "Vice President, Principal"
+    email: "clanier@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2516"
+    phone_cell: "919.291.6282"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: ryan-lawler
+    name: "Ryan Lawler"
+    title: "Senior Director"
+    email: "rlawler@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2511"
+    phone_cell: "949.291.3896"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: daniel-mccloy
+    name: "Daniel McCloy"
+    designations: "SIOR"
+    title: "Vice President"
+    email: "dmccloy@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "984.684.5001"
+    phone_cell: "919.270.9587"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: luke-mello
+    name: "Luke Mello"
+    title: "Associate Broker"
+    email: "lmello@lee-associates.com"   # comms-registry recipients also has lmello@braddock-group.com; both may be live
+    phone_office: ""   # Wilmington office main line not published in the Buildout feed
+    phone_direct: "910.800.2260"
+    phone_cell: "910.945.9755"
+    office: "Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: jenn-olevitch-roberson
+    name: "Jenn Olevitch-Roberson"
+    title: "Vice President, Principal"
+    email: "jolevitch-roberson@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2517"
+    phone_cell: "919.345.1752"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: cole-pennell
+    name: "Cole Pennell"
+    designations: "CCIM"
+    title: "Vice President, Principal"
+    email: "cpennell@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2270"
+    phone_cell: "704.975.0164"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: maryann-peterson
+    name: "MaryAnn Peterson"
+    title: "Vice President"
+    email: "mpeterson@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "984.238.1094"
+    phone_cell: "919.201.6885"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: jake-plotkin
+    name: "Jake Plotkin"
+    designations: "CCIM"
+    title: "Vice President, Principal"
+    email: "jplotkin@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2505"
+    phone_cell: "919.616.0066"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: will-smith
+    name: "Will Smith"
+    title: "Senior Director"
+    email: "willsmith@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2266"
+    phone_cell: "919.986.9371"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: will-sossaman
+    name: "Will Sossaman"
+    title: "Broker"
+    email: "wsossaman@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.591.2262"
+    phone_cell: "919.632.6953"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: marlene-spritzer
+    name: "Marlene Spritzer"
+    designations: "CCIM, SIOR, JD"
+    title: "Vice President, Principal"
+    email: "mspritzer@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2515"
+    phone_cell: "919.812.9528"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (Lee Buildout feed; designations cross-checked vs SIOR.com profile); confirm before print"
+
+  - key: alyssa-stepusin-byrd
+    name: "Alyssa Stepusin Byrd"
+    title: "Broker"
+    email: "abyrd@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2512"
+    phone_cell: "919.482.0660"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: russell-stewart
+    name: "Russell Stewart"
+    designations: "JD, SIOR"
+    title: "Vice President, Principal"
+    email: "rstewart@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2506"
+    phone_cell: "919.909.9779"
+    office: "Raleigh Durham + Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: hunter-stewart
+    name: "Hunter Stewart"
+    designations: "MBA, SIOR"
+    title: "Vice President, Principal"
+    email: "hstewart@lee-associates.com"
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2507"
+    phone_cell: "919.548.3172"
+    office: "Raleigh Durham"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: sandy-thorpe
+    name: "Sandy Thorpe"
+    title: "Managing Director - Wilmington"
+    email: "sthorpe@lee-associates.com"
+    phone_office: ""   # Wilmington office main line not published in the Buildout feed
+    phone_direct: "910.352.6787"
+    phone_cell: ""
+    office: "Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: alex-thorpe
+    name: "Alex Thorpe"
+    title: "Senior Director"
+    email: "athorpe@lee-associates.com"
+    phone_office: ""   # Wilmington office main line not published in the Buildout feed
+    phone_direct: "910.685.7802"
+    phone_cell: "910.520.5652"
+    office: "Wilmington"
+    status: "web-sourced 2026-06-07 (official Lee Buildout feed); confirm before print"
+
+  - key: moss-withers
+    name: "Moss Withers"
+    designations: "SIOR, MBA"
+    title: "CEO & Principal"   # was [unconfirmed]; settled by the official Lee Buildout feed 2026-06-07 (Ted Boyd holds President)
+    email: "mwithers@lee-associates.com"   # confirmed by Bonner 2026-06-06; moss@leeraleigh.com is WRONG
+    phone_office: "919.576.2500"
+    phone_direct: "919.576.2501"
+    phone_cell: ""
+    office: "Raleigh Durham + Wilmington"
+    status: "email confirmed 2026-06-06 (Bonner); title + direct line web-sourced 2026-06-07 (official Lee Buildout feed)"
