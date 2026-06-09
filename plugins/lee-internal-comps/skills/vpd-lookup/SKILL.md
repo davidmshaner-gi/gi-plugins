@@ -54,6 +54,7 @@ Same envelope as sibling skills:
 - `geocode_failed` — the address didn't resolve. Echo the broker's input back and ask for a city + state hint.
 - `out_of_region` — matched address is not in NC. Tell the broker v1 supports NC only.
 - `upstream_failed` — Census geocoder or D1 lookup hiccup. Apologize and ask the broker to retry.
+- `rate_limited` (HTTP 429) — the broker has hit the daily cap (100 lookups/broker/day). Relay the message plainly: the daily limit is reached and resets at midnight UTC.
 - `internal` — anything else. Apologize, surface a short message, ask David / Bonner to check.
 
 If the tool returns an empty `segments` list (and an empty `fragment_html`), there were no AADT-counted roads within 1.5 mi — common for a deep-rural site. Tell the broker plainly and suggest the nearest counted corridor is farther out.
