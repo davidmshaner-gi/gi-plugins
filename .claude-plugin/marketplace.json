@@ -9,8 +9,8 @@
     {
       "name": "lee-internal-comps",
       "source": "./plugins/lee-internal-comps",
-      "description": "Comps (internal Dealius + external CoStar, lease & sale), demographic and business-key-facts reports, owner-of-record lookup, labor-shed workforce, owner mailing lists, and guided marketing-flyer intake for Lee & Associates Raleigh brokers. Headliners: internal-comps and internal-and-external-comps (Excel + Lee-branded PDF), demographic-summary/-detail and business-key-facts (Lee-branded PDFs), owner-lookup, labor-shed, owner-mailing-list, add-comps, and lee-flyer-brief (guided flyer brief: pulls comps/demographics/owner data, broker curates, provenance-tagged brief, Claude Design handoff). Plus process-mapping: a guided interview that maps any team member's repeatable process into a clean process-map document for GI (CRE = firm context, role-agnostic).",
-      "version": "1.11.0"
+      "description": "Comps (internal Dealius + external CoStar, lease & sale), demographic and business-key-facts reports, owner-of-record lookup, labor-shed workforce, traffic counts, owner mailing lists, and guided marketing-flyer intake for Lee & Associates Raleigh brokers. Headliners: internal-comps and internal-and-external-comps (Excel + Lee-branded PDF), demographic-summary/-detail and business-key-facts (Lee-branded PDFs), owner-lookup, labor-shed, owner-mailing-list, add-comps, lee-flyer-brief (guided flyer brief: pulls comps/demographics/owner data, broker curates, provenance-tagged brief, Claude Design handoff), and vpd-lookup (traffic counts / AADT for the busiest roads near any NC address, with a flyer card). Plus process-mapping: a guided interview that maps any team member's repeatable process into a clean process-map document for GI (CRE = firm context, role-agnostic).",
+      "version": "1.12.0"
     }
   ]
 }
