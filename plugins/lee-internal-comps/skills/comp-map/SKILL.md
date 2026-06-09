@@ -37,7 +37,7 @@ Triggers:
 ## Process
 
 1. Decide the **mode** from the request:
-   - A subject property named → **deal mode**: pass `subject` (a single free-text address string; don't pre-validate — the geocoder resolves it server-side). Add `radius_mi` if the broker gave one (else the tool defaults). Add `rings_mi` (e.g. `[1,3,5]`) if they want radius rings.
+   - A subject property named → **deal mode**: pass `subject` (a single free-text address string; don't pre-validate — the geocoder resolves it server-side). Add `radius_mi` if the broker gave one (else the tool defaults). Add `rings_mi` if they want distance rings — **always scale the rings to the radius**: present/pass 2–3 round-number bands that end at `radius_mi` and **never exceed it**, so the outermost ring reads as the search boundary. Scale them: `radius_mi` 5 → `[1,3,5]`; 3 → `[1,2,3]`; 2 → `[0.5,1,2]`; 1 → `[0.25,0.5,1]`; for an unusual radius pick a few round bands up to it. Never offer a ring larger than the chosen radius (a 5-mile ring on a 1-mile radius map is meaningless — it sits where there are no comps).
    - "All our comps" / "map of the database" / a broker's deal history → **database mode**: omit `subject` (or set `mode:"database"`). For a deal-history / rep map, pass `brokers: ["<full name>", ...]` (any-involvement match across lead + the four rep-agent roles).
 2. Optional filters either mode: `types` (`["sale"]`, `["lease"]`, or both), `since` (`YYYY-MM-DD`), `ttl_days` (override the ~30-day share link).
 3. Call the MCP tool **`pull_comp_map`** with that input.

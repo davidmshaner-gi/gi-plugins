@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.14.1] - 2026-06-09
+
+### Fixed
+- **`comp-map` rings now scale to the search radius** instead of a fixed 1/3/5. Caught in Stage-4a Cowork ship-QA: a 1-mile search radius still offered "1/3/5 mile rings", drawing 3- and 5-mile rings well outside where any comps exist. The SKILL.md now instructs rings as round-number bands that end at `radius_mi` and never exceed it (5 mi → 1/3/5; 1 mi → 0.25/0.5/1). Intake-guidance only; no MCP/Worker change. (#80)
+
 ## [1.14.0] - 2026-06-09
 
 ### Added
