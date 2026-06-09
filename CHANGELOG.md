@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.14.0] - 2026-06-09
+
+### Added
+- **`comp-map` skill** — a broker asks "map the comps around [address]" / "show the comps near my listing" (or `/comp-map <address>`) and gets a **Lee-branded competitive-set map**. **Deal mode** (a subject) maps the comps around it — numbered pins ordered by distance, optional radius rings, and a paired comp table whose rows match the pins. **Database mode** (no subject) maps the whole internal comp set, or a broker's deal history (`map every deal my team closed in this market`). Returns a **shareable ~30-day interactive Google map link** (forwardable to a client, no login), a **print-ready static PNG**, and a **`csm-*` comp-table fragment** for flyers/OMs/BOVs. A single map shows at most ~10% of the database (a governance guardrail, surfaced when it fires). Distance rings only in v1 — drive-time bands are a fast-follow (gi-plugins#77). Thin orchestrator over the lee-raleigh-mcp `pull_comp_map` tool (lee-raleigh-mcp v0.10.0; compose/render ported from the `map-builder` engine, comp geocodes pre-staged in D1). (#65)
+
 ## [1.13.0] - 2026-06-09
 
 ### Added
