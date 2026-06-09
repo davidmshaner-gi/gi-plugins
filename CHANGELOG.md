@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.12.1] - 2026-06-09
+
+### Changed
+- **`vpd-lookup` now surfaces the PDF flyer card.** `pull_vpd_lookup` returns a signed `pdf_url` (lee-raleigh-mcp v0.9.3), so the skill now offers a "📄 Open PDF" link (1-hour expiry) — the polished Lee-branded traffic-counts card — instead of only the raw HTML fragment. Falls back to the inline top-5 if the render is unavailable. (#75)
+
 ## [1.12.0] - 2026-06-09
 
 ### Added
