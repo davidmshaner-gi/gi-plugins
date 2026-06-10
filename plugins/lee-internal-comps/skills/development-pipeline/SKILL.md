@@ -28,13 +28,13 @@ Triggers:
 
 ## The broker selects the product types -- never assume for them
 
-The broker picks what they want tracked. Do not silently exclude categories and do not bias toward any product type. The only silent default is for AUTO-invocation (an orchestrator like `lee-flyer-brief` calling with no broker in the loop), which runs core commercial: office, retail, industrial, multifamily, mixed use, hospitality.
+The broker picks what they want tracked. Do not silently exclude categories and do not bias toward any product type. The only silent default is for AUTO-invocation (an orchestrator like `lee-flyer-brief` calling with no broker in the loop), which runs core commercial: office, retail, industrial, multifamily, mixed use, hospitality, PLUS untagged/unspecified projects (several feeds don't tag every row; dropping those would silently understate the pipeline). To get this default, **omit the `use` parameter entirely** -- do not enumerate the categories yourself, or you lose the unspecified rows.
 
 ### The broker's questions, in order
 
 1. **Where?** The subject address. Skip if the listing context already gives it.
-2. **Which product types?** ALWAYS ask on a broker-driven run unless the broker already named them. Offer the full menu, flat, no recommendation: Office / Retail / Industrial / Multifamily / Mixed Use / Hospitality / Institutional (churches, schools, civic) / Residential (single-family, townhomes) -- any combination, or "all of it." Pass the answer as `use` (category values: `office`, `retail`, `industrial`, `multifamily`, `mixed_use`, `hospitality`, `institutional`, `residential`, or `["all"]`).
-3. **How far out?** Offer the 3-mile default in the same breath: "I'll look 3 miles around it unless you want tighter or wider." Not a standalone question (`radius_mi`).
+2. **Which product types?** ALWAYS ask on a broker-driven run unless the broker already named them. Offer the full menu, flat, no recommendation: Office / Retail / Industrial / Multifamily / Mixed Use / Hospitality / Institutional (churches, schools, civic) / Residential (single-family, townhomes) -- any combination, or "all of it." Pass the answer as `use` (category values: `office`, `retail`, `industrial`, `multifamily`, `mixed_use`, `hospitality`, `institutional`, `residential`, or `["all"]`). Two non-menu categories exist in the data and may appear in exclusion counts: `unspecified` (the feed didn't tag the project's use -- ALWAYS include it alongside any explicit selection so the pipeline isn't understated) and `other` (parks, greenways, open space).
+3. **How far out?** Offer the 3-mile default in the same breath: "I'll look 3 miles around it unless you want tighter or wider." Not a standalone question (`radius_mi`, ceiling 15 miles -- catch a wider ask before the call and say so).
 4. *(Defaulted, ask nothing)* Lookback (36 months of substantive activity; `lookback_months`) and table length (14 rows + "+N more"; `max_rows`). Surface only if the broker asks for older history or a longer list.
 5. **After the run -- curation.** Walk the broker through the project list; they cull or keep rows before the fragment goes anywhere near a flyer. Their selection is the narrative.
 
@@ -52,8 +52,8 @@ Questions 1 and 2 are the only hard stops. Everything else has a default and the
 1. Resolve the address + product types per the question flow above.
 2. Call the MCP tool `pull_development_pipeline` with `{address, use?, radius_mi?, include_minor_works?, lookback_months?, max_rows?}`. Address is a single free-text string; don't pre-validate.
 3. The response is a JSON record: `projects` (sorted by lifecycle stage then distance), `stage_counts`, exclusion counters (incl. `excluded_by_use_breakdown`), `narrative_bullets`, `sources` (per-feed health), `data_as_of`, `fragment_html`, `pdf_url`.
-4. **Lead with the narrative bullets** -- they are the flyer-ready one-liners brokers hand-write today ("115,846 SF of multifamily under construction 2.2 mi away"). Then the stage picture (counts by Submitted / Under Review / Approved / Under Construction / Completed), then the project table on request.
-5. If `pdf_url` is a non-null string, surface it as a "📄 Open PDF" link with a 1-hour expiry note: *"Link expires in ~1 hour, download or share it now."* If `pdf_url` is `null`, deliver the structured data and suggest the broker re-run.
+4. **Lead with the narrative bullets** -- they are the flyer-ready one-liners brokers hand-write today ("115,846 SF of multifamily under construction 2.2 mi away"). Then the stage picture (counts by Submitted / Under Review / Approved / Under Construction / Completed, plus "Status Unclear" when a feed's status didn't map -- include it or the counts won't sum to the project total), then the project table on request. If `projects_truncated` is true the table was capped at 200 rows (`project_count` carries the real total) -- suggest tightening the radius or the product-type selection.
+5. If `pdf_url` is a non-null string, surface it as a "📄 Open PDF" link with an expiry note (use `pdf_expires_at` when present; otherwise "~1 hour"): *"Link expires soon, download or share it now."* If `pdf_url` is `null`, deliver the structured data and suggest the broker re-run.
 6. `fragment_html` is the `dpt-*` flyer fragment -- a composition input for flyer/OM workflows (`lee-flyer-brief`); mention it only in that context, not on a conversational pull.
 
 ## How to present it
