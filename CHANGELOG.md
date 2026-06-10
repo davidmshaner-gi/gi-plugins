@@ -7,6 +7,20 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.15.0] - 2026-06-10
+
+### Changed
+- **owner-mailing-list now answers in seconds, with no browser extension.** The skill
+  queries the new `pull_owner_mailing_list` MCP tool on the lee-raleigh connector,
+  which reads a pre-staged statewide NC OneMap parcel mirror — replacing the
+  Claude-in-Chrome browser pipeline (60–180s per pull, extension required). Same
+  request, same CSV (owner, mailing address, site address, acreage, land class),
+  private owners only, deduplicated by mailing address.
+- Owner data refreshed statewide from NC OneMap, with parcel coordinates for every
+  covered county (New Hanover gains coordinates for the first time) and three new
+  counties added: Orange, Johnston, Chatham. Coverage: Wake, Durham, New Hanover,
+  Lee, Orange, Johnston, Chatham.
+
 ## [1.14.2] - 2026-06-10
 
 ### Fixed
