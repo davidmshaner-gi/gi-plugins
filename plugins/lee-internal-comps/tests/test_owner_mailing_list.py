@@ -2,7 +2,6 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "owner-mailing-list"))
 import helpers
-import county_registry as reg
 
 def test_slugify_basic():
     assert helpers.slugify("100 Walnut St, Cary NC") == "100-walnut-st-cary-nc"
@@ -64,55 +63,22 @@ def test_format_csv_writes_flat_file(tmp_path):
         header = f.readline().strip()
     assert header == "owner,mail_addr,site_addr,acreage,land_class"
 
-def test_registry_resolves_wake_case_insensitive():
-    e = reg.resolve_county("Wake County")
-    assert e is not None
-    assert "arcgis" in e["service_url"].lower() or "MapServer" in e["service_url"]
-    fm = e["field_map"]
-    for k in ("acreage", "land_class", "bldg_val", "owner", "mail_addr", "site_addr"):
-        assert k in fm
-
-def test_registry_returns_none_for_uncovered():
-    assert reg.resolve_county("Mecklenburg County") is None
-
-
-def test_build_rows_joins_mail_concat_fields():
-    # split mailing address (street + city + state + zip) must survive
-    entry = {
-        "field_map": {"acreage": "AC", "land_class": "LC", "bldg_val": "BV",
-                      "owner": "OWN", "mail_addr": "M1", "site_addr": "SITE"},
-        "mail_concat": ["M1", "M2", "CITY", "ST", "ZIP"],
-    }
-    raw = [{"OWN": "ACME LLC", "M1": "PO BOX 5", "M2": "", "CITY": "CARY",
-            "ST": "NC", "ZIP": "27513", "SITE": "0 MAPLE", "AC": 3.1, "LC": "Vacant"}]
-    out = helpers.build_rows(raw, entry)
+def test_rows_from_mcp_maps_tool_rows_to_csv_shape():
+    mcp = [{
+        "county": "WAKE", "parcel_id": "0763592649",
+        "owner_raw": "ACME LLC",
+        "owner_mail_address": "PO BOX 5\nCARY NC 27513",
+        "address": "0 MAPLE ST", "lot_size_acres": 3.1,
+        "land_use": "V", "distance_mi": 0.4,
+    }]
+    out = helpers.rows_from_mcp(mcp)
     assert out == [{"owner": "ACME LLC", "mail_addr": "PO BOX 5 CARY NC 27513",
-                    "site_addr": "0 MAPLE", "acreage": 3.1, "land_class": "Vacant"}]
+                    "site_addr": "0 MAPLE ST", "acreage": 3.1, "land_class": "V"}]
 
-def test_build_rows_without_concat_uses_field_map():
-    entry = {"field_map": {"acreage": "AC", "land_class": "LC", "bldg_val": "BV",
-                           "owner": "OWN", "mail_addr": "MAIL", "site_addr": "SITE"}}
-    raw = [{"OWN": "BETA", "MAIL": "1 Main St, Apex NC", "SITE": "2 Elm", "AC": 5.0, "LC": "V"}]
-    out = helpers.build_rows(raw, entry)
-    assert out[0]["mail_addr"] == "1 Main St, Apex NC"
-    assert out[0]["site_addr"] == "2 Elm"
 
-def test_build_rows_empty_site_field_is_blank_not_error():
-    # Orange County has site_addr="" (no situs field) -> must not raise, returns ""
-    entry = {"field_map": {"acreage": "AC", "land_class": "LC", "bldg_val": "BV",
-                           "owner": "OWN", "mail_addr": "A1", "site_addr": ""},
-             "mail_concat": ["A1", "A2"]}
-    raw = [{"OWN": "X", "A1": "123 Rd", "A2": "Durham NC", "AC": 2, "LC": "v"}]
-    out = helpers.build_rows(raw, entry)
-    assert out[0]["site_addr"] == ""
-    assert out[0]["mail_addr"] == "123 Rd Durham NC"
-
-def test_build_rows_against_real_wake_entry():
-    # integration: real Wake registry entry + a realistic ArcGIS row
-    e = reg.resolve_county("Wake")
-    raw = [{"OWNER": "WAKE STONE CORP", "ADDR1": "PO BOX 190", "ADDR2": "",
-            "ADDR3": "KNIGHTDALE NC 27545", "SITE_ADDRESS": "0 OLD US 1",
-            "DEED_ACRES": 4.2, "LAND_CLASS_DECODE": "Vacant"}]
-    out = helpers.build_rows(raw, e)
-    assert out[0]["owner"] == "WAKE STONE CORP"
-    assert out[0]["mail_addr"] == "PO BOX 190 KNIGHTDALE NC 27545"
+def test_rows_from_mcp_tolerates_nulls():
+    out = helpers.rows_from_mcp([{"owner_raw": None, "owner_mail_address": None,
+                                  "address": None, "lot_size_acres": None,
+                                  "land_use": None}])
+    assert out == [{"owner": "", "mail_addr": "", "site_addr": "",
+                    "acreage": "", "land_class": ""}]

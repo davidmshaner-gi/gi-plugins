@@ -54,36 +54,22 @@ def parse_request(text):
         "raw": t,
     }
 
-def build_rows(raw_rows, entry):
-    """Map raw ArcGIS attribute dicts through a county registry entry to CSV rows.
+def rows_from_mcp(mcp_rows):
+    """Map pull_owner_mailing_list rows to the CSV row shape.
 
-    Honors `mail_concat` / `site_concat` — many counties split the mailing address
-    across several fields (street + city + state + zip) or the site address across
-    components. Joining them here (driven by the registry, not hardcoded) is what
-    keeps city/state/zip from being silently dropped for non-Wake counties.
-    REQUIRES the ArcGIS query to have requested all fields (outFields="*"), since
-    the concat fields are not in field_map.values().
+    The tool's owner_mail_address is multiline (street\ncity st zip);
+    the CSV contract is a single-line mail_addr.
     """
-    fm = entry["field_map"]
-    mail_fields = entry.get("mail_concat") or ([fm["mail_addr"]] if fm.get("mail_addr") else [])
-    site_fields = entry.get("site_concat") or ([fm["site_addr"]] if fm.get("site_addr") else [])
-
-    def _join(row, fields):
-        parts = []
-        for f in fields:
-            v = row.get(f)
-            if v is not None and str(v).strip():
-                parts.append(str(v).strip())
-        return " ".join(parts)
-
     out = []
-    for r in raw_rows:
+    for r in mcp_rows:
+        mail = (r.get("owner_mail_address") or "").replace("\n", " ").strip()
+        acreage = r.get("lot_size_acres")
         out.append({
-            "owner": r.get(fm["owner"], "") or "",
-            "mail_addr": _join(r, mail_fields),
-            "site_addr": _join(r, site_fields),
-            "acreage": r.get(fm["acreage"], ""),
-            "land_class": r.get(fm["land_class"], ""),
+            "owner": r.get("owner_raw") or "",
+            "mail_addr": mail,
+            "site_addr": r.get("address") or "",
+            "acreage": "" if acreage is None else acreage,
+            "land_class": r.get("land_use") or "",
         })
     return out
 

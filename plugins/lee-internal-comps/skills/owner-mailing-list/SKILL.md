@@ -1,11 +1,14 @@
 ---
 name: owner-mailing-list
-description: Produce a deduplicated owner + mailing-address list for a Lee & Associates broker from public county parcel data. Given an area + criteria request (subject address + radius + property type/land class + acreage or size), drives the Claude in Chrome browser extension against the county's public ArcGIS parcel service to find matching parcels, then returns a clean CSV of owner names + mailing addresses + site addresses, deduplicated by mailing address and filtered to private owners (drops government/exempt/HOA/cemetery parcels). Use for any "owners of <criteria> within <radius> of <address>" / "mailing list for <area>" / "who owns the vacant land near <site>" request. Requires the Claude in Chrome browser extension; the skill detects it and walks the broker through enabling it if absent. NC counties only; coverage grows by county (see QA_MATRIX.md). v1 returns the CSV; Avery labels are a separate skill (gi-plugins #38).
+description: Produce a deduplicated owner + mailing-address list for a Lee & Associates broker from county parcel data. Given an area + criteria request (subject address + radius + property type/land class + acreage or size), calls the lee-raleigh connector's pull_owner_mailing_list tool against the statewide NC OneMap parcel mirror and returns a clean CSV of owner names + mailing addresses + site addresses in seconds, deduplicated by mailing address and filtered to private owners (drops government/exempt/HOA/cemetery parcels). Use for any "owners of <criteria> within <radius> of <address>" / "mailing list for <area>" / "who owns the vacant land near <site>" request. Covers Wake, Durham, New Hanover, Lee, Orange, Johnston, and Chatham counties (NC); coverage grows by county. v1 returns the CSV; Avery labels are a separate skill (gi-plugins #38).
 ---
 
 # Owner Mailing List
 
-Produce a deduplicated, private-owner mailing-address CSV from public county parcel data. All data work runs **in the browser** via the Claude in Chrome extension, because the Cowork sandbox has no outbound network — the browser is the only egress path.
+Produce a deduplicated, private-owner mailing-address CSV from county parcel
+data. The data work runs **server-side** on the lee-raleigh connector
+(`pull_owner_mailing_list`), reading a pre-staged statewide parcel mirror —
+no browser, no extension, results in seconds.
 
 ## When to use / not
 
@@ -22,23 +25,17 @@ Produce a deduplicated, private-owner mailing-address CSV from public county par
 - **Avery 5160 label PDFs** — deferred to gi-plugins #38 (separate skill)
 - **Phone/email enrichment** — deferred to lee #35/#36
 
----
+## Coverage
 
-## Step 0 — Detect Claude in Chrome
+Wake, Durham, New Hanover, Lee, Orange, Johnston, Chatham (NC), served from
+the NC OneMap statewide parcel mirror. For any other county, tell the broker:
 
-**Before doing anything else**, confirm the **Claude in Chrome** browser tools are available in this session — the ones prefixed `mcp__Claude_in_Chrome__` (e.g. `mcp__Claude_in_Chrome__javascript_tool`, `mcp__Claude_in_Chrome__navigate`, `mcp__Claude_in_Chrome__tabs_context_mcp`). Those tools ARE the signal that Claude in Chrome is enabled.
+> [County name] isn't covered yet. For [county name], go directly to its
+> county GIS site and export the owner list from there.
 
-> **Do NOT use the `mcp__Control_Chrome__*` ("Control Chrome") tools for this skill.** Control Chrome's `execute_javascript` fails in this environment ("Google Chrome is not running") and wastes calls. This skill drives Claude in Chrome exclusively.
-
-**If the Claude in Chrome tools are NOT available:**
-
-> I need the **Claude in Chrome** extension enabled to pull owner data from the county parcel service. It's a one-time, in-session step.
->
-> See the install guide: `plugins/lee-internal-comps/skills/owner-mailing-list/INSTALL_CLAUDE_FOR_CHROME.md`
->
-> Once it's on and you've opened a tab, come back here and I'll run the pull.
-
-**HALT.** Do not attempt the pull without the Claude in Chrome tools present. There is no fallback (Control Chrome does not work, and the sandbox has no network).
+(The tool answers from whatever counties are staged — when in doubt, run the
+query; an out-of-footprint address comes back with zero rows or a clear
+locate error, never a traceback.)
 
 ---
 
@@ -58,111 +55,66 @@ Call `helpers.parse_request(text)` on the broker's request string. The function 
 
 **Confirm back to the broker before proceeding:**
 
-> Got it — I'll pull owners of [land_class] land, [size range if given], within [radius] miles of [address]. Running the county parcel lookup now.
+> Got it — I'll pull owners of [land_class] land, [size range if given], within [radius] miles of [address]. Running the parcel query now.
 
 If `radius_mi` is `None`, ask the broker: "How many miles out from [address] should I search?"
 If `subject_property.address` is blank, ask the broker for the subject address before continuing.
 
-Acreage handling: `size.min_acres` / `size.max_acres` may be present, one-sided ("3+ acres" → only `min_acres`), or absent. Build the acreage clause accordingly in Step 4.
+Acreage handling: `size.min_acres` / `size.max_acres` may be present, one-sided ("3+ acres" → only `min_acres`), or absent — pass through whichever exist.
 
 ---
 
-## Step 2 — Resolve county
+## Step 2 — Call the MCP tool
 
-Determine the county from the subject address (parse it, e.g. "Cary NC" → Wake County).
+Call **`pull_owner_mailing_list`** on the lee-raleigh connector:
 
-```python
-import county_registry
-entry = county_registry.resolve_county("Wake County")
+```json
+{
+  "address": "100 Walnut St, Cary NC",
+  "radius_mi": 3,
+  "min_acres": 2,
+  "max_acres": 5,
+  "land_class": "vacant",
+  "private_only": true,
+  "dedup_by_mailing": true
+}
 ```
 
-**If `resolve_county` returns `None`:**
+- Always pass `private_only: true` and `dedup_by_mailing: true` (the broker
+  contract: private owners, one row per mailing address).
+- Omit `min_acres` / `max_acres` / `land_class` when the broker didn't give them.
+- `land_class` accepts: `vacant`, `commercial`, `industrial`, `residential`,
+  `agricultural`.
 
-> [County name] isn't covered yet — the skill only has parcel data wired for a subset of NC counties. For [county name], go directly to its county GIS site and export the owner list from there.
-
-**HALT.** Do not attempt any ArcGIS query. Do not show a Python traceback.
-
-If it returns an entry, you now have `entry["service_url"]`, `entry["field_map"]`, `entry["vacant_filter"]`, and (where present) `entry["mail_concat"]` / `entry["site_concat"]`. You'll pass these into the browser pipeline as `cfg` in Step 4.
-
----
-
-## Step 3 — Geocode the subject address (Claude in Chrome)
-
-Geocode to a center lat/lon using the Census geocoder, via Claude in Chrome:
-
-1. `mcp__Claude_in_Chrome__navigate` (or `browser_batch` → navigate) to:
-   `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=<url-encoded-address>&benchmark=2020&format=json`
-2. Read the JSON with `mcp__Claude_in_Chrome__javascript_tool` (`action: "javascript_exec"`):
-   ```javascript
-   JSON.parse(document.body.innerText).result.addressMatches[0].coordinates  // -> {x: lon, y: lat}
-   ```
-
-Record `{ lon, lat }` for Step 4. If `addressMatches` is empty, the geocode failed — see the Errors table. Include the geocoded address in your reply for traceability.
+The tool returns `{ok, subject, rows, total_matched, truncated, latencyMs}`;
+each row carries `owner_raw`, `owner_mail_address`, `address`,
+`lot_size_acres`, `land_use`, `distance_mi`. An `ERROR:` text response is
+already broker-legible — relay its substance, never a traceback.
 
 ---
 
-## Step 4 — Run the whole pipeline in ONE browser call
+## Step 3 — Write the CSV file
 
-All of fetch → paginate (truncation guard) → field-map → drop exempt/blank owners → dedupe → CSV happens inside **one** `javascript_tool` call. Do **not** pull rows back into the sandbox row-by-row, and do **not** re-implement any of this inline — the tested pipeline lives in `arcgis_query.js`.
-
-1. **Read `arcgis_query.js`** (it's in this skill directory).
-2. **Strip the module syntax for injection:** remove every `export ` keyword (so `export function` → `function`, `export const` → `const`, `export async function` → `async function`). The browser can't run ES-module `export`.
-3. **Build `cfg`** from the registry entry + the geocoded point + the parsed criteria:
-   ```javascript
-   const cfg = {
-     serviceUrl: <entry.service_url>,
-     where: <vacant_filter + acreage clause, joined with " AND ">,   // see below
-     geometry: JSON.stringify({ x: <lon>, y: <lat> }),
-     distance: <radius_mi>,
-     fieldMap: <entry.field_map>,        // the 6-key object, verbatim
-     mailConcat: <entry.mail_concat or null>,
-     siteConcat: <entry.site_concat or null>,
-   };
+1. Map tool rows to CSV rows (deterministic, in the sandbox):
+   ```python
+   rows = helpers.rows_from_mcp(result["rows"])
    ```
-   **Build `where` registry-driven — never hardcode a county's column.** Use the acreage field from the entry:
-   ```javascript
-   const acreageField = cfg.fieldMap.acreage;     // e.g. "DEED_ACRES" (Wake), "gisacres" (NC OneMap)
-   const where = [ entry.vacant_filter,
-     (size.min_acres != null ? `${acreageField} >= ${size.min_acres}` : null),
-     (size.max_acres != null ? `${acreageField} <= ${size.max_acres}` : null),
-   ].filter(Boolean).join(" AND ");
+2. Write the file:
+   ```python
+   from datetime import date
+   path = helpers.format_csv(rows, request, date.today().isoformat())
    ```
-   Note: some `vacant_filter`s already contain `cntyname='...'` (the NC OneMap counties) or parentheses (Onslow) — keep them verbatim.
-4. **Inject the stripped `arcgis_query.js` + this tail, as a single `javascript_tool` payload:**
-   ```javascript
-   // ...(the export-stripped contents of arcgis_query.js above this line)...
-   const cfg = { /* built in step 3 above */ };
-   const result = await buildOwnerMailingCsv(cfg);   // fetch+paginate+map+filter+dedupe+csv
-   window.__omlCsv = result.csv;                     // stowed for retrieval in Step 5
-   JSON.stringify(result.report);                    // returned now (small)
-   ```
-   The returned `report` is `{ parcels, after_exempt_filter, exempt_dropped, unique_owners, dedup_dropped }`.
-
-**Truncation is handled inside `fetchAllParcels` (loops past `exceededTransferLimit`).** Do not stop after one page.
-
-If `report.parcels` is 0 → "no parcels matched" (Errors table), HALT. If `report.unique_owners` is 0 but `parcels` > 0 → everything was filtered out as exempt; tell the broker the matches were all government/exempt parcels.
-
----
-
-## Step 5 — Write the CSV file (deterministic, no base64)
-
-The finished CSV is in `window.__omlCsv`. Retrieve it and write it to the working directory. **Do not** base64-encode it (Cowork blocks base64 returns) and **do not** ad-hoc slice it.
-
-1. Get the filename (Python, sandbox): `helpers.default_output_path(request, date.today().isoformat())` → e.g. `owners-100-walnut-st-cary-nc-2026-06-02.csv`.
-2. Get the line count: `javascript_tool` → `window.__omlCsv.split("\n").length`.
-3. **Retrieve in fixed 50-line batches, in order, writing as you go.** For each batch `i` (0, 50, 100, …):
-   ```javascript
-   window.__omlCsv.split("\n").slice(i, i + 50).join("\n")   // javascript_tool
-   ```
-   Write the first batch to the file (create), append each subsequent batch (with a leading newline). Most lists are one or two batches. Use a Python write/append in the sandbox; the file lands in the working directory (no subfolder).
-4. Verify: the written file's line count equals the count from step 2.
+   `format_csv` derives the flat filename via `default_output_path` — e.g.
+   `owners-100-walnut-st-cary-nc-2026-06-10.csv`.
 
 **Report to the broker:**
 
-> Done — **[report.unique_owners] private owners** of [land_class] land within [radius] miles of [address] ([county]).
-> Pulled [report.parcels] parcels; dropped [report.exempt_dropped] government/exempt/HOA/cemetery parcels and [report.dedup_dropped] duplicate mailing addresses.
+> Done — **[len(rows)] private owners** of [land_class] land within [radius] miles of [address].
+> [total_matched] matching parcels; deduplicated by mailing address, government/exempt/HOA/cemetery parcels dropped.
 >
 > CSV saved: `[filename]`
+
+If `truncated` is true, add: "The list was capped at [len(rows)] rows — tighten the radius or criteria for a complete list."
 
 ---
 
@@ -174,7 +126,7 @@ The finished CSV is in `window.__omlCsv`. Retrieve it and write it to the workin
 owners-<address-slug>-<YYYY-MM-DD>.csv
 ```
 
-Example: `owners-100-walnut-st-cary-nc-2026-06-02.csv`
+Example: `owners-100-walnut-st-cary-nc-2026-06-10.csv`
 
 **Rules (load-bearing — Windows 218-char path limit):**
 - **Never create a subfolder.** No nested paths.
@@ -182,7 +134,7 @@ Example: `owners-100-walnut-st-cary-nc-2026-06-02.csv`
 - Brokers run Cowork on Windows where the base output path is already ~125 chars deep; a subfolder + long name tips the total over 218 and Excel refuses to open the file.
 
 **CSV columns** (in this order): `owner`, `mail_addr`, `site_addr`, `acreage`, `land_class`
-Note: `land_class` is best-effort — some counties don't expose a usable land-class field and the column will be blank for them. `owner` + `mail_addr` (street + city + state + zip) are the load-bearing columns.
+Note: `land_class` is the county's land-use code (terse in some counties, e.g. `V` for vacant) — best-effort. `owner` + `mail_addr` (street + city + state + zip) are the load-bearing columns.
 
 ---
 
@@ -190,22 +142,10 @@ Note: `land_class` is best-effort — some counties don't expose a usable land-c
 
 | Situation | Message |
 |---|---|
-| Claude in Chrome tools not present | "I need the Claude in Chrome extension enabled first. See INSTALL_CLAUDE_FOR_CHROME.md for the one-time setup." + HALT |
-| County not in registry | "[County] isn't covered yet — see the county GIS site directly." + HALT |
-| Geocode fails (no addressMatches) | "I couldn't geocode [address] — can you confirm the full street address including city and state?" |
-| ArcGIS service unreachable | "The [county] parcel service returned an error. The service may be down — try again in a few minutes, or go to the county GIS site directly." |
-| Zero parcels matched | "No parcels matched [criteria] within [radius] miles of [address] in [county]. Try widening the radius or adjusting the acreage range." |
-| All matches were exempt | "All [N] matching parcels were government/exempt/HOA/cemetery owned — no private prospects in that area. Try widening the radius." |
+| Tool returns `ERROR: Could not locate ...` | "I couldn't locate [address] — can you confirm the full street address including city and state?" |
+| Tool returns `ERROR: radius_mi ...` | Ask the broker for a radius up to 25 miles. |
+| Zero rows returned | "No parcels matched [criteria] within [radius] miles of [address]. Try widening the radius or adjusting the acreage range." |
+| Rows exist but all filtered | "All matching parcels were government/exempt/HOA/cemetery owned — no private prospects in that area. Try widening the radius." |
+| Connector unavailable | "The lee-raleigh connector isn't responding — try again in a few minutes." |
 
-**Never surface** a Python exception, a stack trace, or a raw ArcGIS error to the broker.
-
----
-
-## Files
-
-- `SKILL.md` — this file (orchestration recipe).
-- `arcgis_query.js` — **the pipeline** (`buildOwnerMailingCsv` + `fetchAllParcels`, `buildRows`, `isExemptOwner`, `dedupeByMailingAddress`, `toCsv`). Runs entirely in the browser; node-tested. Inject it (export-stripped) in Step 4.
-- `helpers.py` — pure-Python helpers that run in the sandbox: `parse_request` (Step 1) and `default_output_path` / `slugify` (Step 5 filename). Also keeps `build_rows` / `dedupe_by_mailing_address` / `format_csv` as the tested Python parity reference for the JS pipeline. No network.
-- `county_registry.py` — `COUNTY_REGISTRY` dict + `resolve_county(county_name)`. Source of truth for covered counties, service URLs, field names, `mail_concat`/`site_concat`, and vacant filters.
-- `INSTALL_CLAUDE_FOR_CHROME.md` — broker install guide for the Claude in Chrome extension (linked in Step 0).
-- `QA_MATRIX.md` — per-county QA ledger. Covered counties are PASS or explicitly "not yet covered." No silent gaps.
+**Never surface** a Python exception, a stack trace, or a raw tool error payload to the broker.
