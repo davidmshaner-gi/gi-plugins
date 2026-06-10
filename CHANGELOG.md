@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.14.2] - 2026-06-10
+
+### Fixed
+- **`tenants-in-market` scheduled ingest now completes.** Past scheduled runs pulled full 60-85KB Pairlist digest threads into the session and batch-fetched them in parallel, overflowing the context window mid-run — the session reset, restarted the Gmail search from scratch, and stalled at the first batch all day (Jun 2: ran 05:33-21:45 without finishing; Jun 3: froze at 9%). The skill now screens each email from a small extract (subject + snippet + at most ~2KB of the single message body — never a thread fetch), works strictly sequentially in batches of 5 with each UPSERT write completing before the next message, caps the stored `raw_json` at the screening extract, and recovers from any interruption by re-running from a fresh search so re-runs converge instead of thrashing. Also reconciled the scheduled-task cadence claim (any cadence from hourly to daily converges) and removed the stale `smoke-2026-06-02` row from the prod tenant-requirements store. (#61)
+
 ## [1.14.1] - 2026-06-09
 
 ### Fixed
