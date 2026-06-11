@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.18.0] - 2026-06-11
+
+### Added
+- **New skill: `/parcel-lookup` — the full county property record for an address.** Owner of record + mailing address, PIN, lot size, building SF, year built, tax assessed value, last sale, zoning code with a link to the ordinance, and the last 5 years of building permits — the pre-tour / pre-call homework in one shot. Returns the record inline plus a flyer-ready `pl-card` fragment and a one-page Lee-branded Property Facts PDF. Covers Wake, Durham, New Hanover, Lee, Johnston, Orange & Chatham NC (zoning + permits depth varies by county; permits cover Raleigh, Cary, Durham & New Hanover). Requires lee-raleigh-mcp v0.13.0 (`pull_parcel_lookup`). (lee#22)
+
 ## [1.17.0] - 2026-06-10
 
 ### Added
