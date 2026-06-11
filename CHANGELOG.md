@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.16.0] - 2026-06-10
+
+### Added
+- **New skill: `/development-pipeline` — what's being built around an address.** Pull the commercial development pipeline within a radius of any covered NC address (Triangle, Harnett, Lee County NC, Wilmington/New Hanover — 12 municipal feeds): stage counts from Submitted through Under Construction, a sorted project table, flyer-ready narrative bullet lines ("115,846 SF of multifamily under construction 2.2 mi away"), and a drop-in flyer component PDF. You pick the product types — office, retail, industrial, multifamily, mixed use, hospitality, institutional, residential, or all of it — and the skill reports exactly what your selection filtered out, by category. Infrastructure noise (sewer extensions, retaining walls, repaints) and amendment duplicates are screened automatically. Data is pre-staged nightly into the Lee data engine, so pulls are fast and don't depend on county websites being up. (#66)
+
 ## [1.15.0] - 2026-06-10
 
 ### Changed
