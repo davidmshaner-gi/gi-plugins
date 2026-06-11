@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.19.1] - 2026-06-11
+
+### Removed
+- **`business-list` pulled from the broker surface pending a cost redesign (gi-plugins #64, back to Backlog).** Live runs priced at $3-88 per census against a <$1.00/run tolerance — the sweep architecture over-subdivides on Google relevance padding. The Worker tools stay live for internal research only; the skill returns once the redesign meets tolerance.
+
 ## [1.19.0] - 2026-06-11
 
 ### Added
