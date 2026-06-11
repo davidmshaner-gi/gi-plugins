@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.17.0] - 2026-06-10
+
+### Added
+- **tenant-search** — new broker skill: "what tenants are in the market for 5-10k SF industrial in Garner?" Searches the shared tenant-requirements pool (Triangle Pairlist-sourced, ingested continuously since June 2026) and returns matches with the originating broker's contact to pair a listing. The query half of tenants-in-market — the ingest has been capturing requirements since v1.5.0; this is the first way brokers can read them. Requires lee-raleigh-mcp v0.13.0 (`pull_tenants_in_market`). (#27)
+
 ## [1.16.0] - 2026-06-10
 
 ### Added
