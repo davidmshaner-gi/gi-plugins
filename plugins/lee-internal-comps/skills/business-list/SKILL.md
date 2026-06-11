@@ -31,7 +31,7 @@ Triggers:
 
 1. **Extract genres + market** in the broker's own words. Genres are plain phrases ("boat dealerships", "med spas") — up to 5 per ask. Market is a state, county, metro, or city ("North Carolina", "Wake County", "Wilmington NC").
 2. **Confirm scope before launching a statewide sweep.** If the broker named a state (or the market is ambiguous between a city and something bigger), confirm: a statewide census takes 5–15 minutes and is a deliberate choice; a county/city census takes about a minute. If they clearly asked for the state, proceed — just set the expectation.
-3. **Start the job:** call `pull_business_list` with `{genres: [...], market: "..."}`. The response carries `job_id`, `estimate_calls`, and an `expectation` line — relay the expectation to the broker verbatim.
+3. **Start the job:** call `pull_business_list` with `{genres: [...], market: "..."}`. The response carries `job_id` (the polling handle — keep it internal) and an `expectation` line — relay the expectation to the broker verbatim. If the start response carries a `message`, relay that too (it's broker-legible).
 4. **Poll:** call `check_business_list` with `{job_id}` every 20–30 seconds while the job runs. Narrate progress conversationally from the response (`cells_swept`/`cells_total`, `businesses_found`) — e.g. *"Swept 14 of 18 zones, 212 businesses so far…"*. Phases run sweeping → enriching (phone/website lookups) → rendering → done.
 5. **Deliver:** when `phase` is `done`, present:
    - The **📄 Excel workbook link** (`excel_url`) with its expiry (`excel_expires_at` — links last ~30 days).
