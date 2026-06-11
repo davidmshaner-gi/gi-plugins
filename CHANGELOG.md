@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.19.0] - 2026-06-11
+
+### Added
+- **`business-list`: market census of active businesses (gi-plugins #64).** A broker names genre(s) + market ("all the boat dealerships active in NC") and gets a complete, deduplicated, Lee-branded 3-sheet Excel workbook (Likely Matches / All Results / Method) via a ~30-day signed link. Runs as a background sweep with live progress — county/city in about a minute, statewide in 5-15 minutes. Backed by lee-raleigh-mcp v0.15.0 (`pull_business_list` + `check_business_list`).
+
 ## [1.18.0] - 2026-06-11
 
 ### Added
