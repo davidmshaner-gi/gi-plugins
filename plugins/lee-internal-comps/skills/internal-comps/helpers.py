@@ -25,7 +25,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
 
-LEE_BRAND_MAROON = "97012D"  # rgb(151, 1, 45) — Lee & Associates Raleigh
+LEE_BRAND_MAROON = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28 / Brand Guidelines)
 LEE_LOGO_FILENAME = "lee_logo.png"  # ships alongside helpers.py (used in local dev)
 
 # Lee & Associates logo, base64-encoded. Source: lee_logo.png in this skill bundle.
@@ -863,6 +863,10 @@ def format_excel(
     # Decodes the embedded LEE_LOGO_B64 to a tmp PNG; cleaned up in the finally below.
     logo_path = _resolve_logo_path()
     logo_available = logo_path is not None and os.path.exists(logo_path)
+    if not logo_available:
+        # Non-fatal: the workbook still generates, but a silent unbranded
+        # workbook must never ship unnoticed again (gi-plugins#90).
+        warnings.append("Lee logo asset unavailable — workbook generated without branding.")
 
     try:
         # ---------- Sheet 1: Comps ----------

@@ -29,7 +29,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
 
-LEE_BRAND_MAROON = "97012D"  # rgb(151, 1, 45) — Lee & Associates Raleigh
+LEE_BRAND_MAROON = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28 / Brand Guidelines)
 LEE_LOGO_FILENAME = "lee_logo.png"
 
 # RDU MSA county whitelist — applied post-fetch when geography.named_market resolves to RDU.
@@ -484,7 +484,8 @@ def format_excel(
 ) -> str:
     """Write the 3-sheet workbook. Returns xlsx_path.
 
-    Layout is frozen — matches internal-comps' visual language (dark blue header,
+    Layout is frozen — matches internal-comps' visual language (Lee-branded
+    header in official Lee Red with the logo + title band on the main sheet,
     frozen panes, autofilter, color scale on rate column).
     """
     tx = validated["transaction_type"]
@@ -495,28 +496,58 @@ def format_excel(
     ws = wb.active
     ws.title = _sheet_title(validated)
 
+    # --- Lee branding: logo + title band at top, then header row, then data ---
+    # Mirrors internal-comps (gi-plugins#90). Official Lee Red #98002E (PMS 202).
+    logo_path = _decode_logo_to_temp()
+    logo_available = logo_path is not None
+    if not logo_available:
+        # Non-fatal: the workbook still generates, but a silent unbranded
+        # workbook must never ship unnoticed again (gi-plugins#90).
+        warnings.append("Lee logo asset unavailable — workbook generated without branding.")
+    header_row_idx = 4 if logo_available else 1
+
+    if logo_available:
+        ws.row_dimensions[1].height = 56
+        try:
+            img = XLImage(logo_path)
+            img.width = 180
+            img.height = 60
+            ws.add_image(img, "A1")
+        except Exception:
+            pass  # logo is decoration; never block the workbook
+        title_kind = "Sale Comps" if tx == "sale" else "Lease Comps"
+        ws.cell(row=2, column=2, value=_sheet_title(validated)).font = Font(
+            bold=True, size=14, color=LEE_BRAND_MAROON
+        )
+        ws.cell(row=3, column=2, value=f"Pulled {date.today().isoformat()} · External {title_kind}").font = Font(
+            italic=True, size=10, color="555555"
+        )
+
     # --- Header row ---
-    header_fill = PatternFill("solid", fgColor="1F3864")  # dark blue, mirrors internal-comps
+    header_fill = PatternFill("solid", fgColor=LEE_BRAND_MAROON)
     header_font = Font(bold=True, color="FFFFFF", size=11)
     for col_idx, col_name in enumerate(cols, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell = ws.cell(row=header_row_idx, column=col_idx, value=col_name)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
     # --- Data rows ---
-    for row_idx, r in enumerate(rows, start=2):
+    data_start = header_row_idx + 1
+    for row_offset, r in enumerate(rows):
+        excel_row = data_start + row_offset
         for col_idx, col_name in enumerate(cols, start=1):
-            ws.cell(row=row_idx, column=col_idx, value=r.get(col_name))
+            ws.cell(row=excel_row, column=col_idx, value=r.get(col_name))
 
-    # --- Freeze panes + autofilter ---
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
+    # --- Freeze panes + autofilter (relative to the header row) ---
+    ws.freeze_panes = f"A{data_start}"
+    last_row = data_start + len(rows) - 1 if rows else header_row_idx
+    ws.auto_filter.ref = f"A{header_row_idx}:{get_column_letter(len(cols))}{last_row}"
 
     # --- Color scale on rate column ---
     if rate_col in cols and len(rows) > 0:
         rate_col_letter = get_column_letter(cols.index(rate_col) + 1)
-        rule_range = f"{rate_col_letter}2:{rate_col_letter}{len(rows) + 1}"
+        rule_range = f"{rate_col_letter}{data_start}:{rate_col_letter}{last_row}"
         ws.conditional_formatting.add(
             rule_range,
             ColorScaleRule(
@@ -570,17 +601,6 @@ def format_excel(
         meth.cell(row=i, column=2, value=v)
     meth.column_dimensions["A"].width = 22
     meth.column_dimensions["B"].width = 70
-
-    # --- Optional logo on Methodology ---
-    logo_path = _decode_logo_to_temp()
-    if logo_path:
-        try:
-            img = XLImage(logo_path)
-            img.width = 180
-            img.height = 60
-            meth.add_image(img, "D1")
-        except Exception:
-            pass  # logo is decoration; never block the workbook
 
     # Guard (defense-in-depth for the Windows 218-char path limit).
     # Brokers open this in Excel on Windows, where the full path cannot exceed
