@@ -291,4 +291,4 @@ If you find yourself regenerating openpyxl formatting, hand-writing date math, o
 
 - `SKILL.md` — this file.
 - `helpers.py` — atomic helpers (validate, build_mcp_params, post-filter, rank, format_excel, markdown_table, draft_email, format_feedback). None call MCP — the model has MCP access; the sandbox doesn't.
-- `lee_logo.png` — bundled with the skill; used by `format_excel` (Methodology sheet header image).
+- `lee_logo.png` — bundled with the skill; used by `format_excel` (logo at the top of the main comps sheet).
