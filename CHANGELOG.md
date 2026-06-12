@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.19.2] - 2026-06-12
+
+### Fixed
+- **Lee-branded the comps Excel workbooks on the main sheet (gi-plugins #90).** Opening a comps Excel now shows the Lee & Associates logo at the top of the first (comps) sheet and the official Lee Red (`#98002E`, PMS 202) on the header row — across both `internal-comps` and `external-comps`, sale and lease. Previously `external-comps` shipped a generic dark-blue header with the logo buried on the Methodology sheet, and `internal-comps` used a near-but-not-official maroon. Palette now matches the brand source used by the Worker renders (lee-and-associates #28). A missing logo asset stays non-fatal but is now surfaced as a workbook warning so an unbranded workbook can't ship unnoticed.
+
 ## [1.19.1] - 2026-06-11
 
 ### Removed
