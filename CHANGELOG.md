@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.19.3] - 2026-06-22
+
+### Fixed
+- **`daily-debrief` is now completable by a broker unassisted (gi-plugins #99).** Will couldn't finish the debrief through the skill — the interview dumped multi-part questions (3 fields per plugin session, 5 numbered questions per off-plugin ask) that he answered as one long chat reply, so a stray edit wiped several answers and his place at once, and nothing told him it was safe to restart. He fell back to plain-email debriefs, which blinds the Stage-4 validation funnel. The interview is rewritten to ask **one question per turn with one-word answers**, **save and confirm after each session/ask** ("Saved ✅"), open with a one-line orientation, and explicitly tell him re-running is safe (UPSERT, never duplicates) — so a chat mishap costs one keyword, not the session, and recovery is just re-running. SKILL.md only; the `lee_debrief_write` / `lee_debrief_fetch_yesterday` tool contract is unchanged.
+
 ## [1.19.2] - 2026-06-12
 
 ### Fixed
