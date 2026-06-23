@@ -1,6 +1,6 @@
 ---
 name: owner-lookup
-description: Look up the owner of record and owner mailing address for a US property address in the counties covered by the owner-graph bulk ingest (Wake, Durham, New Hanover, and Lee — NC). Returns the parcel's assessor record (owner name, mailing address, year built, lot size, building SF, assessed value, last sale, zoning, jurisdiction). Wraps the lee-raleigh-mcp owner_lookup tool.
+description: Look up the owner of record and owner mailing address for a US property in the counties covered by the owner-graph bulk ingest (Wake, Durham, New Hanover, and Lee — NC). Accepts a street address OR a parcel ID / PIN. Returns the parcel's assessor record (owner name, mailing address, year built, lot size, building SF, assessed value, last sale, zoning, jurisdiction). When the same street address exists more than once, returns a candidate list of parcel IDs to re-run with. Wraps the lee-raleigh-mcp owner_lookup tool.
 ---
 
 # Owner Lookup (Lee & Associates)
@@ -30,19 +30,20 @@ Triggers:
 
 ## Process
 
-1. Parse the broker's request to extract the address as a single free-text string. Comma-separated `street, city, state` is best; the engine normalizes (uppercases, strips punctuation, expands directionals and suffixes).
-2. If the broker explicitly mentions the county OR the address is ambiguous in a way only county can disambiguate, pass `county` as one of: `Wake`, `Durham`, `NEW_HANOVER`, `Lee`.
-3. Call the MCP tool `owner_lookup` with `{address: "<the extracted address>", county: "<county-or-omit>"}`. The tool is sub-second (indexed D1 lookup, no external APIs on the request path).
-4. The response is a JSON parcel record. Render the broker-facing essentials inline conversationally — county, parcel_id, owner_raw, owner_mail_address, assessed_value_total, year_built, lot_size_acres, building_sf, land_use, last_sale_date, last_sale_price. Format the mailing address as multi-line (it's stored with embedded `\n`).
-5. **REQUIRED — every successful response MUST end with the verification footer.** This is not optional, not dependent on broker phrasing, not skippable when the data looks "obviously fine." See "Verification footer" below for the exact rendering — choose the URL template from the table that matches the parcel's `county` field, substitute the PIN for Wake (URL-encoded), and emit the markdown link inline at the end of the response. If the parcel is in WAKE the link IS a deep-link (the broker clicks once); for DURHAM / NEW_HANOVER / LEE the link opens a search form and the response must also include the literal `search by PIN: \`<PIN>\`` text so the broker has the PIN to paste.
-6. If the tool returns an error, fall through to the Error Handling section below.
+1. Parse the broker's request to extract the address as a single free-text string. Comma-separated `street, city, state` is best; the engine normalizes (uppercases, strips punctuation, expands directionals and suffixes) and, when the same street address exists more than once, uses the city after the comma to auto-pick the right parcel — so always keep the city/state the broker gave you.
+2. **If the broker gives you a parcel ID / PIN instead of (or in addition to) an address** — a value that's all digits with optional dots/dashes, e.g. `0763592649` (Wake/Lee) or `3117-79-5148.000` (New Hanover OneMap parno) — pass it as `parcel_id`. (A bare PIN passed as `address` is also recognized, but `parcel_id` is clearer.) This is the disambiguation path: when a multi-match response lists candidate parcel IDs, re-run with the one the broker wants.
+3. If the broker explicitly mentions the county OR a multi-match response says the candidates span more than one county, pass `county` as one of: `Wake`, `Durham`, `NEW_HANOVER`, `Lee`. Do NOT pass a county to resolve a same-county collision — it can't; use `parcel_id` for that.
+4. Call the MCP tool `owner_lookup` with `{address: "<the extracted address>", county: "<county-or-omit>", parcel_id: "<PIN-or-omit>"}`. The tool is sub-second (indexed D1 lookup, no external APIs on the request path).
+5. The response is a JSON parcel record. Render the broker-facing essentials inline conversationally — county, parcel_id, owner_raw, owner_mail_address, assessed_value_total, year_built, lot_size_acres, building_sf, land_use, last_sale_date, last_sale_price. Format the mailing address as multi-line (it's stored with embedded `\n`).
+6. **REQUIRED — every successful response MUST end with the verification footer.** This is not optional, not dependent on broker phrasing, not skippable when the data looks "obviously fine." See "Verification footer" below for the exact rendering — choose the URL template from the table that matches the parcel's `county` field, substitute the PIN for Wake (URL-encoded), and emit the markdown link inline at the end of the response. If the parcel is in WAKE the link IS a deep-link (the broker clicks once); for DURHAM / NEW_HANOVER / LEE the link opens a search form and the response must also include the literal `search by PIN: \`<PIN>\`` text so the broker has the PIN to paste.
+7. If the tool returns an error, fall through to the Error Handling section below.
 
 ## Error handling
 
 The tool returns broker-legible error messages directly; surface them as-is and apologize if needed:
 
-- **"No parcel found for ..."** — the address didn't match. Possible reasons: outside the covered counties (Wake, Durham, NHC, Lee NC), or the address needs city / state to disambiguate. Echo the input back and ask for a more specific spelling or county hint.
-- **"Multiple parcels match ... pass a county to disambiguate"** — same street address exists in more than one covered county. The error lists the candidate counties; ask the broker which one.
+- **"No parcel found for ..."** — the address (or PIN) didn't match. Possible reasons: outside the covered counties (Wake, Durham, NHC, Lee NC), or the address needs city / state to disambiguate. Echo the input back and ask for a more specific spelling or county hint.
+- **"Multiple parcels match ...":** the same street address exists more than once. The message lists each candidate as `parcel_id <PIN> — <locality> (<county>), <site address>`. Show the broker the list and ask which one, then **re-run `owner_lookup` with `parcel_id` set to their choice** (NOT the address again). Only when the message explicitly says the candidates span different counties does passing `county` help; for a same-county collision (e.g. two `100 Walnut St` in Wake — Cary vs Wendell) the parcel_id is the only resolver. If the broker already named the city, include it in the address (`100 Walnut St, Cary NC`) and the tool auto-picks.
 - Anything else (HTTP error, timeout, etc.) — apologize, surface the short message, suggest a retry. Worst case, point the broker to the county's municipal GIS (Wake iMaps, Durham GoMaps, NHC GIS Map, Lee NC GIS) for manual lookup.
 
 ## What's in the response
@@ -114,12 +115,23 @@ Skill: calls `owner_lookup({address: "100 Connemara Dr, Cary NC"})`.
 Tool: returns `{county: "WAKE", parcel_id: "0734835370", owner_raw: "PNC OF NORTH CAROLINA LLC", owner_mail_address: "7930 SKYLAND RIDGE PKWY\nRALEIGH NC 27617-6813", ...}`.
 Skill renders: "Owner of 100 Connemara Dr, Cary (WAKE/0734835370): PNC OF NORTH CAROLINA LLC. Mailing address: 7930 Skyland Ridge Pkwy, Raleigh NC 27617-6813. Assessed value: $X, building SF: Y, last sale Z/$W."
 
-### Example 2 — ambiguous address
+### Example 2 — same-county collision, then resolve by parcel ID
 
-Broker: "Who owns 100 Main St?"
-Skill: calls `owner_lookup({address: "100 Main St"})`.
-Tool: returns multi-match error listing the candidate counties.
-Skill: "There's a 100 Main St in more than one covered county. Which one — Wake, Durham, NEW_HANOVER, or Lee?"
+Broker: "Who owns 100 Walnut St?"
+Skill: calls `owner_lookup({address: "100 Walnut St"})`.
+Tool: returns a multi-match list:
+> Multiple parcels match "100 Walnut St":
+>   - parcel_id 0763592649 — CARY (WAKE), 100 WALNUT ST
+>   - parcel_id 1783894364 — WENDELL (WAKE), 100 WALNUT ST
+> Re-run owner_lookup with the exact parcel_id of the one you want (pass it as `address` or as `parcel_id`).
+
+Skill: "There are two 100 Walnut St in Wake — one in Cary, one in Wendell. Which one?" Broker: "Cary." Skill: re-runs `owner_lookup({parcel_id: "0763592649"})` and returns that parcel (with the verification footer). (If the broker had said "100 Walnut St, Cary NC" up front, the tool would have auto-picked Cary in one call.)
+
+### Example 2b — broker has a PIN
+
+Broker: "Pull the owner for PIN 0763592649."
+Skill: calls `owner_lookup({parcel_id: "0763592649"})`.
+Tool: returns the WAKE parcel directly. Skill renders the owner + footer.
 
 ### Example 3 — out of scope
 
