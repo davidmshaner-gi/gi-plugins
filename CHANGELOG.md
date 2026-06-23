@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.22.0] - 2026-06-23
+
+### Added
+- **New skill: `/site-infrastructure` — who serves this site.** The documented utility baseline for any NC address, five rows in one pull: broadband (broker-verified row with a parcel-centered FCC National Broadband Map link to start from), electric (retail service territory, overlapping territories all named), water and sewer operators (county GIS, statewide service-area maps, and a curated registry, in that order), and natural gas provider. Every row carries a confidence tag and its source, so the answer is honest about how documented it is. Returns the rows inline plus a flyer-ready `si-card` fragment and a Lee-branded component PDF. Capacity figures (MW, gpm, allocation, pressure) stay utility-conversation territory by design. Requires lee-raleigh-mcp v0.17.0 (`pull_site_infrastructure`, live in prod since 2026-06-11). (gi-plugins #93, closes #68)
+
 ## [1.21.0] - 2026-06-23
 
 ### Added
