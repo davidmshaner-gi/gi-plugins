@@ -21,75 +21,111 @@ These three categories drive different next steps. The debrief is how that signa
 
 Daily, first thing in the morning, covering yesterday's activity. Idempotent — re-running replaces previous answers for the same session (UPSERT on session_id).
 
+## How to run this interview (read this before Step 1)
+
+This skill is for Will, who is busy and not technical. The whole reason it exists is to get a clean daily signal **without making him do work** — so the interview has to be effortless and impossible to lose. Follow these rules on every run:
+
+- **One question per turn. Never batch.** Ask a single thing, wait for Will's reply, then ask the next. Do not present numbered lists of questions or multi-part prompts — that is exactly what caused him to lose his place and abandon the skill before.
+- **Make answers one word where possible.** Offer the keyword options and ask him to "just reply with the word" (e.g. `plugin_only`). Short answers can't be mangled by a stray chat edit.
+- **Save as you go, and say so.** After each session or ask is captured, write it immediately and confirm out loud ("Saved ✅ — next:"). Will should always know his progress is banked.
+- **It is always safe to stop or restart.** If Will gets confused, interrupted, or thinks he answered wrong, tell him: *"No problem — just run `/lee-daily-debrief` again. Anything we already saved gets updated, never duplicated, so you can't break it."* Re-running is the recovery path; never ask him to re-paste or reconstruct lost text.
+- **You drive, he reacts.** Summarize what the data already shows and ask him to confirm or correct it. Don't make him compose from a blank page.
+
 ## Flow
+
+### Step 0 — Open with a one-line orientation
+
+Before fetching anything, set expectations in a single sentence so Will knows what he's in for:
+
+> "Morning — quick daily debrief. I'll go one question at a time and save as we go, so it's fast and you can stop anytime. Ready?"
+
+Then proceed to Step 1.
 
 ### Step 1 — Pull yesterday's plugin sessions
 
 Call `lee_debrief_fetch_yesterday`. You'll get back a list of sessions Will ran through the plugin yesterday. Each has a `sessionId` and one or more `toolCalls`.
 
-If zero sessions came back, skip directly to Step 3.
+Tell Will how many there are so the interview has a known length ("You ran {N} plugin sessions yesterday — let's tag each one, then I'll ask about anything that happened off the plugin.").
 
-### Step 2 — Walk through each plugin session, one at a time
+If zero sessions came back, say so and skip directly to Step 3.
 
-For each session, summarize what happened and ask Will to classify it:
+### Step 2 — Walk through each plugin session, one question at a time
 
-> "Yesterday at {timestamp of first tool call} you ran `{first tool name}`{add ', followed by N more tool calls' if toolCalls.length > 1}. {If query_text is available, summarize: e.g., 'querying sale_comps_safe' or 'rendering a comp set PDF'.} How did the broker end up getting what they needed?
+For each session, first summarize what happened in one line, then ask **one question, wait, then the next.** Do not stack them.
+
+**2a — Outcome.** Ask:
+
+> "Yesterday at {timestamp of first tool call} you ran `{first tool name}`{add ', plus N more steps' if toolCalls.length > 1}{if query_text is available, add a short plain-English summary, e.g. 'looking up sale comps' or 'rendering a comp set PDF'}. How did the broker end up getting what they needed? Just reply with one word:
 >
-> - `plugin_only` — broker got the answer entirely from the plugin output
-> - `plugin_with_manual_fix` — plugin gave you a starting point but you had to fix or supplement something by hand
-> - `manual_only` — you abandoned the plugin output and finished it manually
-> - `unable` — broker did not get a usable answer
->
-> Also: how did the broker ask? `inbox` / `text` / `slack` / `in_person` / `unknown`
->
-> Anything else worth capturing? (free text, can skip)"
+> - `plugin_only` — got the answer entirely from the plugin
+> - `plugin_with_manual_fix` — plugin got you started but you fixed/added something by hand
+> - `manual_only` — you set the plugin output aside and finished it manually
+> - `unable` — broker didn't get a usable answer"
 
-After each session, call `lee_debrief_write` with the captured fields. Use the real `sessionId` from `fetch_yesterday`.
+Wait for his reply.
+
+**2b — Source.** Then ask:
+
+> "Got it. How did the broker ask you for this one? Reply with one word: `inbox` / `text` / `slack` / `in_person` / `unknown`."
+
+Wait for his reply.
+
+**2c — Optional note.** Then ask:
+
+> "Anything else worth noting on this one? (Optional — just say `skip` if not.)"
+
+**2d — Save and confirm.** Now call `lee_debrief_write` using the real `sessionId` from `fetch_yesterday`, with `completion_status` from 2a, `broker_request_source` from 2b, and `notes` set to his 2c answer (omit `notes` if he said `skip`). Then confirm and move on:
+
+> "Saved ✅. {if more sessions: 'Next session —' / else: 'That's all your plugin sessions. Now the off-plugin part.'}"
 
 ### Step 3 — Cover off-plugin asks (this is the most important step)
 
-Ask Will:
+Ask Will, as a single question:
 
-> "Now the part that matters most: what did brokers ask you for yesterday that did NOT come through the plugin? Walk me through each one — I'll ask about them one at a time. How many off-plugin asks were there?"
+> "Now the part that matters most: what did brokers ask you for yesterday that did NOT go through the plugin? How many were there? (A number is fine — `0` if none.)"
 
-If zero, skip to Step 4.
+If zero, skip to Step 4. Otherwise walk them **one ask at a time, one question per turn** — never present the five questions below as a list. For off-plugin ask #{N} of {total}, ask them in sequence, waiting after each:
 
-Otherwise, for **each** off-plugin ask, conduct a one-by-one interview:
+> **3a —** "Off-plugin ask #{N}: what did the broker actually want? (Be specific — 'Sandy wanted an owner mailing for 123 Main St' beats 'a mailing'.)"
 
-> "Off-plugin ask #{N} of {total}:
->
-> 1. What did the broker actually want? (Be specific — 'Sandy wanted an owner mailing for 123 Main St' is better than 'a mailing'.)
-> 2. How did the broker ask? `inbox` / `text` / `slack` / `in_person` / `unknown`
-> 3. Were you able to complete it? `manual_only` (yes, manually) or `unable` (no)
-> 4. Why didn't this go through the plugin? Pick one:
->    - `plugin_broke` — you tried the plugin and it didn't work for this request (call out the specific failure)
->    - `known_gap` — you didn't try because the feature isn't built yet but we've already talked about it (it's on the roadmap)
->    - `new_opportunity` — you didn't try because the feature isn't on our radar — this is something we should consider building
-> 5. If `plugin_broke` or `new_opportunity`, what would have made the plugin handle this?"
+> **3b —** "How did they ask? One word: `inbox` / `text` / `slack` / `in_person` / `unknown`."
 
-For each off-plugin ask, generate a fresh session_id prefixed `manual-` (e.g., `manual-<uuid>`) and call `lee_debrief_write` with:
+> **3c —** "Were you able to get it done? Reply `manual_only` (yes, by hand) or `unable` (no)."
 
-- `completion_status`: `manual_only` or `unable` (from question 3)
-- `broker_request_source`: from question 2
-- `notes`: combine answers 1, 4, 5 into a structured free-text block, prefixed with the category. Format:
+> **3d —** "Why didn't this go through the plugin? One word:
+> - `plugin_broke` — you tried the plugin and it didn't work
+> - `known_gap` — didn't try; we both know the feature isn't built yet
+> - `new_opportunity` — didn't try; this isn't on our radar yet"
+
+> **3e —** (only if `plugin_broke` or `new_opportunity`) "What would have made the plugin handle this? (One line.)"
+
+After 3e (or 3d if skipped), generate a fresh session_id prefixed `manual-` (e.g., `manual-<uuid>`) and call `lee_debrief_write` with:
+
+- `completion_status`: `manual_only` or `unable` (from 3c)
+- `broker_request_source`: from 3b
+- `notes`: combine 3a, 3d, 3e into a structured free-text block, prefixed with the category. Format:
 
 ```
 [CATEGORY: plugin_broke|known_gap|new_opportunity]
-Request: <what the broker wanted>
-Why off-plugin: <answer to question 4>
-What would have helped: <answer to question 5, or "n/a">
+Request: <answer to 3a — what the broker wanted>
+Why off-plugin: <answer to 3d>
+What would have helped: <answer to 3e, or "n/a">
 ```
 
 (The category prefix is a forward-compatibility hack until the `off_plugin_reason` enum column ships in a future migration. For now we encode it in notes so the Friday rollup can grep it.)
+
+Then **confirm and move on before the next ask** so Will sees progress banked each time:
+
+> "Saved ✅. {if more off-plugin asks: 'Next one —' / else: 'That's everything.'}"
 
 ### Step 4 — Confirm and close
 
 Summarize back to Will:
 
-> "Logged {N} plugin sessions and {M} off-plugin asks.
+> "All done — nothing else needed from you. Logged {N} plugin sessions and {M} off-plugin asks.
 > Off-plugin breakdown: {plugin_broke count} plugin bugs, {known_gap count} known gaps, {new_opportunity count} new opportunities.
 > Total broker requests yesterday: {N + M}.
-> Want to revise any of these? Re-running this skill UPSERTs by session_id so corrections are easy."
+> If anything looks off, just run `/lee-daily-debrief` again — re-running updates by session, never duplicates, so corrections are easy and you can't break it."
 
 ## Required tools
 
