@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.22.1] - 2026-06-23
+
+### Fixed
+- **`owner-lookup` (the most-used skill) now handles same-address duplicates and accepts a parcel ID/PIN.** Two field gaps from David's 2026-06-11 QA: (1) when the same street address exists twice in one county (e.g. `100 Walnut St` in both Cary and Wendell, both Wake), the skill no longer tells the broker to "pass a county" (which can't disambiguate a same-county collision) — the tool returns a candidate list (`parcel_id — locality (county), site address`) and the skill re-runs with the chosen `parcel_id`; a city in the input (`100 Walnut St, Cary NC`) auto-picks in one call. (2) A broker can now paste a PIN — the skill passes it as `parcel_id` (or a bare PIN in `address`) and gets the parcel directly. Frontmatter description, Process, Error-handling, and Examples updated; router contract (G12) now advertises PIN input. Pairs with lee-raleigh-mcp v0.18.3. (#126)
+
 ## [1.22.0] - 2026-06-23
 
 ### Added
