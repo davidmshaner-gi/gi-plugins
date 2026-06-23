@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.21.0] - 2026-06-23
+
+### Added
+- **New skill: `/drive-time-isochrones` — how far can you get from a property in N minutes.** Drive-time reach polygons (isochrones) for any NC address: 5/10/15 minutes by default, configurable 1–60, by car, on foot, or by bike. The trade-area answer that replaces crude mile rings — per-band reach areas in sq miles, isochrone GeoJSON for downstream maps, and a Lee-branded map card PDF (reach polygons over an OSM basemap, fit-to-content flyer component). Free-flow travel times in v1 (no rush-hour adjustment). Requires lee-raleigh-mcp v0.16.0 (`pull_drive_time_isochrones`, live in prod since 2026-06-11). (lee#24, gi-plugins #92)
+
 ## [1.19.3] - 2026-06-22
 
 ### Fixed
