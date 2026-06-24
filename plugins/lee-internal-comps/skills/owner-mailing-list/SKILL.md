@@ -1,6 +1,6 @@
 ---
 name: owner-mailing-list
-description: Produce a deduplicated owner + mailing-address list for a Lee & Associates broker from county parcel data. Given an area + criteria request (subject address + radius + property type/land class + acreage or size), calls the lee-raleigh connector's pull_owner_mailing_list tool against the statewide NC OneMap parcel mirror and returns a clean CSV of owner names + mailing addresses + site addresses in seconds, deduplicated by mailing address and filtered to private owners (drops government/exempt/HOA/cemetery parcels). Use for any "owners of <criteria> within <radius> of <address>" / "mailing list for <area>" / "who owns the vacant land near <site>" request. Covers Wake, Durham, New Hanover, Lee, Orange, Johnston, and Chatham counties (NC); coverage grows by county. v1 returns the CSV; Avery labels are a separate skill (gi-plugins #38).
+description: Produce a deduplicated owner + mailing-address list for a Lee & Associates broker from county parcel data. Given an area + criteria request (subject address + radius + property type/land class + acreage or size + whether to limit to improved/built parcels vs. raw land), calls the lee-raleigh connector's pull_owner_mailing_list tool against the statewide NC OneMap parcel mirror and returns a clean CSV of owner names + mailing addresses + site addresses + building square footage + year built in seconds, deduplicated by mailing address and filtered to private owners (drops government/exempt/HOA/cemetery parcels). Use for any "owners of <criteria> within <radius> of <address>" / "mailing list for <area>" / "who owns the vacant land near <site>" / "owners of the buildings near <site>" / "improved parcels within <radius>" request. Covers Wake, Durham, New Hanover, Lee, Orange, Johnston, and Chatham counties (NC); coverage grows by county. v1 returns the CSV; Avery labels are a separate skill (gi-plugins #38).
 ---
 
 # Owner Mailing List
@@ -49,13 +49,16 @@ Call `helpers.parse_request(text)` on the broker's request string. The function 
     "radius_mi": 3.0,          # None if not specified
     "size": {"min_acres": 2.0, "max_acres": 5.0},  # {} if not specified
     "land_class": "vacant",    # "" if not specified
+    "improved_only": False,    # True when the broker asked for buildings / improved parcels
     "raw": "<original text>",
 }
 ```
 
+`improved_only` is `True` when the request mentions **buildings / improved / built / structures** ("owners of the buildings near…", "improved parcels within…"); `False` for raw-land or unspecified requests. It means "parcels with a structure on them, not vacant land."
+
 **Confirm back to the broker before proceeding:**
 
-> Got it — I'll pull owners of [land_class] land, [size range if given], within [radius] miles of [address]. Running the parcel query now.
+> Got it — I'll pull owners of [improved → "improved (built) parcels" / else "[land_class] land"], [size range if given], within [radius] miles of [address]. Running the parcel query now.
 
 If `radius_mi` is `None`, ask the broker: "How many miles out from [address] should I search?"
 If `subject_property.address` is blank, ask the broker for the subject address before continuing.
@@ -75,6 +78,7 @@ Call **`pull_owner_mailing_list`** on the lee-raleigh connector:
   "min_acres": 2,
   "max_acres": 5,
   "land_class": "vacant",
+  "improved_only": false,
   "private_only": true,
   "dedup_by_mailing": true
 }
@@ -85,11 +89,33 @@ Call **`pull_owner_mailing_list`** on the lee-raleigh connector:
 - Omit `min_acres` / `max_acres` / `land_class` when the broker didn't give them.
 - `land_class` accepts: `vacant`, `commercial`, `industrial`, `residential`,
   `agricultural`.
+- **`improved_only`** — pass `true` (from `request["improved_only"]`) when the
+  broker wants **parcels with a building**, not raw land. The tool keeps a parcel
+  only if it has a structure (building square footage or a year built on record).
+  Omit / `false` for vacant-land or unspecified requests. `improved_only` and
+  `land_class: "vacant"` are opposites — never send both.
 
-The tool returns `{ok, subject, rows, total_matched, truncated, latencyMs}`;
+The tool returns `{ok, subject, rows, total_matched, truncated, no_building_data_counties, latencyMs}`;
 each row carries `owner_raw`, `owner_mail_address`, `address`,
-`lot_size_acres`, `land_use`, `distance_mi`. An `ERROR:` text response is
-already broker-legible — relay its substance, never a traceback.
+`lot_size_acres`, `building_sf`, `year_built`, `land_use`, `distance_mi`. An
+`ERROR:` text response is already broker-legible — relay its substance, never a
+traceback.
+
+**Building data is not in every county — read `no_building_data_counties`.**
+When you pass `improved_only: true`, the tool returns a
+`no_building_data_counties` array: counties **in the search area that have
+parcels but carry no building data in the mirror yet**, so they contribute zero
+improved parcels. This is computed from the live data (NOT a fixed list — county
+coverage grows over time). If that array is **non-empty**, tell the broker, e.g.:
+
+> Heads up — **[county names]** don't carry building data in our parcel mirror
+> yet, so I couldn't filter to improved parcels there. The list covers the other
+> counties in range. For [those counties] I can pull all owners instead, or
+> filter by acreage — want me to?
+
+If `improved_only` was set and **every** county in range is in
+`no_building_data_counties` (so `rows` is empty), lead with that explanation
+rather than reporting an empty list as if nothing matched.
 
 ---
 
@@ -109,7 +135,7 @@ already broker-legible — relay its substance, never a traceback.
 
 **Report to the broker:**
 
-> Done — **[len(rows)] private owners** of [land_class] land within [radius] miles of [address].
+> Done — **[len(rows)] private owners** of [improved → "improved (built) parcels" / else "[land_class] land"] within [radius] miles of [address].
 > [total_matched] matching parcels; deduplicated by mailing address, government/exempt/HOA/cemetery parcels dropped.
 >
 > CSV saved: `[filename]`
@@ -133,8 +159,8 @@ Example: `owners-100-walnut-st-cary-nc-2026-06-10.csv`
 - **Never use a long descriptive name.** The slug comes from the subject address only; the filename is generated by `helpers.default_output_path(request, date)` — do not construct it manually.
 - Brokers run Cowork on Windows where the base output path is already ~125 chars deep; a subfolder + long name tips the total over 218 and Excel refuses to open the file.
 
-**CSV columns** (in this order): `owner`, `mail_addr`, `site_addr`, `acreage`, `land_class`
-Note: `land_class` is the county's land-use code (terse in some counties, e.g. `V` for vacant) — best-effort. `owner` + `mail_addr` (street + city + state + zip) are the load-bearing columns.
+**CSV columns** (in this order): `owner`, `mail_addr`, `site_addr`, `acreage`, `building_sf`, `year_built`, `land_class`
+Note: `building_sf` (building square footage) and `year_built` are the building-relevant columns — populated for improved parcels, blank for vacant land or counties without building data (e.g. Chatham). `land_class` is the county's land-use code (terse in some counties, e.g. `V` for vacant) — best-effort. `owner` + `mail_addr` (street + city + state + zip) are the load-bearing columns.
 
 ---
 

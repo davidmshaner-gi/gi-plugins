@@ -7,6 +7,12 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.24.0] - 2026-06-24
+
+### Added
+- **`owner-mailing-list` can now build a list of *building / improved-parcel* owners, not just land owners.** When the broker asks for "owners of the buildings near…" / "improved parcels within…" (anything mentioning buildings / improved / built / structures), the skill passes `improved_only: true` to `pull_owner_mailing_list` and the result is limited to parcels that have a structure on them. The CSV gains two building-relevant columns — `building_sf` (building square footage) and `year_built` — so the output is no longer just acreage + land class. A "vacant land" request still pulls raw land as before. When a county in the search area carries no building data yet (the tool reports this per-query in `no_building_data_counties`, derived from live data — not a hard-coded list), the skill names that county and offers to pull all owners or filter by acreage instead, so a thin/empty improved result is explained rather than read as "nothing matched." Pairs with lee-raleigh-mcp v0.19.0. (#176)
+- **owner-mailing-list path guard (#7 slice).** The owner-mailing-list CSV save site now flattens any caller-prepended directory to a short filename in the working directory (mirrors the comps-Excel guard shipped in 1.23.0), so the Windows 218-char path limit can't leave the CSV unopenable. (#7)
+
 ## [1.23.0] - 2026-06-24
 
 ### Changed
