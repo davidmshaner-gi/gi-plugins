@@ -7,6 +7,17 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.23.0] - 2026-06-24
+
+### Changed
+- **Comps Excel: three broker-flagged lease/export fixes (Will Fogleman, 2026-06-17 feedback).**
+  - **External CoStar lease comps no longer show building size as "Leased SF."** CoStar's external lease data carries the building footprint, not the true leased premises area, so in the unified all-comps output (`internal-and-external-comps`) the "Leased SF" column now renders **blank** for external CoStar lease rows instead of mislabeling building size as leased area. Internal (Dealius) lease rows are unchanged — they keep their real leased area. (#105)
+  - **Removed the "Lease Executed" column** from the internal lease comps Excel, per broker request. The lease execution date is still used to filter and sort the results; it is just no longer shown as a column. (#106)
+  - **Lease comps Excel number formatting is now correct.** The internal lease export had several columns formatted as the wrong type (Lease Type and Tenant rendered as currency, TI $/SF rendered as a plain integer) because the formatting was keyed to fixed column positions; it is now derived from each column by name, so Leased SF / Building SF / Free Rent read as numbers and the $/SF columns read as currency — and the layout can change without re-introducing a mismatch. (#106)
+
+### Fixed
+- **Comps Excel workbooks now open reliably on Windows regardless of save location (#7).** The Windows 218-character path limit could leave a comps workbook unopenable when a deep folder path was prepended to the filename. Every comps Excel skill (`internal-comps`, `external-comps`, and the unified `internal-and-external-comps`) now flattens the output to a short filename in the working directory via one shared guard, so a deep or long path can no longer produce a file Excel refuses to open. (#7)
+
 ## [1.22.1] - 2026-06-23
 
 ### Fixed
