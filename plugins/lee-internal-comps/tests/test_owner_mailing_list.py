@@ -55,13 +55,57 @@ def test_dedupe_preserves_no_address_rows():
 
 def test_format_csv_writes_flat_file(tmp_path):
     rows = [{"owner": "ACME LLC", "mail_addr": "PO Box 5", "site_addr": "0 Maple",
-             "acreage": "3.1", "land_class": "Vacant"}]
+             "acreage": "3.1", "building_sf": 4200, "year_built": 1998,
+             "land_class": "Vacant"}]
     req = {"subject_property": {"address": "100 Walnut St, Cary NC"}}
     out = helpers.format_csv(rows, req, date="2026-06-02", out_dir=str(tmp_path))
     assert out.endswith("owners-100-walnut-st-cary-nc-2026-06-02.csv")
     with open(out) as f:
         header = f.readline().strip()
-    assert header == "owner,mail_addr,site_addr,acreage,land_class"
+    assert header == "owner,mail_addr,site_addr,acreage,building_sf,year_built,land_class"
+
+
+def test_format_csv_flattens_and_truncates_path(tmp_path):
+    # gi#7 slice: defense-in-depth for the Windows 218-char path limit. A
+    # caller-prepended directory must be flattened to a basename, and an
+    # over-long name capped, even if the model ignores the SKILL.md rule.
+    rows = [{"owner": "ACME LLC", "mail_addr": "PO Box 5", "site_addr": "0 Maple"}]
+    long_addr = "X" * 200 + " St, Cary NC"
+    req = {"subject_property": {"address": long_addr}}
+    out = helpers.format_csv(rows, req, date="2026-06-02", out_dir=str(tmp_path))
+    base = os.path.basename(out)
+    assert "/" not in base and "\\" not in base
+    # capped to a safe length and still a .csv
+    assert len(base) <= 60
+    assert base.endswith(".csv")
+    assert os.path.exists(out)
+
+
+def test_parse_request_improved_keyword_sets_improved_only():
+    for text in [
+        "owners of buildings within 2 miles of 100 Walnut St, Cary NC",
+        "improved parcels within 2 miles of 100 Walnut St, Cary NC",
+        "who owns the commercial buildings near 100 Walnut St, Cary NC",
+        "parcels with a structure within 2 miles of 100 Walnut St, Cary NC",
+    ]:
+        r = helpers.parse_request(text)
+        assert r["improved_only"] is True, text
+
+
+def test_parse_request_vacant_request_is_not_improved():
+    r = helpers.parse_request(
+        "owners of 2-5 acre vacant land within 3 miles of 100 Walnut St, Cary NC")
+    assert r["improved_only"] is False
+
+
+def test_parse_request_contradiction_vacant_wins_over_improved():
+    # "vacant buildings" is contradictory; vacant wins, improved_only off, so we
+    # never send the tool land_class=vacant AND improved_only=true.
+    r = helpers.parse_request(
+        "owners of vacant buildings within 2 miles of 100 Walnut St, Cary NC")
+    assert r["land_class"] == "vacant"
+    assert r["improved_only"] is False
+
 
 def test_rows_from_mcp_maps_tool_rows_to_csv_shape():
     mcp = [{
@@ -69,16 +113,20 @@ def test_rows_from_mcp_maps_tool_rows_to_csv_shape():
         "owner_raw": "ACME LLC",
         "owner_mail_address": "PO BOX 5\nCARY NC 27513",
         "address": "0 MAPLE ST", "lot_size_acres": 3.1,
+        "building_sf": 4200, "year_built": 1998,
         "land_use": "V", "distance_mi": 0.4,
     }]
     out = helpers.rows_from_mcp(mcp)
     assert out == [{"owner": "ACME LLC", "mail_addr": "PO BOX 5 CARY NC 27513",
-                    "site_addr": "0 MAPLE ST", "acreage": 3.1, "land_class": "V"}]
+                    "site_addr": "0 MAPLE ST", "acreage": 3.1,
+                    "building_sf": 4200, "year_built": 1998, "land_class": "V"}]
 
 
 def test_rows_from_mcp_tolerates_nulls():
     out = helpers.rows_from_mcp([{"owner_raw": None, "owner_mail_address": None,
                                   "address": None, "lot_size_acres": None,
+                                  "building_sf": None, "year_built": None,
                                   "land_use": None}])
     assert out == [{"owner": "", "mail_addr": "", "site_addr": "",
-                    "acreage": "", "land_class": ""}]
+                    "acreage": "", "building_sf": "", "year_built": "",
+                    "land_class": ""}]
