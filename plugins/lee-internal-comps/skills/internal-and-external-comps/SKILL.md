@@ -91,9 +91,10 @@ external = load_sibling("external-comps")
 3. **One transaction type per request.** If the broker mixes sale and lease, ask them to split
    into two runs (same rule as the single-source skills).
 4. **Source tagging is non-negotiable.** Every row, in every output, shows its Source.
-5. **W1 — lease size caveat.** For external (CoStar) lease rows, "Leased SF" reflects building
-   size, not leased area. The combined Excel/table surfaces this footnote automatically when an
-   external lease row is present; don't strip it.
+5. **External lease "Leased SF" is blank by design.** CoStar's external lease data carries the
+   building size, not the true leased premises area, so for external (CoStar) lease rows the
+   "Leased SF" column renders **blank** — building size is never shown as Leased SF (gi-plugins#105).
+   Internal (Dealius) lease rows keep their real leased area (`space_sf`).
 
 ## Output
 

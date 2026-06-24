@@ -29,6 +29,24 @@ from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
 
+
+def safe_xlsx_name(path: str) -> str:
+    """Flatten any caller-prepended directory to a basename in the CWD and cap the
+    filename, for the Windows 218-char path limit (gi-plugins#7).
+
+    Canonical definition lives in the `internal-comps` skill's helpers.py; this is
+    a local mirror (kept identical) because `external-comps` is a standalone
+    broker skill and must not take a runtime import dependency on a sibling skill.
+    Same duplication idiom as LEE_BRAND_MAROON / the logo asset.
+    """
+    name = os.path.basename((path or "").replace("\\", "/")) or "comps.xlsx"
+    if not name.lower().endswith(".xlsx"):
+        name += ".xlsx"
+    if len(name) > 50:
+        name = name[:-5][:45] + ".xlsx"
+    return name
+
+
 LEE_BRAND_MAROON = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28 / Brand Guidelines)
 LEE_LOGO_FILENAME = "lee_logo.png"
 
@@ -602,17 +620,9 @@ def format_excel(
     meth.column_dimensions["A"].width = 22
     meth.column_dimensions["B"].width = 70
 
-    # Guard (defense-in-depth for the Windows 218-char path limit).
-    # Brokers open this in Excel on Windows, where the full path cannot exceed
-    # 218 chars and the Cowork base dir is already ~125 deep. Flatten any
-    # directory the caller prepended and cap the filename so a deep or long
-    # path can't survive even if the model ignores the SKILL.md rule.
-    _name = os.path.basename(xlsx_path.replace("\\", "/")) or "comps.xlsx"
-    if not _name.lower().endswith(".xlsx"):
-        _name += ".xlsx"
-    if len(_name) > 50:
-        _name = _name[:-5][:45] + ".xlsx"
-    xlsx_path = _name
+    # Windows 218-char path guard (shared helper). Flatten to a CWD basename and
+    # cap the filename so a deep/long path can't survive (gi-plugins#7).
+    xlsx_path = safe_xlsx_name(xlsx_path)
     wb.save(xlsx_path)
     return xlsx_path
 

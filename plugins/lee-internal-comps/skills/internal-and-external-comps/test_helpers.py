@@ -70,21 +70,25 @@ def test_to_core_internal_lease():
     assert core["Rent"] == 9.5
     assert core["Date"] == "2025-04-01"
     assert core["Lease Type"] == "NNN"
-    assert core["_leased_sf_is_building_size"] is False
+    # The old W1 building-size-substitution flag is gone (gi-plugins#105).
+    assert "_leased_sf_is_building_size" not in core
     assert core["effective_rate"] == 9.5 and core["space_sf"] == 12000
 
 
-def test_to_core_external_lease_unit_mismatch_flag():
-    # W1: external lease "Leased SF" comes from building_sf (building size, not leased area)
+def test_to_core_external_lease_leased_sf_is_blank():
+    # gi-plugins#105: CoStar carries no true leased area for leases, so "Leased SF"
+    # must render BLANK for external lease rows — never the building size.
     row = {"external_id": "e2", "property_address": "4 D St", "property_city": "Apex",
            "county": "Wake", "property_type": "Industrial", "building_sf": 40000,
            "base_rent": 11.0, "lease_start_date": "2025-05-01", "rent_type": "Gross"}
     core = to_core(row, SOURCE_EXTERNAL, "lease")
-    assert core["Leased SF"] == 40000
+    assert core["Leased SF"] is None
+    assert core["Leased SF"] != 40000          # building size must not leak in
     assert core["Rent"] == 11.0
     assert core["Lease Type"] == "Gross"
-    assert core["_leased_sf_is_building_size"] is True
-    assert core["effective_rate"] == 11.0 and core["space_sf"] == 40000
+    assert "_leased_sf_is_building_size" not in core
+    # space_sf stat key mirrors the (now-blank) leased value.
+    assert core["effective_rate"] == 11.0 and core["space_sf"] is None
 
 
 def test_combine_keeps_both_rows_and_sorts_desc():
@@ -123,22 +127,35 @@ def test_unified_markdown_table_has_source_column():
     assert "External — CoStar" in md
 
 
-def test_unified_markdown_lease_w1_footnote():
+def test_unified_markdown_external_lease_blanks_leased_sf_no_footnote():
+    # gi-plugins#105: external lease Leased SF is blank (CoStar has no leased area),
+    # so the building-size value never appears and the old W1 footnote is gone.
     ext = [to_core({"external_id": "e2", "property_address": "4 D St", "building_sf": 40000,
                     "base_rent": 11.0, "lease_start_date": "2025-05-01", "rent_type": "Gross"},
                    SOURCE_EXTERNAL, "lease")]
     md = unified_markdown_table(combine([], ext, "lease"), {"comp_type": "lease"})
     assert "Leased SF" in md.splitlines()[0]
-    assert "building size, not leased area" in md
+    assert "40000" not in md                       # building size must not leak in
+    assert "building size, not leased area" not in md
 
 
 def test_format_unified_excel_writes_three_sheets(tmp_path):
+    import os
     core, internal, external = _sale_combo()
-    p = tmp_path / "comps-all-industrial-2026-06-02.xlsx"
-    format_unified_excel(core, internal_native=[{"comps_id": "i1"}],
-                         external_native=[{"external_id": "e1"}],
-                         validated={"comp_type": "sale"}, xlsx_path=str(p))
-    import openpyxl
-    wb = openpyxl.load_workbook(p)
+    # The Windows long-path guard (gi-plugins#7) flattens the output to a basename
+    # in the CWD and returns the actual path written; run in tmp_path and load that.
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        written = format_unified_excel(
+            core, internal_native=[{"comps_id": "i1"}],
+            external_native=[{"external_id": "e1"}],
+            validated={"comp_type": "sale"},
+            xlsx_path="comps-all-industrial-2026-06-02.xlsx")
+        assert os.sep not in written  # flattened to a CWD basename
+        import openpyxl
+        wb = openpyxl.load_workbook(written)
+    finally:
+        os.chdir(cwd)
     assert set(wb.sheetnames) >= {"All Comps", "Internal (Dealius)", "External (CoStar)"}
     assert wb["All Comps"].cell(row=1, column=1).value == "Source"

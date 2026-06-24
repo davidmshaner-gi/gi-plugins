@@ -106,15 +106,17 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
         asking = row.get("asking_rate_per_sf")
         date = _first(row, "lease_execution", "lease_commencement")
         lease_type = row.get("lease_type")
-        leased_is_building = False
     else:
-        # W1: CoStar exposes building_sf (building size), not true leased area, for lease.
-        leased = row.get("building_sf")
+        # CoStar's external lease ingest carries building_sf (building size) but NO
+        # true leased-area field. We must NOT show building size as "Leased SF"
+        # (gi-plugins#105, Will Fogleman 2026-06-17) — render it BLANK rather than
+        # mislabel building size as the leased premises. Internal Dealius rows keep
+        # their real space_sf above.
+        leased = None
         rent = row.get("base_rent")
         asking = None
         date = row.get("lease_start_date")
         lease_type = row.get("rent_type")
-        leased_is_building = True
     return {
         "Source": source,
         "Comp ID": comp_id,
@@ -127,7 +129,6 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
         "Date": date,
         "Lease Type": lease_type,
         "Source URL": url,
-        "_leased_sf_is_building_size": leased_is_building,
         # snake_case stat keys (server-side computeSummaryStats parity)
         "effective_rate": rent,
         "asking_rate_per_sf": asking,
@@ -153,8 +154,6 @@ CORE_COLUMNS_LEASE = ["Source", "Comp ID", "Address", "City", "County", "Asset T
                       "Leased SF", "Rent", "Date", "Lease Type"]
 
 LEE_BRAND_MAROON = "97012D"
-_W1_FOOTNOTE = ("Note: for External (CoStar) lease rows, \"Leased SF\" reflects building "
-                "size, not leased area.")
 
 
 def _core_columns(tx_type: str) -> list:
@@ -168,13 +167,12 @@ def _fmt(value) -> str:
     return str(value)
 
 
-def _has_w1(core_rows: list) -> bool:
-    return any(r.get("_leased_sf_is_building_size") for r in core_rows)
-
-
 def unified_markdown_table(core_rows: list, validated: dict) -> str:
-    """Combined chat table over the core columns, Source first. Appends the W1 footnote
-    when any external lease row is present."""
+    """Combined chat table over the core columns, Source first.
+
+    External CoStar lease rows render a blank "Leased SF" (CoStar carries no true
+    leased area; gi-plugins#105), so there is no building-size-substitution footnote.
+    """
     tx_type = validated.get("comp_type") or validated.get("transaction_type") or "sale"
     cols = _core_columns(tx_type)
     lines = ["| " + " | ".join(cols) + " |",
@@ -182,8 +180,6 @@ def unified_markdown_table(core_rows: list, validated: dict) -> str:
     for r in core_rows:
         lines.append("| " + " | ".join(_fmt(r.get(c)) for c in cols) + " |")
     md = "\n".join(lines)
-    if tx_type == "lease" and _has_w1(core_rows):
-        md += "\n\n_" + _W1_FOOTNOTE + "_"
     return md
 
 
@@ -214,8 +210,6 @@ def format_unified_excel(core_rows: list, internal_native: list, external_native
     ws_all = wb.active
     ws_all.title = "All Comps"
     _write_sheet(ws_all, _core_columns(tx_type), core_rows)
-    if tx_type == "lease" and _has_w1(core_rows):
-        ws_all.cell(row=len(core_rows) + 3, column=1, value=_W1_FOOTNOTE)
 
     # Sheet 2 — Internal (Dealius) native
     ws_int = wb.create_sheet("Internal (Dealius)")
@@ -227,5 +221,9 @@ def format_unified_excel(core_rows: list, internal_native: list, external_native
     ext_cols = list(external_native[0].keys()) if external_native else ["(no external rows)"]
     _write_sheet(ws_ext, ext_cols, external_native)
 
+    # Windows 218-char path guard (gi-plugins#7). This orchestrator already loads
+    # its siblings, so reuse the canonical helper rather than duplicating it:
+    # flatten to a CWD basename + cap the filename so a deep/long path can't survive.
+    xlsx_path = load_sibling("internal-comps").safe_xlsx_name(xlsx_path)
     wb.save(xlsx_path)
     return xlsx_path

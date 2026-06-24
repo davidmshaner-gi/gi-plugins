@@ -25,6 +25,25 @@ from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
 
+
+def safe_xlsx_name(path: str) -> str:
+    """Flatten any caller-prepended directory to a basename in the CWD and cap the
+    filename, for the Windows 218-char path limit.
+
+    Brokers open these workbooks in Excel on Windows, where the full path cannot
+    exceed 218 chars and the Cowork base dir is already ~125 deep. Every comps
+    skill that writes an .xlsx routes its output path through here so a deep or
+    long path can't survive even if the model ignores the SKILL.md rule
+    (gi-plugins#7). Canonical here; the sibling comps skills import this.
+    """
+    name = os.path.basename((path or "").replace("\\", "/")) or "comps.xlsx"
+    if not name.lower().endswith(".xlsx"):
+        name += ".xlsx"
+    if len(name) > 50:
+        name = name[:-5][:45] + ".xlsx"
+    return name
+
+
 LEE_BRAND_MAROON = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28 / Brand Guidelines)
 LEE_LOGO_FILENAME = "lee_logo.png"  # ships alongside helpers.py (used in local dev)
 
@@ -411,7 +430,10 @@ DISPLAY_COLUMNS_LEASE: list[tuple[str, str]] = [
     ("County",           "county"),
     ("Leased SF",        "space_sf"),
     ("Building SF",      "building_size"),
-    ("Lease Executed",   "lease_execution"),
+    # "Lease Executed" (lease_execution) removed per broker request (gi-plugins#106,
+    # Will Fogleman 2026-06-17). lease_execution is STILL the lease date_col for the
+    # WHERE/ORDER BY filter (see CANONICAL_COLUMNS_LEASE + build_query), so it stays
+    # in the SELECT — it is just no longer shown in the broker-facing display.
     ("Lease Commence",   "lease_commencement"),
     ("Term",             "term"),
     ("Asking $/SF",      "asking_rate_per_sf"),
@@ -899,32 +921,53 @@ def format_excel(
             c.alignment = center
             c.border = border
 
+        # Column formatting is derived from each display column's KEY name, not a
+        # hardcoded position. Removing or reordering a display column (e.g. dropping
+        # "Lease Executed", gi-plugins#106) can no longer silently mis-format the
+        # columns after it — the index sets follow the keys. To re-type a column,
+        # move its key between the sets below; do not count positions.
+        _INT_KEYS = {                                  # #,##0
+            "space_sf", "building_size", "square_feet_sold",
+            "property_year_built", "free_rent_months",
+        }
+        _ACRES_KEYS = {"acres"}                        # 0.00
+        _LARGE_MONEY_KEYS = {"asking_price", "sale_price"}            # $#,##0
+        _MONEY_PER_SF_KEYS = {                                        # $#,##0.00
+            "asking_rate_per_sf", "effective_rate",
+            "ti_allowance_per_sf", "price_per_sf",
+        }
+        _MONEY_PER_ACRE_KEYS = {"price_per_acre"}                     # $#,##0
+        _PCT_KEYS = {"asking_cap_rate", "actual_cap_rate"}           # 0.0"%"
+        # Left-aligned: long free-text / name / url columns (everything that is
+        # neither a numeric column above nor one of the short centered id/code cols).
+        _LEFT_ALIGN_KEYS = {
+            "comp_name", "street_address", "city", "county",
+            "investment_sale", "off_market_sale",
+            "buyer", "buyer_dba", "seller", "seller_dba",
+            "buyer_rep_agents", "seller_rep_agents",
+            "tenant", "landlord", "landlord_rep_agents", "tenant_rep_agents",
+            "link_to_comp_profile",
+        }
+
+        def _cols_for(keyset):
+            return {i for i, k in enumerate(keys, start=1) if k in keyset}
+
+        int_cols = _cols_for(_INT_KEYS)
+        acres_cols = _cols_for(_ACRES_KEYS)
+        large_money_cols = _cols_for(_LARGE_MONEY_KEYS)
+        money_per_sf_cols = _cols_for(_MONEY_PER_SF_KEYS)
+        money_per_acre_cols = _cols_for(_MONEY_PER_ACRE_KEYS)
+        pct_cols = _cols_for(_PCT_KEYS)
+        left_align_cols = _cols_for(_LEFT_ALIGN_KEYS)
+
+        # Color scale targets the headline rate column: $/Acre on land sales,
+        # else $/SF on sales, else Effective $/SF on leases. Blank if absent.
         if is_sale:
-            # Sale layout: cols 1..23 above
-            # 7 Building SF, 8 Acres, 9 Year Built, 10 Asking Price, 11 Sale Price,
-            # 12 $/SF, 13 Asking Cap %, 14 Actual Cap %, 15 Close Date,
-            # 16 Investment Sale, 17 Buyer ... 23 Comp Profile
-            left_align_cols = {3, 4, 5, 6, 16, 17, 18, 19, 20, 21, 22, 23}
-            int_cols = {7, 9}                          # Building SF, Year Built
-            acres_cols = {8}                           # Acres (decimal)
-            large_money_cols = {10, 11}                # Asking Price, Sale Price
-            pct_cols = {13, 14}                        # Asking Cap %, Actual Cap %
-            color_scale_col = "L"                      # col 12: $/SF, or $/Acre for land
-            if is_land_sale:
-                money_per_sf_cols = set()
-                money_per_acre_cols = {12}             # $/Acre (whole dollars)
-            else:
-                money_per_sf_cols = {12}               # $/SF
-                money_per_acre_cols = set()
+            _scale_key = "price_per_acre" if is_land_sale else "price_per_sf"
         else:
-            left_align_cols = {3, 4, 5, 6, 15, 19, 20, 21, 22, 23}
-            int_cols = {7, 8, 16}                      # SF, free rent months
-            acres_cols = set()
-            large_money_cols = set()
-            money_per_sf_cols = {12, 13, 14, 17}       # asking, base, effective, TI
-            money_per_acre_cols = set()
-            pct_cols = {18}                            # avg escalation
-            color_scale_col = "N"                      # Effective $/SF
+            _scale_key = "effective_rate"
+        _scale_cols = _cols_for({_scale_key})
+        color_scale_col = get_column_letter(next(iter(_scale_cols))) if _scale_cols else None
 
         data_start = header_row_idx + 1
         for row_offset, row in enumerate(rows):
@@ -972,26 +1015,35 @@ def format_excel(
                 for col_idx in pct_cols:
                     ws.cell(row=r, column=col_idx).number_format = '0.0"%"'
 
-        if is_sale:
-            widths = {
-                1: 9, 2: 16, 3: 30, 4: 30, 5: 14, 6: 18, 7: 12, 8: 9, 9: 11,
-                10: 14, 11: 14, 12: 11, 13: 12, 14: 12, 15: 12, 16: 13,
-                17: 32, 18: 32, 19: 32, 20: 32, 21: 28, 22: 28, 23: 42,
-            }
-        else:
-            widths = {
-                1: 9, 2: 16, 3: 30, 4: 30, 5: 14, 6: 18, 7: 11, 8: 12, 9: 13, 10: 13,
-                11: 12, 12: 11, 13: 11, 14: 13, 15: 18, 16: 11, 17: 11, 18: 13,
-                19: 32, 20: 32, 21: 28, 22: 28, 23: 42,
-            }
-        for col, w in widths.items():
-            ws.column_dimensions[get_column_letter(col)].width = w
+        # Column widths are keyed by display KEY (not position) for the same reason
+        # the format sets are: a layout change (gi-plugins#106) must not shift widths
+        # onto the wrong columns. Unlisted keys fall back to a sensible default width.
+        _WIDTH_BY_KEY = {
+            "comps_id": 9, "property_type": 16, "comp_name": 30, "street_address": 30,
+            "city": 14, "county": 18,
+            # sale numeric block
+            "square_feet_sold": 12, "acres": 9, "property_year_built": 11,
+            "asking_price": 14, "sale_price": 14, "price_per_sf": 11, "price_per_acre": 12,
+            "asking_cap_rate": 12, "actual_cap_rate": 12, "actual_close_date": 12,
+            "investment_sale": 13,
+            # lease numeric / detail block
+            "space_sf": 11, "building_size": 12, "lease_commencement": 13, "term": 12,
+            "asking_rate_per_sf": 12, "effective_rate": 12, "lease_type": 13,
+            "free_rent_months": 13, "ti_allowance_per_sf": 11,
+            "tenant": 32, "landlord": 32, "landlord_rep_agents": 28, "tenant_rep_agents": 28,
+            # long name / url tails
+            "buyer": 32, "buyer_dba": 32, "seller": 32, "seller_dba": 32,
+            "buyer_rep_agents": 28, "seller_rep_agents": 28,
+            "link_to_comp_profile": 42,
+        }
+        for col_idx, key in enumerate(keys, start=1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = _WIDTH_BY_KEY.get(key, 16)
 
         ws.row_dimensions[header_row_idx].height = 32
         ws.freeze_panes = ws.cell(row=data_start, column=1).coordinate
         ws.auto_filter.ref = f"A{header_row_idx}:{get_column_letter(len(headers))}{max(last_row, header_row_idx)}"
 
-        if rows:
+        if rows and color_scale_col:
             ws.conditional_formatting.add(
                 f"{color_scale_col}{data_start}:{color_scale_col}{last_row}",
                 ColorScaleRule(
@@ -1091,17 +1143,9 @@ def format_excel(
             b.alignment = Alignment(wrap_text=True, vertical="top")
             ws3.row_dimensions[r].height = 30
 
-        # Guard (defense-in-depth for the Windows 218-char path limit).
-        # Brokers open this in Excel on Windows, where the full path cannot
-        # exceed 218 chars and the Cowork base dir is already ~125 deep. Flatten
-        # any directory the caller prepended and cap the filename so a deep or
-        # long path can't survive even if the model ignores the SKILL.md rule.
-        _name = os.path.basename(output_path.replace("\\", "/")) or "comps.xlsx"
-        if not _name.lower().endswith(".xlsx"):
-            _name += ".xlsx"
-        if len(_name) > 50:
-            _name = _name[:-5][:45] + ".xlsx"
-        output_path = _name
+        # Windows 218-char path guard (shared helper). Flatten to a CWD basename
+        # and cap the filename so a deep/long path can't survive (gi-plugins#7).
+        output_path = safe_xlsx_name(output_path)
         wb.save(output_path)
 
         return {
