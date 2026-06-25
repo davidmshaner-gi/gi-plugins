@@ -597,8 +597,13 @@ def format_excel(
     summary.cell(row=1, column=1, value="Count").font = Font(bold=True)
     summary.cell(row=1, column=2, value=len(rows))
 
-    rate_vals = [r.get(rate_col) for r in rows if isinstance(r.get(rate_col), (int, float))]
-    size_vals = [r.get("building_sf") for r in rows if isinstance(r.get("building_sf"), (int, float))]
+    # gi-plugins#82: comps metrics are physically positive — a 0 rate or 0 SF is an
+    # "unknown-value" placeholder, never a real value. Excluding them from the Summary
+    # stats keeps "Median $/SF: $0.00" off broker-facing workbooks. Count stays len(rows).
+    rate_vals = [r.get(rate_col) for r in rows
+                 if isinstance(r.get(rate_col), (int, float)) and r.get(rate_col) > 0]
+    size_vals = [r.get("building_sf") for r in rows
+                 if isinstance(r.get("building_sf"), (int, float)) and r.get("building_sf") > 0]
 
     def _stat(label: str, fn, vals, row_idx: int) -> None:
         summary.cell(row=row_idx, column=1, value=label).font = Font(bold=True)
@@ -710,7 +715,10 @@ def markdown_table(
 
     # --- Quick read ---
     rate_key = "price_per_sf" if tx == "sale" else "base_rent"
-    rates = [r.get(rate_key) for r in top_n if isinstance(r.get(rate_key), (int, float))]
+    # gi-plugins#82: a 0 rate is an unknown-value placeholder; excluding it keeps the
+    # quick-read range from collapsing to "$0.00–..." on the broker-facing email.
+    rates = [r.get(rate_key) for r in top_n
+             if isinstance(r.get(rate_key), (int, float)) and r.get(rate_key) > 0]
     if rates:
         lo, hi = min(rates), max(rates)
         parts.append(f"\n**Quick read:** {rate_key} ranges {_fmt_rate(lo)}–{_fmt_rate(hi)} across {len(top_n)} comps.")

@@ -790,11 +790,27 @@ def _compute_stats(rows: list[dict], is_sale: bool = False) -> dict:
     if not rows:
         return {"count": 0}
 
+    def _pos(x):
+        """Coerce to a POSITIVE number, else None.
+
+        gi-plugins#82 (mirrors the Worker-side fix in mcp-server/src/lib/
+        summary_stats.ts): comps metrics are physically positive — a 0 price,
+        0 $/SF, 0 rate, or 0 SF is an "unknown-value" placeholder, never a real
+        value (89 of 225 staging sale comps store price_per_sf=0). Including the
+        zeros printed "Median $/SF: $0.00" on broker-facing Excel + email
+        summaries. Positive-only extraction excludes the placeholders from the
+        stat aggregations; the row COUNT still stays len(rows) (we drop nothing).
+        """
+        v = _to_number(x)
+        if isinstance(v, (int, float)) and v > 0:
+            return v
+        return None
+
     def _nums(key):
         out = []
         for r in rows:
-            v = _to_number(r.get(key))
-            if isinstance(v, (int, float)):
+            v = _pos(r.get(key))
+            if v is not None:
                 out.append(v)
         return out
 
@@ -809,12 +825,13 @@ def _compute_stats(rows: list[dict], is_sale: bool = False) -> dict:
         sale = _nums("sale_price")
         ppsf = _nums("price_per_sf")
         # Building SF: coalesce square_feet_sold with building_size to match display.
+        # A placeholder 0 in the first column falls through to the next (#82).
         bsf = []
         for r in rows:
-            v = _to_number(r.get("square_feet_sold"))
-            if not isinstance(v, (int, float)):
-                v = _to_number(r.get("building_size"))
-            if isinstance(v, (int, float)):
+            v = _pos(r.get("square_feet_sold"))
+            if v is None:
+                v = _pos(r.get("building_size"))
+            if v is not None:
                 bsf.append(v)
         return {
             "count":                len(rows),
@@ -831,12 +848,13 @@ def _compute_stats(rows: list[dict], is_sale: bool = False) -> dict:
     eff = _nums("effective_rate")
     ask = _nums("asking_rate_per_sf")
     # Leased SF: coalesce space_sf with square_feet_sold to match display.
+    # A placeholder 0 in the first column falls through to the next (#82).
     sf = []
     for r in rows:
-        v = _to_number(r.get("space_sf"))
-        if not isinstance(v, (int, float)):
-            v = _to_number(r.get("square_feet_sold"))
-        if isinstance(v, (int, float)):
+        v = _pos(r.get("space_sf"))
+        if v is None:
+            v = _pos(r.get("square_feet_sold"))
+        if v is not None:
             sf.append(v)
     return {
         "count": len(rows),
