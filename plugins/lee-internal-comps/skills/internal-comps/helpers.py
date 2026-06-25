@@ -26,22 +26,39 @@ from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
 
 
-def safe_xlsx_name(path: str) -> str:
-    """Flatten any caller-prepended directory to a basename in the CWD and cap the
-    filename, for the Windows 218-char path limit.
+# The deliverable lands in Cowork's per-session output directory, which on Windows
+# already runs ~200 chars deep. Excel refuses to OPEN any workbook whose full path
+# exceeds 218 chars ("the file path is too long") — stricter than Windows' own 260.
+# That session dir's length is fixed by Cowork and the file MUST land inside it (it
+# is where the broker sees the deliverable), so the ONLY lever the skill controls is
+# the filename. Bonner's 2026-06-25 Cowork measurement put his Windows session output
+# dir near the ceiling — his pasted path measured 188 but he reported ~210, leaving
+# only ~8-30 chars under 218; we size for the worst case. So even `comps.xlsx` (full
+# path ~199-221 depending on that base) is too risky. We IGNORE any descriptive name
+# the caller builds and emit the shortest practical stub, `c.xlsx` (6 chars; `c1.xlsx`,
+# ..., `c99.xlsx` stay ≤ 8), which clears 218 for any base ≤ 211. The descriptive title
+# still rides on the Sheet 1 tab name; the broker renames the file to taste (Cowork can
+# do it on request).
+XLSX_STUB = "c"  # stub + enum suffix + ".xlsx" must stay <=~8 chars (the budget on the deepest session dirs); "c" leaves room through c99.xlsx
 
-    Brokers open these workbooks in Excel on Windows, where the full path cannot
-    exceed 218 chars and the Cowork base dir is already ~125 deep. Every comps
-    skill that writes an .xlsx routes its output path through here so a deep or
-    long path can't survive even if the model ignores the SKILL.md rule
-    (gi-plugins#7). Canonical here; the sibling comps skills import this.
+
+def safe_xlsx_name(path: str = "") -> str:
+    """Return the shortest stable .xlsx filename in the CWD, enumerating on collision.
+
+    Emits `c.xlsx` (XLSX_STUB + ".xlsx"); if that name already exists in the CWD (a
+    second comps pull in the same Cowork session), enumerates `c1.xlsx`, `c2.xlsx`, ...
+    so a later pull never silently clobbers an earlier deliverable. `path` is accepted for
+    back-compat with callers that still pass a descriptive path, and deliberately
+    ignored — see the XLSX_STUB note above for why the descriptive name can't survive
+    the Windows 218-char Excel-open limit (gi-plugins#7). Canonical here; the
+    external-comps skill keeps an identical mirror (it takes no sibling import).
     """
-    name = os.path.basename((path or "").replace("\\", "/")) or "comps.xlsx"
-    if not name.lower().endswith(".xlsx"):
-        name += ".xlsx"
-    if len(name) > 50:
-        name = name[:-5][:45] + ".xlsx"
-    return name
+    candidate = f"{XLSX_STUB}.xlsx"
+    n = 1
+    while os.path.exists(candidate):
+        candidate = f"{XLSX_STUB}{n}.xlsx"
+        n += 1
+    return candidate
 
 
 LEE_BRAND_MAROON = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28 / Brand Guidelines)

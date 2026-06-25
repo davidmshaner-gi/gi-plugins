@@ -30,21 +30,34 @@ from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
 
 
-def safe_xlsx_name(path: str) -> str:
-    """Flatten any caller-prepended directory to a basename in the CWD and cap the
-    filename, for the Windows 218-char path limit (gi-plugins#7).
+# See the canonical XLSX_STUB note in internal-comps/helpers.py. Cowork's per-session
+# output dir on Windows runs ~190-210 chars deep (Bonner, 2026-06-25) and Excel refuses
+# to OPEN a workbook whose full path exceeds 218 chars; the only lever we control is the
+# filename, so we emit the shortest practical stub `c.xlsx`, not a descriptive name, to
+# clear 218 even on the deepest session dirs (gi-plugins#7).
+XLSX_STUB = "c"  # keep <=2 chars: budget under 218 is ~8 on the deepest broker session dirs
 
-    Canonical definition lives in the `internal-comps` skill's helpers.py; this is
-    a local mirror (kept identical) because `external-comps` is a standalone
-    broker skill and must not take a runtime import dependency on a sibling skill.
-    Same duplication idiom as LEE_BRAND_MAROON / the logo asset.
+
+def safe_xlsx_name(path: str = "") -> str:
+    """Return the shortest stable .xlsx filename in the CWD, enumerating on collision.
+
+    Emits `c.xlsx` (XLSX_STUB + ".xlsx"); enumerates `c1.xlsx`, `c2.xlsx`, ... if that
+    name is already taken in the CWD (a second comps pull in the same session), so a
+    later pull never clobbers an earlier deliverable. `path` is accepted for back-compat and
+    deliberately ignored — the descriptive name can't survive the Windows 218-char
+    Excel-open limit (gi-plugins#7).
+
+    Canonical definition lives in the `internal-comps` skill's helpers.py; this is a
+    local mirror (kept identical) because `external-comps` is a standalone broker skill
+    and must not take a runtime import dependency on a sibling skill. Same duplication
+    idiom as LEE_BRAND_MAROON / the logo asset.
     """
-    name = os.path.basename((path or "").replace("\\", "/")) or "comps.xlsx"
-    if not name.lower().endswith(".xlsx"):
-        name += ".xlsx"
-    if len(name) > 50:
-        name = name[:-5][:45] + ".xlsx"
-    return name
+    candidate = f"{XLSX_STUB}.xlsx"
+    n = 1
+    while os.path.exists(candidate):
+        candidate = f"{XLSX_STUB}{n}.xlsx"
+        n += 1
+    return candidate
 
 
 LEE_BRAND_MAROON = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28 / Brand Guidelines)

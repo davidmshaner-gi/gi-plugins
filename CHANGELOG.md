@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.24.1] - 2026-06-25
+
+### Fixed
+- **Comps Excel "the file path is too long" error on Windows (Will / Bonner).** Windows brokers couldn't *open* the comps workbook: Excel refuses to open any file whose full path exceeds 218 characters, and Cowork's per-session output directory already runs ~190–210 characters deep before the filename — so a descriptive name like `comps-industrial-2026-05-28.xlsx` pushed the full path over the limit. The skill can't relocate that directory, so the only lever is the filename. All three comps skills (`internal-comps`, `external-comps`, `internal-and-external-comps`) now write the workbook to a tiny fixed name — `c.xlsx` — which keeps the full path safely under 218. A second comps pull in the same session enumerates `c1.xlsx`, `c2.xlsx`, … so an earlier deliverable is never overwritten. The descriptive title still appears on the Sheet 1 tab; rename the file to whatever you like once it opens. **Supersedes the 1.23.0 flatten-to-basename guard**, which still overflowed because a 50-char filename on top of the ~200-char session dir exceeded 218; a fixed tiny name is the only thing that fits. Enforced in code (the helper forces the name regardless of what the skill builds), so it can't regress. (#7)
+
 ## [1.24.0] - 2026-06-24
 
 ### Added
