@@ -3,14 +3,14 @@ import csv
 import os
 import re
 
-def slugify(text):
-    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
-    return re.sub(r"-{2,}", "-", s)
-
-def default_output_path(request, date):
-    addr = (request.get("subject_property") or {}).get("address", "area")
-    slug = slugify(addr)[:60].rstrip("-")
-    return f"owners-{slug}-{date}.csv"
+# The CSV lands in Cowork's per-session output dir, which on Windows runs ~190-210
+# chars deep and can't be relocated. Excel refuses to OPEN any file whose full path
+# exceeds 218 chars, so the only lever is the filename. A descriptive name like
+# `owners-100-walnut-st-cary-nc-2026-06-02.csv` (44 chars) pushes the total well past
+# 218; a tiny constant stub does not. Same fix + rationale as the comps `safe_xlsx_name`
+# (XLSX_STUB) — see internal-comps/helpers.py and the comps architecture doc, §5 DELIVER.
+# (gi-plugins#7 generalized in #112.)
+CSV_STUB = "o"  # stub + enum suffix + ".csv" must stay <=~8 chars; "o" leaves room through o99.csv
 
 def _norm(s):
     return re.sub(r"\s+", " ", (s or "").strip().lower())
@@ -93,24 +93,27 @@ def rows_from_mcp(mcp_rows):
 
 CSV_FIELDS = ["owner", "mail_addr", "site_addr", "acreage", "building_sf", "year_built", "land_class"]
 
-def _safe_csv_name(output_path):
-    """Flatten a caller-prepended directory to a basename and cap the length.
+def _safe_csv_name(out_dir="."):
+    """Return the shortest stable .csv filename in out_dir, enumerating on collision.
 
-    Defense-in-depth for the Windows 218-char path limit (gi#7): brokers open
-    this CSV on Windows where the full path cannot exceed 218 chars and the
-    Cowork base dir is already ~125 deep. Flatten any directory and cap the
-    filename so a deep or long path can't survive even if the model ignores the
-    SKILL.md rule. Mirrors the internal-comps xlsx-save guard.
+    Emits `o.csv` (CSV_STUB + ".csv"); if that name already exists in out_dir (a
+    second mailing-list pull in the same Cowork session), enumerates `o1.csv`,
+    `o2.csv`, ... so a later pull never clobbers an earlier deliverable. The
+    descriptive address never enters the filename — see the CSV_STUB note above for
+    why it can't survive the Windows 218-char Excel-open limit (gi#7 / #112). Mirrors
+    the comps `safe_xlsx_name`.
     """
-    name = os.path.basename((output_path or "").replace("\\", "/")) or "owners.csv"
-    if not name.lower().endswith(".csv"):
-        name += ".csv"
-    if len(name) > 60:
-        name = name[:-4][:56] + ".csv"
-    return name
+    candidate = f"{CSV_STUB}.csv"
+    n = 1
+    while os.path.exists(os.path.join(out_dir, candidate)):
+        candidate = f"{CSV_STUB}{n}.csv"
+        n += 1
+    return candidate
 
 def format_csv(rows, request, date, out_dir="."):
-    name = _safe_csv_name(default_output_path(request, date))
+    # request/date retained for caller back-compat; no longer used for the filename
+    # (the name is forced to the CSV_STUB constant — see _safe_csv_name).
+    name = _safe_csv_name(out_dir)
     path = os.path.join(out_dir, name) if out_dir not in ("", ".") else name
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=CSV_FIELDS, extrasaction="ignore")

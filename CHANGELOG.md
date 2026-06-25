@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.24.2] - 2026-06-25
+
+### Fixed
+- **owner-mailing-list CSV "the file path is too long" error on Windows (#7 generalization).** A scan of every skill for local file outputs found one other writer with the same Windows-218 exposure that 1.24.1 fixed for comps: the owner mailing-list CSV. Its 1.24.0 guard capped the filename at 60 chars, but on Cowork's ~190–210-char Windows session directory a 60-char name still blows past Excel's 218-char open limit, so the CSV wouldn't open. It now writes to a tiny fixed name — `o.csv` (enumerating `o1.csv`, `o2.csv`, … for a second pull in the same session) — which keeps the full path under 218. The descriptive address no longer enters the filename; rename the file once it opens. Same convention as the comps `c.xlsx` fix, now documented in the comps architecture doc (§5 DELIVER) as the rule for all broker file outputs. (#112)
+
 ## [1.24.1] - 2026-06-25
 
 ### Fixed
