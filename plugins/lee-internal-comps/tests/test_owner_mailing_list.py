@@ -3,17 +3,18 @@ import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "owner-mailing-list"))
 import helpers
 
-def test_slugify_basic():
-    assert helpers.slugify("100 Walnut St, Cary NC") == "100-walnut-st-cary-nc"
+def test_safe_csv_name_emits_constant_stub(tmp_path):
+    # The filename is a tiny constant (gi#7 / #112) — never the descriptive address.
+    assert helpers._safe_csv_name(str(tmp_path)) == f"{helpers.CSV_STUB}.csv"
+    assert helpers._safe_csv_name(str(tmp_path)) == "o.csv"
 
-def test_default_output_path_is_flat_and_short():
-    req = {"subject_property": {"address": "100 Walnut St, Cary NC"}}
-    p = helpers.default_output_path(req, date="2026-06-02")
-    # flat: no directory separators, no subfolder
-    assert "/" not in p and "\\" not in p
-    assert p == "owners-100-walnut-st-cary-nc-2026-06-02.csv"
-    # whole filename comfortably under the 218-char budget worst case
-    assert len(p) < 80
+def test_safe_csv_name_enumerates_on_collision(tmp_path):
+    # A second / third pull in the same session must not clobber the first.
+    assert helpers._safe_csv_name(str(tmp_path)) == "o.csv"
+    (tmp_path / "o.csv").write_text("")
+    assert helpers._safe_csv_name(str(tmp_path)) == "o1.csv"
+    (tmp_path / "o1.csv").write_text("")
+    assert helpers._safe_csv_name(str(tmp_path)) == "o2.csv"
 
 def test_parse_request_extracts_core_fields():
     text = "owners of 2-5 acre vacant land within 3 miles of 100 Walnut St, Cary NC"
@@ -59,26 +60,27 @@ def test_format_csv_writes_flat_file(tmp_path):
              "land_class": "Vacant"}]
     req = {"subject_property": {"address": "100 Walnut St, Cary NC"}}
     out = helpers.format_csv(rows, req, date="2026-06-02", out_dir=str(tmp_path))
-    assert out.endswith("owners-100-walnut-st-cary-nc-2026-06-02.csv")
+    assert os.path.basename(out) == "o.csv"
     with open(out) as f:
         header = f.readline().strip()
     assert header == "owner,mail_addr,site_addr,acreage,building_sf,year_built,land_class"
 
 
-def test_format_csv_flattens_and_truncates_path(tmp_path):
-    # gi#7 slice: defense-in-depth for the Windows 218-char path limit. A
-    # caller-prepended directory must be flattened to a basename, and an
-    # over-long name capped, even if the model ignores the SKILL.md rule.
+def test_format_csv_name_is_independent_of_address(tmp_path):
+    # gi#7 / #112: the Windows 218-char limit means the descriptive address can
+    # never enter the filename — a 200-char address still yields the tiny stub.
     rows = [{"owner": "ACME LLC", "mail_addr": "PO Box 5", "site_addr": "0 Maple"}]
     long_addr = "X" * 200 + " St, Cary NC"
     req = {"subject_property": {"address": long_addr}}
     out = helpers.format_csv(rows, req, date="2026-06-02", out_dir=str(tmp_path))
     base = os.path.basename(out)
+    assert base == "o.csv"
     assert "/" not in base and "\\" not in base
-    # capped to a safe length and still a .csv
-    assert len(base) <= 60
-    assert base.endswith(".csv")
     assert os.path.exists(out)
+    # a second pull in the same dir enumerates rather than clobbering
+    out2 = helpers.format_csv(rows, req, date="2026-06-02", out_dir=str(tmp_path))
+    assert os.path.basename(out2) == "o1.csv"
+    assert os.path.exists(out2)
 
 
 def test_parse_request_improved_keyword_sets_improved_only():
