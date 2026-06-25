@@ -2,14 +2,16 @@
 Windows 218-char path guard for the comps Excel exports (gi-plugins#7).
 
 Brokers open these workbooks in Excel on Windows, where the full path cannot
-exceed 218 chars and the Cowork base dir is already ~125 deep. Every comps
-skill that writes an .xlsx must flatten whatever directory the caller prepended
-down to a basename in the CWD and cap the filename, so a deep or long path
-cannot survive even if the model ignores the SKILL.md rule.
+exceed 218 chars ("the file path is too long") and Cowork's per-session output
+dir already runs ~200 chars deep. The file MUST land in that fixed session dir,
+so the only lever the skill controls is the FILENAME. Every comps skill that
+writes an .xlsx therefore emits a tiny constant stub — `c.xlsx` — instead of
+a descriptive name, enumerating `c1.xlsx`, `c2.xlsx`, ... on collision so
+a second pull in the same session never clobbers the first. The descriptive title
+lives on the Sheet 1 tab; the broker renames the file.
 
 This test pins the shared `safe_xlsx_name` helper (canonical in internal-comps)
-AND asserts each skill's workbook builder actually flattens-to-CWD + caps the
-filename, mirroring tests/test_land_price_per_acre.py.
+AND asserts each skill's workbook builder actually writes that short stub name.
 
 Card: davidmshaner-gi/gi-plugins#7 (re-opened).
 """
@@ -26,9 +28,11 @@ SKILLS_DIR = os.path.join(
     "skills",
 )
 
-# Filename cap the guard enforces (the `[:45] + ".xlsx"` slice → 50 chars total).
-MAX_NAME_LEN = 50
-MAX_STEM_LEN = 45
+# Generous ceiling: the stub + enumeration suffix stays well under this. The point
+# of the change is that the name is tiny (~6 chars), not the old 50-char cap. The
+# expected stub itself is read from the helper's XLSX_STUB so this test never needs
+# editing if the stub is shortened further.
+MAX_NAME_LEN = 16
 
 
 def _load(skill_name):
@@ -50,42 +54,74 @@ def _load(skill_name):
 
 internal = _load("internal-comps")
 
-
-def test_safe_xlsx_name_flattens_a_deep_path_to_basename():
-    deep = "/" + "/".join(["a-very-long-directory-segment"] * 8) + "/wake_sale.xlsx"
-    out = internal.safe_xlsx_name(deep)
-    assert out == "wake_sale.xlsx"
-    assert os.sep not in out and "/" not in out and "\\" not in out
+# Expected names derive from the helper's own stub, so shortening XLSX_STUB
+# (e.g. "comps" -> "c" for deep Windows session dirs) needs no test edits.
+STUB = internal.XLSX_STUB
+STUB_NAME = f"{STUB}.xlsx"
 
 
-def test_safe_xlsx_name_flattens_windows_backslash_path():
-    out = internal.safe_xlsx_name(r"C:\Users\bonne\Deep\Nested\path\comps.xlsx")
-    assert out == "comps.xlsx"
+def test_safe_xlsx_name_ignores_descriptive_path_and_emits_stub():
+    # Whatever the caller prepends — deep dir, descriptive name, Windows backslashes —
+    # the helper returns the tiny constant stub, in an empty CWD.
+    with tempfile.TemporaryDirectory() as d:
+        cwd = os.getcwd()
+        os.chdir(d)
+        try:
+            deep = "/" + "/".join(["a-very-long-directory-segment"] * 8) + "/wake_sale.xlsx"
+            assert internal.safe_xlsx_name(deep) == STUB_NAME
+            assert internal.safe_xlsx_name(r"C:\Users\bonne\Deep\industrial_lease_comps_2026.xlsx") == STUB_NAME
+            assert internal.safe_xlsx_name("") == STUB_NAME
+            out = internal.safe_xlsx_name(deep)
+            assert os.sep not in out and "/" not in out and "\\" not in out
+            assert len(out) <= MAX_NAME_LEN
+        finally:
+            os.chdir(cwd)
 
 
-def test_safe_xlsx_name_caps_long_filename_to_50_chars():
-    long_stem = "industrial_lease_comps_raleigh_durham_chapel_hill_triangle_2026"
-    out = internal.safe_xlsx_name(f"/tmp/{long_stem}.xlsx")
-    assert len(out) <= MAX_NAME_LEN
-    assert out.endswith(".xlsx")
-    assert out[:-5] == long_stem[:MAX_STEM_LEN]
+def test_safe_xlsx_name_enumerates_on_collision():
+    # A second / third pull in the same session must not clobber the first.
+    with tempfile.TemporaryDirectory() as d:
+        cwd = os.getcwd()
+        os.chdir(d)
+        try:
+            assert internal.safe_xlsx_name() == f"{STUB}.xlsx"
+            open(f"{STUB}.xlsx", "w").close()
+            assert internal.safe_xlsx_name() == f"{STUB}1.xlsx"
+            open(f"{STUB}1.xlsx", "w").close()
+            assert internal.safe_xlsx_name() == f"{STUB}2.xlsx"
+        finally:
+            os.chdir(cwd)
 
 
-def test_safe_xlsx_name_appends_xlsx_when_missing():
-    assert internal.safe_xlsx_name("/tmp/comps").endswith(".xlsx")
+def test_safe_xlsx_name_always_ends_in_xlsx():
+    with tempfile.TemporaryDirectory() as d:
+        cwd = os.getcwd()
+        os.chdir(d)
+        try:
+            assert internal.safe_xlsx_name("/tmp/comps").endswith(".xlsx")
+        finally:
+            os.chdir(cwd)
 
 
-def test_safe_xlsx_name_empty_basename_falls_back():
-    # A path that is just a directory (trailing slash) → fallback name, still .xlsx.
-    out = internal.safe_xlsx_name("/tmp/some/dir/")
-    assert out.endswith(".xlsx")
-    assert os.sep not in out
+def test_external_comps_mirror_matches_canonical():
+    # The standalone mirror must behave identically to the canonical helper.
+    ext = _load("external-comps")
+    with tempfile.TemporaryDirectory() as d:
+        cwd = os.getcwd()
+        os.chdir(d)
+        try:
+            assert ext.safe_xlsx_name("/deep/descriptive_name_2026.xlsx") == STUB_NAME
+            assert ext.XLSX_STUB == STUB  # mirror must agree on the stub
+            open(f"{STUB}.xlsx", "w").close()
+            assert ext.safe_xlsx_name() == f"{STUB}1.xlsx"
+        finally:
+            os.chdir(cwd)
 
 
 # ---------------------------------------------------------------------------
-# 2. Every comps skill's workbook builder flattens-to-CWD + caps the name.
+# 2. Every comps skill's workbook builder writes the short stub to the CWD.
 #    (The bug in #7: a builder that computes the safe name but saves the
-#    original path anyway, or has no guard at all.)
+#    original descriptive/deep path anyway, or has no guard at all.)
 # ---------------------------------------------------------------------------
 
 # A long, deep path the caller might prepend — must NOT survive to disk.

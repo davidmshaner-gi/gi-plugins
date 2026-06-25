@@ -69,9 +69,12 @@ external = load_sibling("external-comps")
    in both sources stays as two rows, each tagged by Source.
 6. **Render the deliverable(s):**
    - **Excel** (if chosen): `format_unified_excel(core_rows, internal_native=internal_rows,
-     external_native=external_rows, validated=validated, xlsx_path=...)`. **Set `xlsx_path` to a
-     short, flat filename — `comps-all-<asset>-<YYYY-MM-DD>.xlsx` — written to the working
-     directory. No subfolders, no long names. Load-bearing for Windows brokers.**
+     external_native=external_rows, validated=validated, xlsx_path=...)`. **The filename is forced
+     to a tiny constant stub (`c.xlsx`, enumerating `c1.xlsx`/`c2.xlsx` on repeat) by
+     the shared `safe_xlsx_name` helper regardless of what you pass as `xlsx_path`; the call returns
+     the name actually written — use it when you reference the file to the broker, and tell them
+     they can rename it. Load-bearing for Windows brokers (Excel won't open a path >218 chars, and
+     Cowork's session dir already eats ~200).**
    - **Chat table:** `unified_markdown_table(core_rows, validated)`.
    - **PDF** (if chosen): cache the combined rows and render one branded combined PDF:
      - MCP `cache_external_rows` with `{rows: core_rows, comp_type: validated["transaction_type"]}`
