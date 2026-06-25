@@ -159,3 +159,55 @@ def test_format_unified_excel_writes_three_sheets(tmp_path):
         os.chdir(cwd)
     assert set(wb.sheetnames) >= {"All Comps", "Internal (Dealius)", "External (CoStar)"}
     assert wb["All Comps"].cell(row=1, column=1).value == "Source"
+
+
+# ---------------------------------------------------------------------------
+# gi-plugins#62 — combine() must sort by a PARSED date, not the raw string.
+# Internal dates are MM/DD/YYYY (actual_close_date / lease_execution); external
+# dates are ISO YYYY-MM-DD (sale_date / lease_start_date). A raw string sort
+# interleaves the two formats wrong (e.g. "12/01/2025" sorts after "2026-..").
+# ---------------------------------------------------------------------------
+
+def test_combine_sorts_mixed_date_formats_chronologically():
+    # Internal rows carry MM/DD/YYYY; external rows carry ISO YYYY-MM-DD.
+    internal = [
+        to_core({"comps_id": "INT-NEWEST", "actual_close_date": "06/01/2026",
+                 "sale_price": 1, "price_per_sf": 1, "building_size": 1},
+                SOURCE_INTERNAL, "sale"),
+        to_core({"comps_id": "INT-OLD", "actual_close_date": "12/01/2025",
+                 "sale_price": 1, "price_per_sf": 1, "building_size": 1},
+                SOURCE_INTERNAL, "sale"),
+    ]
+    external = [
+        to_core({"costar_property_id": "EXT-MID", "sale_date": "2026-01-15",
+                 "sale_price": 1, "price_per_sf": 1, "building_sf": 1},
+                SOURCE_EXTERNAL, "sale"),
+        to_core({"costar_property_id": "EXT-OLDEST", "sale_date": "2024-03-10",
+                 "sale_price": 1, "price_per_sf": 1, "building_sf": 1},
+                SOURCE_EXTERNAL, "sale"),
+    ]
+    out = combine(internal, external, "sale")
+    order = [r["Comp ID"] for r in out]
+    # True chronological, most-recent first — NOT what a raw string sort produces.
+    assert order == ["INT-NEWEST", "EXT-MID", "INT-OLD", "EXT-OLDEST"]
+
+
+def test_combine_blank_or_unparseable_dates_sort_last():
+    internal = [
+        to_core({"comps_id": "HAS-DATE", "actual_close_date": "03/15/2026",
+                 "sale_price": 1, "price_per_sf": 1, "building_size": 1},
+                SOURCE_INTERNAL, "sale"),
+        to_core({"comps_id": "NO-DATE", "actual_close_date": "",
+                 "sale_price": 1, "price_per_sf": 1, "building_size": 1},
+                SOURCE_INTERNAL, "sale"),
+    ]
+    external = [
+        to_core({"costar_property_id": "BAD-DATE", "sale_date": "not-a-date",
+                 "sale_price": 1, "price_per_sf": 1, "building_sf": 1},
+                SOURCE_EXTERNAL, "sale"),
+    ]
+    out = combine(internal, external, "sale")
+    assert len(out) == 3                       # nothing dropped
+    assert out[0]["Comp ID"] == "HAS-DATE"     # the only real date comes first
+    # The two blank/unparseable rows sort to the bottom (order among them unspecified).
+    assert {out[1]["Comp ID"], out[2]["Comp ID"]} == {"NO-DATE", "BAD-DATE"}

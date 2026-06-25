@@ -6,6 +6,7 @@ the combine layer (to_core, combine, format_unified_excel, unified_markdown_tabl
 """
 import importlib.util
 import sys
+from datetime import date, datetime
 from pathlib import Path
 
 
@@ -136,11 +137,46 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
     }
 
 
+def _parse_date(value) -> "date | None":
+    """Parse a core-row Date into a real date for chronological sorting (gi-plugins#62).
+
+    Internal rows carry MM/DD/YYYY (from actual_close_date / lease_execution); external
+    rows carry ISO YYYY-MM-DD (from sale_date / lease_start_date). A naive string sort
+    interleaves the two formats wrong (e.g. "12/01/2020" sorts after "2026-01-01").
+    Returns None for missing/blank/unparseable values so they sort LAST, never crash.
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    # Trim a time component if one rode along (e.g. "2026-01-15 00:00:00").
+    s = s.split("T")[0].split(" ")[0]
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def combine(internal_core: list, external_core: list, tx_type: str) -> list:
     """Concatenate internal + external core rows, sort most-recent-Date first. NO dedup —
-    a property present in both sources stays as two rows, each tagged by Source."""
+    a property present in both sources stays as two rows, each tagged by Source.
+
+    Dates are parsed to real dates before sorting (gi-plugins#62) because internal
+    (MM/DD/YYYY) and external (ISO) formats can't be compared as raw strings. Rows with
+    a missing/blank/unparseable Date sort last.
+    """
     rows = list(internal_core) + list(external_core)
-    rows.sort(key=lambda r: (r.get("Date") or ""), reverse=True)
+
+    def _key(r):
+        # (has_date, date) so real dates sort most-recent-first and blanks fall to the
+        # bottom under reverse=True (False < True, and date.min anchors the blanks).
+        d = _parse_date(r.get("Date"))
+        return (d is not None, d or date.min)
+
+    rows.sort(key=_key, reverse=True)
     return rows
 
 

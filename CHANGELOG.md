@@ -7,6 +7,12 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.24.3] - 2026-06-25
+
+### Fixed
+- **Comps summary stats no longer print "$0.00" from placeholder zeros (#82).** Roughly 89 of 225 staging sale comps store `price_per_sf=0` (and similar) as an "unknown-value" placeholder, not a real value. Including those zeros in the workbook Summary sheet and the draft-email summary printed misleading figures like "Median $/SF: $0.00." All three comps skills now exclude non-positive values from the stat aggregations (`sale_price`, `price_per_sf`, `effective_rate`, `asking_rate`, and square footage; a zero in one SF column now falls through to the next). The comp **count is unchanged** — placeholders are excluded from the math, not dropped from the row set. Mirrors the Worker-side fix already in the lee MCP `summary_stats.ts`.
+- **Unified all-comps table now sorts by true date across both sources (#62).** The default `internal-and-external-comps` skill merged internal (MM/DD/YYYY) and external (ISO YYYY-MM-DD) rows and sorted them as raw strings, which interleaved the two formats out of order. Rows now sort by a parsed date, most-recent-first, with missing or unparseable dates falling to the bottom instead of jumbling the order.
+
 ## [1.24.2] - 2026-06-25
 
 ### Fixed
