@@ -34,6 +34,7 @@ Triggers:
 2. Call the MCP tool `pull_business_key_facts` with `{address: "<the extracted address>"}`. The tool takes ~10-20 seconds (D1 demographics + R2 tile reads + Browser Rendering).
 3. The response is structured JSON with three top-level ring keys (`1mi`, `3mi`, `5mi`) + chart SVGs + a `pdf_url`. Render the JSON inline conversationally — focus on the highest-signal numbers (population, daytime population, mean HH income, workforce mix).
 4. If `pdf_url` is a non-null string, surface it as a "📄 Open PDF" link with a 1-hour expiry note: *"Link expires in ~1 hour — download or share it now."* If `pdf_url` is `null` (transient render failure — the JSON response is non-fatal on PDF errors), deliver the structured data and suggest the broker re-run.
+5. **If `degraded_note` is a non-null string, always relay it to the broker verbatim** (in addition to whatever you do with `pdf_url`). It fires only when the report had to shrink to stay under the render size limit, and it comes in two flavors: (a) the PDF rendered but the site map fell back to simple radius rings instead of the full street map — `pdf_url` is present, so still give the link *and* mention the map was simplified; (b) the report was too large to render a PDF at all — `pdf_url` is `null`, so deliver the key facts and pass along the note (which tells the broker to re-run). When `degraded_note` is `null` (the normal case), say nothing about it.
 
 ## Error handling
 

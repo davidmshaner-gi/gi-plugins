@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.24.4] - 2026-07-09
+
+### Fixed
+- **Business Key Facts now explains when a report is simplified to stay under the render size limit (lee#212).** The `pull_business_key_facts` MCP tool used to fail with an opaque error on large-footprint addresses (e.g. 527 Keisler Dr, Cary) when the full street-map tile mosaic pushed the PDF past its size cap — the broker got nothing. The tool now degrades instead: it falls back to a simplified radius-ring map (PDF still delivered), or, if it's still too large, returns the key facts with no PDF and a note to re-run. This skill now relays the new `degraded_note` field to the broker verbatim so a simplified map or missing PDF is explained rather than silent. Ships with the lee MCP fix.
+
 ## [1.24.3] - 2026-06-25
 
 ### Fixed
