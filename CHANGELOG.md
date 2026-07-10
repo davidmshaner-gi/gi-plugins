@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.25.0] - 2026-07-10
+
+### Added
+- **`lee-branding` skill — apply the official Lee & Associates brand to any deliverable (#118).** Brokers no longer have to hand-feed Bonner's brand zip to Claude Design each time. The skill ships the official Lee brand package — logo (SVG + PNG), the full color system (`brand-colors.json` + guidelines), the Avenir Next brand fonts (WOFF), and the logo/color usage rules — and a contract telling Claude how to apply Lee branding two ways: set up the Lee design system in Claude Design once (so every flyer/deck/graphic comes out on-brand automatically), or brand a specific deliverable on the spot. Brand assets are bundled in the skill because the Cowork sandbox can't fetch them over the network at runtime; the skill is now the canonical on-disk home for the Lee logo, and the existing per-skill logo copies in `internal-comps` / `external-comps` are documented as the deliberate sandbox-side pattern. No Worker change — the Worker already serves the logo and bundles the fonts for its own server-side renders. Sourced from Bonner's 2026-07-09 "Lee & Associates Design Package."
+
 ## [1.24.5] - 2026-07-09
 
 ### Fixed
