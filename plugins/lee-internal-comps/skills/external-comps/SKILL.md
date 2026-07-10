@@ -290,4 +290,4 @@ If you find yourself regenerating openpyxl formatting, hand-writing date math, o
 
 - `SKILL.md` — this file.
 - `helpers.py` — atomic helpers (validate, build_mcp_params, post-filter, rank, format_excel, markdown_table, draft_email, format_feedback). None call MCP — the model has MCP access; the sandbox doesn't.
-- `lee_logo.png` — bundled with the skill; used by `format_excel` (logo at the top of the main comps sheet).
+- `lee_logo.png` — bundled with the skill; used by `format_excel` (logo at the top of the main comps sheet). This is a byte-identical copy of the canonical logo in the `lee-branding` skill; each in-session skill carries its own copy because the Cowork sandbox has no outbound network access at runtime and cannot fetch the logo from the server (gotcha registry G17). Keep it in sync with `skills/lee-branding/lee_logo.png`.
