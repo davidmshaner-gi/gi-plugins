@@ -19,7 +19,7 @@ Takes about 5 minutes, and you only do it once per organization.
 | `lee_logo.svg` | The logo as a vector file (sharpest, preferred). |
 | `lee_logo.png` | The logo as an image file (use if a tool will not take the SVG). |
 | `fonts/` | The Avenir Next brand font files (WOFF) -- the real Lee primary typeface, so designs render in-brand instead of a fallback. See `fonts/README.md`. |
-| `START HERE - Add Lee Brand to Claude Design` | This guide (PDF and Markdown). |
+| `claude-design-setup.md` | This guide (Markdown). |
 
 The brand standards were transcribed from Lee's official *Brand Standards and Usage
 Guidelines* (updated February 2021). The original PDF lives in the Marketing & PR section

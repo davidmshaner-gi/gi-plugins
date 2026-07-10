@@ -19,12 +19,11 @@ SKILL_DIR = os.path.join(
     "skills",
     "lee-branding",
 )
-INTERNAL_COMPS_LOGO = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "skills",
-    "internal-comps",
-    "lee_logo.png",
+_SKILLS_ROOT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skills"
 )
+INTERNAL_COMPS_LOGO = os.path.join(_SKILLS_ROOT, "internal-comps", "lee_logo.png")
+EXTERNAL_COMPS_LOGO = os.path.join(_SKILLS_ROOT, "external-comps", "lee_logo.png")
 LEE_RED = "#98002E"  # PMS 202, canonical (lee-and-associates#28)
 FONT_FILES = [
     "AvenirNextCyr-Regular.woff",
@@ -65,11 +64,15 @@ def test_colors_json_parses_with_canonical_red():
     assert colors["primary"]["red"]["hex"].upper() == LEE_RED
 
 
-def test_bundled_logo_matches_canonical_served_logo():
-    # One brand, one logo: the bundled PNG must equal the Worker-served PNG
-    # (represented here by the internal-comps bundled copy, itself byte-identical
-    # to src/static/lee_logo.png). Guards against a stray second logo.
-    assert _md5(os.path.join(SKILL_DIR, "lee_logo.png")) == _md5(INTERNAL_COMPS_LOGO)
+def test_bundled_logo_matches_every_in_session_copy():
+    # One brand, one logo: this skill is the canonical on-disk home, and every
+    # in-session skill that renders a Lee deliverable bundles its own byte-identical
+    # copy (the sandbox can't fetch it at runtime). Guard against any copy drifting.
+    # (The Worker's served logo lives in the separate lee-and-associates repo and is
+    # not reachable from here; this locks the gi-plugins copies to each other.)
+    canonical = _md5(os.path.join(SKILL_DIR, "lee_logo.png"))
+    assert canonical == _md5(INTERNAL_COMPS_LOGO)
+    assert canonical == _md5(EXTERNAL_COMPS_LOGO)
 
 
 def test_skill_md_frontmatter_is_broker_vocabulary():
