@@ -1,0 +1,59 @@
+{
+  "$comment": "Lee & Associates brand color tokens. Source: Brand Standards and Usage Guidelines (Feb 2021). HEX values are canonical for screen/HTML; PMS/CMYK retained for print. See lee-associates-brand-guidelines.md for usage rules. Mint CMYK cyan corrected from PDF typo 654 -> 54.",
+  "version": "2021.02",
+  "primary": {
+    "red":      { "hex": "#98002E", "pms": "202", "rgb": [152, 0, 46],     "cmyk": [0, 100, 61, 43] },
+    "slate":    { "hex": "#7E8083", "pms": "424", "rgb": [126, 128, 131],  "cmyk": [0, 0, 0, 61] },
+    "charcoal": { "hex": "#303C42", "pms": "425", "rgb": [48, 60, 66],     "cmyk": [43, 26, 23, 68] },
+    "white":    { "hex": "#FFFFFF", "pms": null,  "rgb": [255, 255, 255],  "cmyk": [0, 0, 0, 0] }
+  },
+  "secondary": {
+    "navy":  { "hex": "#003146", "pms": "3035", "rgb": [0, 49, 70],     "cmyk": [100, 30, 19, 76] },
+    "sky":   { "hex": "#009AD9", "pms": "2925", "rgb": [0, 154, 218],   "cmyk": [85, 21, 0, 0] },
+    "frost": { "hex": "#A9C3CB", "pms": "7542", "rgb": [169, 195, 203], "cmyk": [24, 4, 8, 13] }
+  },
+  "accent": {
+    "merlot":    { "hex": "#4E131E", "pms": "1817", "rgb": [78, 19, 30],    "cmyk": [30, 85, 59, 70] },
+    "bright_red":{ "hex": "#CD1442", "pms": "200",  "rgb": [205, 20, 66],   "cmyk": [13, 100, 72, 3] },
+    "green":     { "hex": "#8A941E", "pms": "384",  "rgb": [138, 148, 30],  "cmyk": [26, 4, 99, 35] },
+    "mint":      { "hex": "#6FC9C4", "pms": "7472", "rgb": [111, 201, 196], "cmyk": [54, 0, 27, 0] }
+  },
+  "tints": {
+    "primary_pct":   [80, 60, 40],
+    "secondary_pct": [60, 40, 22],
+    "accent_pct":    [60, 40, 22],
+    "schemes": {
+      "bold":  [100, 40],
+      "muted": [60, 22]
+    }
+  },
+  "gradient": {
+    "type": "linear",
+    "angle_deg": 145,
+    "stops": [
+      { "location": 0,   "name": "bright_red", "hex": "#CD1442", "pms": "200" },
+      { "location": 65,  "name": "red",        "hex": "#98002E", "pms": "202" },
+      { "location": 100, "name": "merlot",     "hex": "#4E131E", "pms": "1817" }
+    ],
+    "css": "linear-gradient(145deg, #CD1442 0%, #98002E 65%, #4E131E 100%)",
+    "photo_overlay_opacity": 0.25
+  },
+  "fonts": {
+    "primary": "Avenir Next",
+    "secondary": "Minion Pro",
+    "alternatives": {
+      "avenir_next_fallback": "Nunito Sans",
+      "web_microsoft_sans": ["Arial", "Tahoma"],
+      "web_microsoft_serif": "Georgia"
+    },
+    "stack_sans": "'Avenir Next', 'Nunito Sans', Arial, Tahoma, sans-serif",
+    "stack_serif": "'Minion Pro', Georgia, serif"
+  },
+  "usage_rules": {
+    "small_text_under_10pt": "Use charcoal (#303C42) instead of slate (#7E8083) for legibility.",
+    "secondary_never_primary": "Secondary and accent colors must never be the primary color of a document.",
+    "accent_sparingly": "Accent colors only for infographics, charts, diagrams.",
+    "accent_pairings": "Merlot + Bright Red may combine. Green and Mint: only one at a time. Never combine Merlot/Bright Red with Green or Mint.",
+    "one_color_logo": "100% black; only other one-color option is light gray (50% black)."
+  }
+}
