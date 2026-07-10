@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.24.5] - 2026-07-09
+
+### Fixed
+- **Owner mailing lists can now be filtered by land class in every county, not just Wake (lee#140).** Asking for "vacant / commercial / industrial / residential / agricultural" owners used to return zero results outside Wake County, because each county records land use in its own vocabulary and the filter only understood Wake's codes. The `owner-mailing-list` skill now documents that land-class filtering works per-county (Wake, Durham, Johnston, New Hanover, Chatham), and relays the tool's new `land_class_no_data_counties` field so the broker is told when a county can't be land-class filtered — Lee and Orange (their land-use data is empty in our mirror) and New Hanover / Chatham for "vacant" specifically (no vacant category) — instead of getting a silent empty list. Ships with the lee MCP fix (`0.25.0`).
+
 ## [1.24.4] - 2026-07-09
 
 ### Fixed

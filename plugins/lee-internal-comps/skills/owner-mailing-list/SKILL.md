@@ -88,18 +88,40 @@ Call **`pull_owner_mailing_list`** on the lee-raleigh connector:
   contract: private owners, one row per mailing address).
 - Omit `min_acres` / `max_acres` / `land_class` when the broker didn't give them.
 - `land_class` accepts: `vacant`, `commercial`, `industrial`, `residential`,
-  `agricultural`.
+  `agricultural`. **It now works per-county** — each county records land use in
+  its own vocabulary, and the tool maps the class to that county's actual values
+  (Wake, Durham, Johnston, New Hanover, and Chatham are all classified per class).
+  Two things to tell the broker when relevant: **Lee and Orange county parcels
+  can't be land-class filtered yet** (their land-use field is empty in our data),
+  and **New Hanover and Chatham have no separate "vacant" category** — the tool
+  reports both cases in `land_class_no_data_counties` (see below), so you never
+  have to guess.
 - **`improved_only`** — pass `true` (from `request["improved_only"]`) when the
   broker wants **parcels with a building**, not raw land. The tool keeps a parcel
   only if it has a structure (building square footage or a year built on record).
   Omit / `false` for vacant-land or unspecified requests. `improved_only` and
   `land_class: "vacant"` are opposites — never send both.
 
-The tool returns `{ok, subject, rows, total_matched, truncated, no_building_data_counties, latencyMs}`;
+The tool returns `{ok, subject, rows, total_matched, truncated, no_building_data_counties, land_class_no_data_counties, latencyMs}`;
 each row carries `owner_raw`, `owner_mail_address`, `address`,
 `lot_size_acres`, `building_sf`, `year_built`, `land_use`, `distance_mi`. An
 `ERROR:` text response is already broker-legible — relay its substance, never a
 traceback.
+
+**When you filtered by `land_class`, read `land_class_no_data_counties`.**
+This array lists counties **in the search area whose parcels can't be filtered by
+the requested land class** — either their land-use field is empty in our mirror
+(Lee, Orange) or they have no code for that class (New Hanover and Chatham have no
+"vacant" category). It's computed live from the data, not a fixed list. If it's
+**non-empty**, tell the broker, e.g.:
+
+> Heads up — I couldn't filter **[county names]** by land class (their land-use
+> data isn't classified in our mirror yet), so those counties aren't in this list.
+> I can pull all owners there instead, or filter by acreage — want me to?
+
+If a land class was requested and **every** in-range county is in
+`land_class_no_data_counties` (so `rows` is empty), lead with that explanation
+rather than reporting an empty list as if nothing matched.
 
 **Building data is not in every county — read `no_building_data_counties`.**
 When you pass `improved_only: true`, the tool returns a
