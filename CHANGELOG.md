@@ -7,6 +7,11 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.26.0] - 2026-07-10
+
+### Changed
+- **`lee-branding` now leads with branding what you're building in the chat, not the Claude Design setup (#118).** The skill shipped optimized for the wrong primary path — "set up the Lee design system in Claude Design" — when the everyday broker case is a quick riff: "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee." The skill now leads with applying the Lee brand to a deliverable in the same session (flyer, one-pager, BOV/OM section, deck slide, chart, email header), with concrete render-time guidance an agent can act on: the exact `@font-face` block to embed the bundled Avenir Next WOFFs (with the Cyrillic-cut family-name and `woff`-format gotchas called out), the color rules (Lee Red `#98002E` as an accent — never a full-document wash — Charcoal for small text, secondary/accent palettes for charts only), and the logo placement rules (minimum size, clear space, the never-do list). The one-time Claude Design setup is retained but reframed as the marketing-team edge case. Because the frontmatter description now routes plain broker asks like "make this look good for Lee" to the skill, brokers reach it in more of the moments they'd want it — a router/behavior change, hence a minor bump. No asset, Worker, or MCP change.
+
 ## [1.25.0] - 2026-07-10
 
 ### Added

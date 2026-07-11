@@ -87,3 +87,19 @@ def test_skill_md_frontmatter_is_broker_vocabulary():
     # no developer/router jargon leaking into the router contract
     for jargon in ["helpers.py", "worker", "d1", "mcp tool", "esbuild"]:
         assert jargon not in fm, f"remove dev jargon from description: {jargon}"
+
+
+def test_description_leads_with_applying_the_brand_not_claude_design():
+    # #118 4a course-correction: the primary path is applying the brand to a
+    # deliverable in-session; the Claude Design setup is the marketing-team edge
+    # case. Lock the router so it fires on broker riffs ("make this on-brand")
+    # and doesn't regress to leading with Claude Design.
+    with open(os.path.join(SKILL_DIR, "SKILL.md")) as f:
+        fm = f.read().split("---\n", 2)[1].lower()
+    assert "on-brand" in fm, "description should route broker 'on-brand' riffs"
+    # If Claude Design is mentioned at all, it must come after the apply-the-brand
+    # lead, not open the description.
+    if "claude design" in fm:
+        assert fm.index("on-brand") < fm.index(
+            "claude design"
+        ), "lead with applying the brand, demote Claude Design to later in the description"

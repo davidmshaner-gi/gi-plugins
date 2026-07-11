@@ -1,97 +1,143 @@
 ---
 name: lee-branding
-description: Apply the official Lee & Associates brand to a deliverable — the Lee logo, the brand red, the Avenir Next fonts, and the logo do's and don'ts. Use when a broker says "make this on-brand for Lee," "add the Lee logo," "brand this flyer/deck/one-pager," "use our brand colors," or wants to set up the Lee brand in Claude Design so every design comes out on-brand automatically. Ships the official Lee brand package (logo, colors, guidelines, fonts).
+description: Make anything you're building for a Lee & Associates broker look on-brand — apply the Lee logo, the brand red, and the Avenir Next fonts to a flyer, one-pager, deck, chart, PDF, or email header right here in the chat. Use when a broker says "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee," "add the Lee logo," "use our brand colors," or is riffing on a deliverable and wants it polished to the Lee look. Ships Lee's official brand package on disk (logo, colors, guidelines, fonts) so you apply it without asking the broker for files. Also covers the one-time Claude Design setup for the marketing team.
 ---
 
 # Lee & Associates Branding
 
-Apply official Lee & Associates branding to a deliverable, or set up the Lee
-design system in Claude Design once so everything after it comes out on-brand.
+Make what you're building for a Lee broker look like Lee. This skill carries Lee's
+official brand package — the logo, the exact colors, the brand guidelines, and the
+Avenir Next brand fonts — on disk, right next to this file. You never have to ask the
+broker to hand over brand files; apply the brand directly to whatever's being composed.
 
-This skill carries Lee's official brand package — the logo, the exact colors, the
-brand guidelines, and the Avenir Next brand fonts — so you never have to ask the
-broker to hand over brand files. It is the same package Lee's marketing team
-distributes; the assets live right next to this file.
+## Primary use: brand a deliverable you're building right now
 
-## Two ways to use it
+The common case: a broker is riffing in the chat, wants a quick-turnaround deliverable
+— a listing flyer, a one-pager, a BOV/OM section, a deck slide, a chart, an email
+header, a cover — and wants it to come out on-brand for Lee. Do it in place, in this
+session. You do **not** need to leave for another tool, and you do **not** need Claude
+Design set up first. Everything you need is the bundled assets below plus the render
+rules that follow.
 
-**1. Set up the Lee design system in Claude Design (do this once per organization).**
-This is the highest-leverage path: after it's done, every flyer, one-pager, deck,
-or graphic Claude makes for Lee comes out on-brand automatically, without
-re-explaining the rules each time. Point the broker to the bundled
-`claude-design-setup.md` and have them upload these bundled files into Claude
-Design's design-system onboarding flow:
+When you compose HTML that will be rendered to PDF or image (headless Chrome / print
+CSS), wire in the three brand signals — **fonts, color, logo** — like this.
 
-- `lee-associates-brand-guidelines.md` — the brand rules Claude reads.
-- `lee_logo.svg` (preferred) with `lee_logo.png` as a backup.
-- `brand-colors.json` — the exact color values.
-- the five WOFF files in `fonts/` — the real Avenir Next brand typeface.
+### Fonts — embed the real Avenir Next
 
-Then a plain-language prompt like "make a listing flyer on-brand for Lee & Associates"
-just works.
+The five brand-font WOFFs live in this skill's `fonts/` folder. Embed them with
+`@font-face` so the render uses the real Lee typeface instead of a fallback. Two
+gotchas baked into the block below: the files are the *Cyrillic* cut whose internal
+family names are split, so each face must **declare `font-family: 'Avenir Next'` with
+an explicit weight/style** (don't rely on the embedded name); and they're `woff`
+(v1), so the `format('woff')` hint matters.
 
-**2. Brand a specific deliverable right now.** When the broker wants one output
-Lee-branded on the spot (a flyer, a cover, a social graphic), use the bundled
-`lee_logo.svg`/`lee_logo.png` and apply the rules below directly.
+```css
+@font-face { font-family:'Avenir Next'; font-weight:400; font-style:normal;
+  src:url('fonts/AvenirNextCyr-Regular.woff') format('woff'); }
+@font-face { font-family:'Avenir Next'; font-weight:400; font-style:italic;
+  src:url('fonts/AvenirNextCyr-Italic.woff') format('woff'); }
+@font-face { font-family:'Avenir Next'; font-weight:500; font-style:normal;
+  src:url('fonts/AvenirNextCyr-Medium.woff') format('woff'); }
+@font-face { font-family:'Avenir Next'; font-weight:500; font-style:italic;
+  src:url('fonts/AvenirNextCyr-MediumItalic.woff') format('woff'); }
+@font-face { font-family:'Avenir Next'; font-weight:700; font-style:normal;
+  src:url('fonts/AvenirNextCyr-Bold.woff') format('woff'); }
 
-## The brand in one glance
+:root { --sans:'Avenir Next','Nunito Sans',Arial,Tahoma,sans-serif;
+        --serif:'Minion Pro',Georgia,serif; }
+body { font-family:var(--sans); }
+```
 
-- **Primary red:** `#98002E`. Supporting: Slate `#7E8083`, Charcoal `#303C42`,
-  White `#FFFFFF`.
-- **Primary font:** Avenir Next (bundled in `fonts/`). Fallback: Nunito Sans, then
-  Arial.
-- **Headline / accent font:** Minion Pro. Lee has not provided Minion Pro yet, so
-  use the Georgia fallback until it arrives.
+The `url('fonts/...')` paths resolve when the HTML file you render sits in this skill
+folder (write your temp HTML here, or point `url()` at the absolute path to these
+files). If you're rendering somewhere the relative path won't resolve, base64-embed
+the WOFFs into the `src:` instead — the sandbox has no network, so a remote font URL
+will silently fall back. **Minion Pro isn't bundled** (Lee hasn't provided it); the
+`--serif` stack falls back to Georgia, which is the sanctioned fallback — use it for
+accent/headline serif and don't invent a substitute.
+
+**Type hierarchy:** Avenir Next Bold (700) for headings, Medium (500) for subheads and
+emphasis, Regular (400) for body. Optional Minion Pro / Georgia serif for a headline or
+pull-quote accent.
+
+### Color — Lee Red is an accent, not a wash
+
+Pull exact values from the bundled `brand-colors.json`. The load-bearing rules:
+
+- **Red `#98002E`** (PMS 202) is the signature accent — rules, a header bar, a key
+  figure, the logo lockup. It is **never the background wash of the whole document**.
+- **Charcoal `#303C42`** for body text — and **required** over Slate for any text under
+  10pt (Slate `#7E8083` is too light at small sizes). Slate for secondary labels/rules.
+- **White `#FFFFFF`** grounds the layout; Lee's look is clean and white-forward with red
+  as the punch.
+- **Secondary** (Navy `#003146`, Sky `#009AD9`, Frost `#A9C3CB`) and **accent** (Merlot
+  `#4E131E`, Bright Red `#CD1442`, Green `#8A941E`, Mint `#6FC9C4`) are **for charts,
+  infographics, and diagrams only**, used sparingly — never a document's primary color.
+  Green and Mint never appear together; a Merlot/Bright-Red pairing never combines with
+  Green or Mint.
+- The **icon gradient** (`linear-gradient(145deg,#CD1442 0%,#98002E 65%,#4E131E 100%)`,
+  in `brand-colors.json`) is available for a bold signature block when a flat red isn't
+  enough — use it deliberately, not as default chrome.
+
+### Logo — place it, never touch it
+
+Use the bundled `lee_logo.svg` (sharpest; preferred) or `lee_logo.png` (when a tool
+won't take SVG). Rules that are non-negotiable:
+
+- The logo **must appear at least once** in every deliverable.
+- **Minimum width 1.125 in** (~108px at 96dpi). Keep **clear space on all sides equal to
+  the height of the icon** — no text or graphic intrudes.
+- **Never** redraw, recolor, stretch, skew, rotate, outline, or add a shadow/glow. Never
+  reconstruct or re-type it. Never use the icon alone in place of the full logo.
+- On a red or dark background, use a white/inverted treatment; one-color use is 100%
+  black (or 50% gray) only.
+
+### The brand in one glance
+
+- **Red** `#98002E` · **Slate** `#7E8083` · **Charcoal** `#303C42` · **White** `#FFFFFF`
+- **Primary font** Avenir Next (bundled) → Nunito Sans → Arial. **Accent serif** Minion
+  Pro → Georgia (Minion Pro not yet bundled; use Georgia).
 - **Tagline:** LOCAL EXPERTISE. INTERNATIONAL REACH. WORLD CLASS.
 
-## Logo rules — never break these
+Full detail — every tint, the photography style, template structures (BOV/OM/flyer),
+the double-curve element — is in `lee-associates-brand-guidelines.md`. Read it only when
+you need something beyond the above; don't re-read all 451 lines every render. **Never
+invent a brand rule that isn't in the guidelines.**
 
-- The logo must appear **at least once in every communication**.
-- **Never** redraw, recolor, stretch, skew, rotate, outline, or add shadows/glows
-  to the logo. It may never be re-typed or reconstructed.
-- **Minimum width 1.125 in.** Keep clear space on all sides equal to the height of
-  the icon; no text or graphic may intrude on it.
-- The icon is **never** used on its own in place of the full logo.
-- One-color use is **100% black** (or 50% gray) — no other tints or colors.
+## Edge case: hand the design system to Claude Design
 
-## Color rules
-
-- Secondary colors (Navy, Sky, Frost) and accent colors (Merlot, Bright Red, Green,
-  Mint) are **never** the primary color of a document.
-- Accent colors are for **charts, infographics, and diagrams only**, used sparingly.
-  Green and Mint are never used together; a Merlot/Bright Red pairing is never
-  combined with Green or Mint.
-- For text smaller than 10pt, use **Charcoal** (`#303C42`), not Slate, for legibility.
-
-Full detail — tints, the icon gradient, photography style, templates — is in
-`lee-associates-brand-guidelines.md`. Never invent a brand rule that isn't in the
-guidelines.
+Separate, less-common path — this is marketing-team-shaped work, not the day-to-day
+broker riff. When the **marketing team** wants the Lee brand set up **once** in Claude
+Design so every design across the org inherits it automatically, or a broker explicitly
+asks to "set up the shared Lee design system," walk them through the bundled
+`claude-design-setup.md` and stage these files for upload into Claude Design's
+design-system onboarding: `lee-associates-brand-guidelines.md`, `lee_logo.svg` (+
+`lee_logo.png` backup), `brand-colors.json`, and the five WOFFs in `fonts/`. That's a
+one-time org setup; the primary path above is what you reach for on an individual
+deliverable.
 
 ## Files
 
 - `SKILL.md` — this file.
-- `lee-associates-brand-guidelines.md` — Lee's full brand standards (logo, colors,
-  fonts, photography, templates).
-- `brand-colors.json` — machine-readable color tokens (HEX / PMS / CMYK / RGB,
-  tints, the icon gradient).
+- `brand-colors.json` — machine-readable color tokens (HEX / PMS / CMYK / RGB, tints, the
+  icon gradient). Pull exact values from here at render time.
+- `fonts/` — the five Avenir Next WOFFs + a README; the real Lee primary typeface.
 - `lee_logo.svg` — the logo as a vector (sharpest; preferred).
 - `lee_logo.png` — the logo as an image (240×73 RGBA; use when a tool won't take SVG).
-- `claude-design-setup.md` — the step-by-step guide for building the Lee design
-  system in Claude Design (the broker uploads this + the assets above).
-- `fonts/` — the five Avenir Next WOFF files + a README; the real Lee primary
-  typeface so designs render in-brand instead of a fallback.
+- `lee-associates-brand-guidelines.md` — Lee's full brand standards (logo, colors, fonts,
+  photography, templates). Deep reference, not a per-render read.
+- `claude-design-setup.md` — the step-by-step guide for the one-time Claude Design setup.
 
-**Canonical brand home.** This skill is the canonical on-disk home for the Lee logo
-and brand assets. Other skills that render a Lee-branded deliverable in-session
+**Canonical brand home.** This skill is the canonical on-disk home for the Lee logo and
+brand assets. Other skills that render a Lee-branded deliverable in-session
 (`internal-comps`, `external-comps`) bundle their **own** byte-identical copy of
-`lee_logo.png` rather than reading this one, because the Cowork sandbox has no
-outbound network access at runtime — an in-session skill cannot fetch an asset over
-the network, so each must carry the file it needs. Those copies are intentional and
-must stay byte-identical to `lee_logo.png` here (the asset test enforces the match).
+`lee_logo.png` rather than reading this one, because the Cowork sandbox has no outbound
+network access at runtime — an in-session skill cannot fetch an asset over the network,
+so each carries the file it needs. Those copies are intentional and must stay
+byte-identical to `lee_logo.png` here (the asset test enforces the match).
 
 ## Access & approvals
 
 For brand-asset access or approvals, the Lee corporate contact in the guidelines is
 **Pamela Murphy, Director of Marketing & PR** (pmurphy@lee-associates.com), or
-lee-hq.com. Don't promise approvals or invent contacts beyond what the guidelines
-state.
+lee-hq.com. Don't promise approvals or invent contacts beyond what the guidelines state.
