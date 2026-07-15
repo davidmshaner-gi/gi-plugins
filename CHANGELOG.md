@@ -7,6 +7,21 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.27.0] - 2026-07-15
+
+### Removed
+- **`daily-debrief` skill removed — the in-plugin daily debrief is fully retired, replaced by
+  an automated email flow.** The daily analyst debrief now runs as an automated email loop: a
+  Mac Studio mailer emails the analyst their daily debrief and captures the reply into D1
+  (`debrief_mailer_log` for sends, `debrief_log` for replies), and the Slack "Lee Plugin Status"
+  digest surfaces a live "Daily debrief" line off those tables. The Worker-side MCP tools that
+  backed the interactive skill (`lee_debrief_write`, `lee_debrief_fetch_yesterday`) were
+  deprecated / unregistered in the lee-raleigh-mcp server, and this release removes the last
+  in-plugin piece — the `/lee-daily-debrief` Cowork skill (`skills/daily-debrief/`). Its
+  description clause and both READMEs' mentions are dropped. The skill was analyst-only
+  (never broker-invocable). Historical CHANGELOG entries about it (the gi-plugins #99 rework)
+  are left intact as history.
+
 ## [1.26.0] - 2026-07-10
 
 ### Changed
