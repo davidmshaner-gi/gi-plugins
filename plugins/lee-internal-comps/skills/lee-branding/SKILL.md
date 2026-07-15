@@ -43,6 +43,20 @@ an explicit weight/style** (don't rely on the embedded name); and they're `woff`
 @font-face { font-family:'Avenir Next'; font-weight:700; font-style:normal;
   src:url('fonts/AvenirNextCyr-Bold.woff') format('woff'); }
 
+/* Minion Pro — accent/headline serif (bundled as WOFF, converted from the licensed OTFs in fonts/minion-pro/) */
+@font-face { font-family:'Minion Pro'; font-weight:400; font-style:normal;
+  src:url('fonts/MinionPro-Regular.woff') format('woff'); }
+@font-face { font-family:'Minion Pro'; font-weight:400; font-style:italic;
+  src:url('fonts/MinionPro-It.woff') format('woff'); }
+@font-face { font-family:'Minion Pro'; font-weight:500; font-style:normal;
+  src:url('fonts/MinionPro-Medium.woff') format('woff'); }
+@font-face { font-family:'Minion Pro'; font-weight:600; font-style:normal;
+  src:url('fonts/MinionPro-Semibold.woff') format('woff'); }
+@font-face { font-family:'Minion Pro'; font-weight:600; font-style:italic;
+  src:url('fonts/MinionPro-SemiboldIt.woff') format('woff'); }
+@font-face { font-family:'Minion Pro'; font-weight:700; font-style:normal;
+  src:url('fonts/MinionPro-Bold.woff') format('woff'); }
+
 :root { --sans:'Avenir Next','Nunito Sans',Arial,Tahoma,sans-serif;
         --serif:'Minion Pro',Georgia,serif; }
 body { font-family:var(--sans); }
@@ -52,9 +66,9 @@ The `url('fonts/...')` paths resolve when the HTML file you render sits in this 
 folder (write your temp HTML here, or point `url()` at the absolute path to these
 files). If you're rendering somewhere the relative path won't resolve, base64-embed
 the WOFFs into the `src:` instead — the sandbox has no network, so a remote font URL
-will silently fall back. **Minion Pro isn't bundled** (Lee hasn't provided it); the
-`--serif` stack falls back to Georgia, which is the sanctioned fallback — use it for
-accent/headline serif and don't invent a substitute.
+will silently fall back. **Minion Pro is now bundled** (WOFF in `fonts/`, converted from
+the licensed Adobe OTFs in `fonts/minion-pro/`); use it for accent/headline serif.
+Georgia stays the sanctioned fallback if a weight is missing — don't invent a substitute.
 
 **Type hierarchy:** Avenir Next Bold (700) for headings, Medium (500) for subheads and
 emphasis, Regular (400) for body. Optional Minion Pro / Georgia serif for a headline or
@@ -96,7 +110,7 @@ won't take SVG). Rules that are non-negotiable:
 
 - **Red** `#98002E` · **Slate** `#7E8083` · **Charcoal** `#303C42` · **White** `#FFFFFF`
 - **Primary font** Avenir Next (bundled) → Nunito Sans → Arial. **Accent serif** Minion
-  Pro → Georgia (Minion Pro not yet bundled; use Georgia).
+  Pro (bundled) → Georgia.
 - **Tagline:** LOCAL EXPERTISE. INTERNATIONAL REACH. WORLD CLASS.
 
 Full detail — every tint, the photography style, template structures (BOV/OM/flyer),
