@@ -7,6 +7,18 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.28.0] - 2026-07-20
+
+### Removed
+- `tenants-in-market` ingest skill retired (gi-plugins#98). The Triangle Pairlist
+  ingest now runs as a deterministic GI-operated Mac Studio job
+  (`grounded-intelligence/40_delivery/pairlist-ingest/`): Gmail REST manifest,
+  claude-CLI screening, writes through `lee_tenant_requirement_write` with a
+  bearer token. Removes the Cowork Scheduled Task fragility (silent connector
+  failures, 2-day window loss) behind the 2026-06-15 dark-run incident. The
+  broker query surface (`tenant-search`) is unchanged; its notes now point at
+  the server-side ingest.
+
 ## [1.27.0] - 2026-07-15
 
 ### Removed

@@ -49,7 +49,7 @@ it. Never invent or extrapolate a requirement.
 
 ## Notes
 - Shared pool: every Lee Raleigh broker sees the same requirements; provenance is
-  Triangle Pairlist (ingested continuously since June 2026 by the
-  lee-tenants-in-market scheduled skill).
+  Triangle Pairlist (ingested continuously since June 2026 by an automated
+  GI-operated server-side ingest).
 - Results are capped at the 50 newest rows server-side. If a broad ask hits the
   cap, say the view is the 50 most recent and suggest a filter.
