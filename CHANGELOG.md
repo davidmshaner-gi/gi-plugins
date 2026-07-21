@@ -7,6 +7,25 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.28.1] - 2026-07-20
+
+### Fixed
+- **Connector-auth guidance across all 19 lee-raleigh-riding skills (gi-plugins#117).**
+  Two broker-facing failure modes, one fix: (A) an agent could *reason* itself into a
+  false "connector not authorized" refusal without ever attempting a tool call (Bonner,
+  2026-07-15 — the call worked on the first real attempt); (B) on a genuine dropped
+  OAuth grant the improvised fallback copy ("authorize via /mcp or the connector
+  settings") was too developer-y to self-serve (James Bailey, 2026-07-08). Every skill
+  that rides the lee-raleigh connector now carries a canonical **attempt-the-call-first**
+  directive (only a tool-level `401`/`invalid_token` from an actual call counts as
+  unauthorized) plus warm, broker-legible reconnect steps linking
+  `/setup#connect-sign-in` (including the "expired link → just request another" step).
+  Canonical source: `plugins/lee-internal-comps/shared/connector-auth.md`, propagated by
+  `scripts/sync-connector-auth.sh`, drift-guarded by
+  `scripts/test/connector-auth-guidance.test.sh`. The owner-mailing-list "Connector
+  unavailable → try again in a few minutes" row is split into transient vs auth
+  failures. Copy/guidance only — zero changes to the auth system.
+
 ## [1.28.0] - 2026-07-20
 
 ### Removed
