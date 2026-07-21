@@ -32,6 +32,10 @@ END='<!-- END CONNECTOR-AUTH BLOCK -->'
 # Skills that make NO lee-raleigh connector calls (verified at gi-plugins#117
 # pickup, 2026-07-20): lee-branding ships brand assets bundled on disk;
 # process-mapping is a guided interview with no MCP tools.
+# NB: scripts/sync-connector-auth.sh carries the same list. Drift between the
+# two lists in EITHER direction fails this test (sync skips a skill this test
+# covers → "block missing"; this test excludes a skill sync stamps → "listed
+# as no-connector but carries the block"), so the duplication is self-checking.
 NO_CONNECTOR_SKILLS=("lee-branding" "process-mapping")
 
 fail=0
@@ -79,6 +83,11 @@ for dir in "$PLUGIN"/skills/*/; do
     report "$skill — no SKILL.md"
     continue
   fi
+  nblocks="$(grep -cF -- "$BEGIN" "$md" || true)"
+  if [[ "$nblocks" -gt 1 ]]; then
+    report "$skill — $nblocks connector-auth blocks (must be exactly one)"
+    continue
+  fi
   SKILL_BLOCK="$(extract_block "$md")"
   if [[ -z "$SKILL_BLOCK" ]]; then
     report "$skill — connector-auth block missing (run scripts/sync-connector-auth.sh)"
@@ -91,19 +100,27 @@ done
 
 # 2. The retired misleading copy must be gone: "try again in a few minutes"
 #    was the owner-mailing-list "Connector unavailable" response, which strands
-#    a broker whose real problem is a dropped auth grant (James Bailey case).
-#    A transient-outage retry line is only acceptable when the same table row
-#    explicitly scopes itself to NON-auth failures.
-while IFS= read -r hit; do
-  file="${hit%%:*}"
-  if ! grep -qF -- "$BEGIN" "$file"; then
-    report "retired copy: 'try again in a few minutes' in ${file#"$ROOT"/} without the connector-auth block"
-  elif ! grep -q "not an auth" "$file"; then
-    report "'try again in a few minutes' in ${file#"$ROOT"/} is not scoped to non-auth failures"
-  else
-    ok "transient-retry line in ${file#"$ROOT"/} is auth-scoped"
-  fi
-done < <(grep -rlF "try again in a few minutes" "$PLUGIN"/skills/*/SKILL.md 2>/dev/null | sed 's/$/:/')
+#    a broker whose real problem is a dropped auth grant (the 2026-07-08
+#    grant-drop incident). OUTSIDE the canonical block (which mentions the
+#    phrase only to scope it), any line carrying the phrase must scope itself
+#    to NON-auth failures on that same line ("not an auth ...").
+for md in "$PLUGIN"/skills/*/SKILL.md; do
+  skill="$(basename "$(dirname "$md")")"
+  # Strip the canonical block region, then look for the phrase in what's left.
+  hits="$(awk -v b="$BEGIN" -v e="$END" '
+    $0 == b {inblock=1; next}
+    inblock && $0 == e {inblock=0; next}
+    !inblock {print}
+  ' "$md" | grep -F "try again in a few minutes" || true)"
+  [[ -z "$hits" ]] && continue
+  while IFS= read -r line; do
+    if ! grep -qF "not an auth" <<<"$line"; then
+      report "$skill — 'try again in a few minutes' outside the block, not scoped to non-auth failures on its line: ${line:0:80}"
+    else
+      ok "$skill — transient-retry line outside the block is auth-scoped"
+    fi
+  done <<<"$hits"
+done
 
 if [[ "$fail" -ne 0 ]]; then
   echo "connector-auth-guidance: FAIL" >&2

@@ -6,15 +6,15 @@ block below (between the BEGIN/END markers), then run `scripts/sync-connector-au
 to propagate it** — never hand-edit the copy inside an individual SKILL.md.
 `scripts/test/connector-auth-guidance.test.sh` fails the build on any drift.
 
-Why this exists (two incidents, one fix surface):
+Why this exists (two incidents, one fix surface — full detail on gi-plugins#117):
 
-- **False refusal (Bonner, 2026-07-15):** an agent *reasoned about* auth state instead
-  of *testing* it, told the broker the connector "needs to be authorized via /mcp"
-  twice — then the actual call worked first try. The connector was authorized the
+- **False refusal (2026-07-15):** an agent *reasoned about* auth state instead of
+  *testing* it and twice told the user the connector "needs to be authorized via
+  /mcp" — then the actual call worked first try. The connector was authorized the
   whole time.
-- **Genuine grant drop (James Bailey, 2026-07-08):** a broker's OAuth grant silently
-  dropped (reinstall/new machine), and the improvised fallback copy ("authorize via
-  /mcp or the connector settings") was too developer-y to self-serve, so he escalated
+- **Genuine grant drop (2026-07-08):** a broker's OAuth grant silently dropped
+  (reinstall/new machine), and the improvised fallback copy ("authorize via /mcp or
+  the connector settings") was too developer-y to self-serve, so the broker escalated
   instead of reconnecting.
 
 The reconnect steps must stay in sync with the real flow (`mcp-server/src/auth/oauth.ts`

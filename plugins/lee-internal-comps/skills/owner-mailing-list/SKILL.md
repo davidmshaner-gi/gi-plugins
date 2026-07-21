@@ -195,7 +195,7 @@ Note: `building_sf` (building square footage) and `year_built` are the building-
 | Zero rows returned | "No parcels matched [criteria] within [radius] miles of [address]. Try widening the radius or adjusting the acreage range." |
 | Rows exist but all filtered | "All matching parcels were government/exempt/HOA/cemetery owned — no private prospects in that area. Try widening the radius." |
 | Connector transient failure (timeout / error that is **not an auth error**) | "The lee-raleigh connector isn't responding — try again in a few minutes." |
-| Auth error (`401`/`invalid_token`) from an attempted call, or lee-raleigh tools missing entirely | The reconnect reply in **Connector auth — attempt the call first** below — never "try again in a few minutes". |
+| Auth error (`401`/`invalid_token`) from an attempted call, or lee-raleigh tools missing entirely | The reconnect reply in **Connector auth — attempt the call first** below — never a plain retry-later line. |
 
 **Never surface** a Python exception, a stack trace, or a raw tool error payload to the broker.
 

@@ -56,6 +56,9 @@ for dir in "$PLUGIN"/skills/*/; do
     printf '\n%s\n' "$BLOCK" >> "$tmp"
     action="appended"
   fi
-  mv "$tmp" "$md"
+  # Write through the existing file (not mv) so the target keeps its mode —
+  # mktemp files are 0600 and a mv would clobber SKILL.md down from 0644.
+  cat "$tmp" > "$md"
+  rm -f "$tmp"
   echo "$action  $skill"
 done

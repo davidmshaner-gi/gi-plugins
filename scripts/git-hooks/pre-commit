@@ -20,6 +20,25 @@ if [[ ! -x "$CHECK" ]]; then
   exit 2
 fi
 
+# Connector-auth drift guard (gi-plugins#117): if any SKILL.md, the canonical
+# shared/connector-auth.md, or the guard itself is staged, run the
+# deterministic drift test. Fast (pure bash/awk, no API calls).
+CONNECTOR_GUARD="$REPO_ROOT/scripts/test/connector-auth-guidance.test.sh"
+if git diff --cached --name-only --diff-filter=ACMRD \
+    | grep -qE '^(plugins/[^/]+/skills/[^/]+/SKILL\.md|plugins/lee-internal-comps/shared/connector-auth\.md|scripts/(test/connector-auth-guidance\.test\.sh|sync-connector-auth\.sh))$'; then
+  if [[ ! -f "$CONNECTOR_GUARD" ]]; then
+    echo "pre-commit: $CONNECTOR_GUARD missing — fail closed (reinstall hooks or restore the test)." >&2
+    exit 2
+  fi
+  if ! bash "$CONNECTOR_GUARD"; then
+    echo "" >&2
+    echo "pre-commit: connector-auth guidance drifted. Edit the canonical" >&2
+    echo "plugins/lee-internal-comps/shared/connector-auth.md, run" >&2
+    echo "scripts/sync-connector-auth.sh, and re-stage. (--no-verify to bypass.)" >&2
+    exit 1
+  fi
+fi
+
 # Collect distinct skill dirs whose SKILL.md or helpers.py is staged.
 # Avoid `mapfile` (bash 4+) so macOS system bash 3.2 also works.
 SKILL_DIRS_RAW=$(
