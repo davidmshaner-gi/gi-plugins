@@ -50,12 +50,16 @@ an explicit weight/style** (don't rely on the embedded name); and they're `woff`
   src:url('fonts/MinionPro-It.woff') format('woff'); }
 @font-face { font-family:'Minion Pro'; font-weight:500; font-style:normal;
   src:url('fonts/MinionPro-Medium.woff') format('woff'); }
+@font-face { font-family:'Minion Pro'; font-weight:500; font-style:italic;
+  src:url('fonts/MinionPro-MediumIt.woff') format('woff'); }
 @font-face { font-family:'Minion Pro'; font-weight:600; font-style:normal;
   src:url('fonts/MinionPro-Semibold.woff') format('woff'); }
 @font-face { font-family:'Minion Pro'; font-weight:600; font-style:italic;
   src:url('fonts/MinionPro-SemiboldIt.woff') format('woff'); }
 @font-face { font-family:'Minion Pro'; font-weight:700; font-style:normal;
   src:url('fonts/MinionPro-Bold.woff') format('woff'); }
+@font-face { font-family:'Minion Pro'; font-weight:700; font-style:italic;
+  src:url('fonts/MinionPro-BoldIt.woff') format('woff'); }
 
 :root { --sans:'Avenir Next','Nunito Sans',Arial,Tahoma,sans-serif;
         --serif:'Minion Pro',Georgia,serif; }

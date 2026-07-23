@@ -15,9 +15,10 @@ carry the same version as of 1.4.0.
   serif, but the font was never shipped with the skill, so every rendered flyer
   substituted Georgia. The skill now carries 8 brand-relevant WOFF weights (converted
   losslessly from David's licensed Adobe OTFs, which are bundled alongside for
-  re-conversion) plus the matching `@font-face` block in `SKILL.md`. The Claude Design
-  system project got the same fonts at the paths its `tokens/fonts.css` already
-  referenced. Licensing note (commercial Adobe font) is flagged in `fonts/README.md`.
+  re-conversion) plus the matching `@font-face` block in `SKILL.md`. Per PR #128, the
+  same OTFs were also pushed to the Claude Design system project at the paths its
+  `tokens/fonts.css` already referenced. Licensing note (commercial Adobe font) is
+  flagged in `fonts/README.md`.
 
 ## [1.28.3] - 2026-07-23
 
