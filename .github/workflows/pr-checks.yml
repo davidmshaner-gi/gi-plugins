@@ -66,5 +66,6 @@ jobs:
       # in CI. The whole suite runs in <1s; keep it a required gate.
       - name: Skill test suite (full dir, one invocation)
         run: |
-          pip install --quiet pytest openpyxl
+          # pillow: openpyxl needs it to embed the Lee logo images in the Excel tests
+          pip install --quiet pytest openpyxl pillow
           python3 -m pytest plugins/lee-internal-comps/tests/ -q
