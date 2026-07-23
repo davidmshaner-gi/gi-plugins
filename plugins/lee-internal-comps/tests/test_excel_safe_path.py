@@ -19,8 +19,6 @@ Card: davidmshaner-gi/gi-plugins#7 (re-opened).
 import os
 import tempfile
 
-from openpyxl import Workbook, load_workbook
-
 from conftest import load_skill_helpers
 
 # Generous ceiling: the stub + enumeration suffix stays well under this. The point
