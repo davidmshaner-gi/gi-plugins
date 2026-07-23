@@ -338,7 +338,9 @@ On **2026-06-25** Lee also sent four **Avenir Next LT Pro** Demi files in
 different cut that **Lee rarely uses** — kept as reference only, not part of any
 render. The Cyr web set above is the cut Lee uses and is what we bundle.
 
-**Still outstanding:** **Minion Pro** (accent serif).
+**Minion Pro** (accent serif): bundled as of 1.28.4 — 8 WOFF weights in `fonts/`
+(converted from the licensed Adobe OTFs kept in `fonts/minion-pro/` for
+re-conversion). Nothing outstanding.
 
 ---
 

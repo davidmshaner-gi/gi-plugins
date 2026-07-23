@@ -7,6 +7,19 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.28.4] - 2026-07-23
+
+### Fixed
+- **lee-branding now bundles Minion Pro — flyers stop falling back to Georgia
+  (gi-plugins#127).** The Lee brand guidelines name Minion Pro as the accent/headline
+  serif, but the font was never shipped with the skill, so every rendered flyer
+  substituted Georgia. The skill now carries 8 brand-relevant WOFF weights (converted
+  losslessly from David's licensed Adobe OTFs, which are bundled alongside for
+  re-conversion) plus the matching `@font-face` block in `SKILL.md`. Per PR #128, the
+  same OTFs were also pushed to the Claude Design system project at the paths its
+  `tokens/fonts.css` already referenced. Licensing note (commercial Adobe font) is
+  flagged in `fonts/README.md`.
+
 ## [1.28.3] - 2026-07-23
 
 ### Fixed

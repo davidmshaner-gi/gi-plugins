@@ -31,6 +31,14 @@ FONT_FILES = [
     "AvenirNextCyr-Medium.woff",
     "AvenirNextCyr-MediumItalic.woff",
     "AvenirNextCyr-Bold.woff",
+    "MinionPro-Regular.woff",
+    "MinionPro-It.woff",
+    "MinionPro-Medium.woff",
+    "MinionPro-MediumIt.woff",
+    "MinionPro-Semibold.woff",
+    "MinionPro-SemiboldIt.woff",
+    "MinionPro-Bold.woff",
+    "MinionPro-BoldIt.woff",
 ]
 
 
@@ -51,7 +59,7 @@ def test_core_assets_present():
         assert os.path.isfile(os.path.join(SKILL_DIR, name)), f"missing {name}"
 
 
-def test_all_five_fonts_present():
+def test_all_bundled_fonts_present():
     for name in FONT_FILES:
         p = os.path.join(SKILL_DIR, "fonts", name)
         assert os.path.isfile(p), f"missing font {name}"

@@ -18,7 +18,7 @@ Takes about 5 minutes, and you only do it once per organization.
 | `brand-colors.json` | The exact color values (HEX, PMS, CMYK) in a clean, machine-readable form. |
 | `lee_logo.svg` | The logo as a vector file (sharpest, preferred). |
 | `lee_logo.png` | The logo as an image file (use if a tool will not take the SVG). |
-| `fonts/` | The Avenir Next brand font files (WOFF) -- the real Lee primary typeface, so designs render in-brand instead of a fallback. See `fonts/README.md`. |
+| `fonts/` | The brand font files (WOFF) -- Avenir Next (primary typeface) and Minion Pro (accent/headline serif), so designs render in-brand instead of a fallback. Source OTFs for Minion Pro are in `fonts/minion-pro/`. See `fonts/README.md`. |
 | `claude-design-setup.md` | This guide (Markdown). |
 
 The brand standards were transcribed from Lee's official *Brand Standards and Usage
@@ -52,8 +52,9 @@ and feeding it the brand files below.
    - **Logo:** add `lee_logo.svg` (SVG preferred; add `lee_logo.png` as a backup).
    - **Colors:** upload `brand-colors.json`, or paste the hex codes when Claude asks for your
      palette.
-   - **Fonts:** add the files in the `fonts/` folder (Avenir Next, the Lee primary typeface)
-     so Claude renders the real brand type instead of a fallback.
+   - **Fonts:** add the WOFF files in the `fonts/` folder — Avenir Next (primary typeface)
+     and Minion Pro (accent/headline serif) — so Claude renders the real brand type instead
+     of a fallback.
 
    > You only need one source to get started, but adding all of them gives Claude more to
    > work with, so use the whole package.
@@ -91,7 +92,7 @@ request.
 
 - **Primary red:** `#98002E`. Slate `#7E8083`, Charcoal `#303C42`, White `#FFFFFF`.
 - **Primary font:** Avenir Next. Fallback: Nunito Sans, then Arial.
-- **Headline / accent font:** Minion Pro. Fallback: Georgia.
+- **Headline / accent font:** Minion Pro (bundled). Fallback: Georgia.
 - **Logo:** never redraw, recolor, stretch, skew, or add shadows. It should appear at least
   once in every communication. Minimum width 1.125 in, with clear space equal to the height
   of the icon on all sides.
