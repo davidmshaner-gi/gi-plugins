@@ -14,19 +14,13 @@ Card: davidmshaner-gi/gi-plugins#106.
 """
 
 import os
-import sys
 import tempfile
 
 from openpyxl import load_workbook
 
-SKILL_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "skills",
-    "internal-comps",
-)
-sys.path.insert(0, SKILL_DIR)
+from conftest import load_skill_helpers
 
-import helpers  # noqa: E402
+helpers = load_skill_helpers("internal-comps")
 
 LEASE_ROW = {
     "comps_id": "L-1", "comp_name": "Acme Lease", "street_address": "1 Main St",

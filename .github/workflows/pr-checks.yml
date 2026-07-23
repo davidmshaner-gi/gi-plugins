@@ -1,6 +1,6 @@
 name: pr-checks
 
-# PR-time gates for gi-plugins. Two jobs in one wall: it gives branch protection a
+# PR-time gates for gi-plugins. Three jobs in one wall: it gives branch protection a
 # required status check (without one, "require branches up to date before merge" does
 # not actually enforce), and it catches a plugin/marketplace version desync before
 # merge rather than after (the continuous-delivery model requires the two manifests to
@@ -50,3 +50,22 @@ jobs:
       # broker-legible reconnect copy). Deterministic, no API calls.
       - name: Connector-auth block present and un-drifted in every covered skill
         run: bash scripts/test/connector-auth-guidance.test.sh
+
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      # gi-plugins#137: the full-dir suite silently carried 14 false failures
+      # (helpers.py module-name collision) for weeks because nothing ran pytest
+      # in CI. The whole suite runs in <1s; keep it a required gate.
+      - name: Skill test suite (full dir, one invocation)
+        run: |
+          # pillow: openpyxl needs it to embed the Lee logo images in the Excel tests
+          pip install --quiet pytest openpyxl pillow
+          python3 -m pytest plugins/lee-internal-comps/tests/ -q

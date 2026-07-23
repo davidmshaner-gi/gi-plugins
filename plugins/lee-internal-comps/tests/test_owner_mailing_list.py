@@ -1,7 +1,9 @@
 # plugins/lee-internal-comps/tests/test_owner_mailing_list.py
-import os, sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "owner-mailing-list"))
-import helpers
+import os
+
+from conftest import load_skill_helpers
+
+helpers = load_skill_helpers("owner-mailing-list")
 
 def test_safe_csv_name_emits_constant_stub(tmp_path):
     # The filename is a tiny constant (gi#7 / #112) — never the descriptive address.

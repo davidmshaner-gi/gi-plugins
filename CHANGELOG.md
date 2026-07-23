@@ -7,6 +7,20 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.28.5] - 2026-07-23
+
+### Fixed
+- **Test suite: full-dir pytest runs no longer fail with cross-skill import
+  collisions (gi-plugins#137).** Several skills each ship a `helpers.py`; some test
+  files did `sys.path.insert(<skill dir>); import helpers`, so whichever skill's
+  module loaded first poisoned `sys.modules["helpers"]` for every later test file —
+  14 false failures on a full-dir run while each file passed alone. All skill-helper
+  imports now go through a shared `conftest.load_skill_helpers` (unique per-skill
+  module names, zero sys.path mutation), a static guard test pins the rule, and the
+  suite now runs as a required `pytest` job in pr-checks CI (which is why the
+  collision survived for weeks — nothing ran it). Test infra only; zero broker-visible
+  behavior change.
+
 ## [1.28.4] - 2026-07-23
 
 ### Fixed
