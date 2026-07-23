@@ -273,8 +273,8 @@ or the lee-raleigh tools are missing from this session entirely.**
    broker language:
 
    > That error is most likely a Claude glitch (on Anthropic's side, not the Lee
-   > tools) — the connection is usually fine. Tell me **"you do have access — try
-   > again"** and I'll re-run it. If it still fails on the retry, a quick sign-in
+   > tools) — the connection is usually fine. Tell me **"YOU DO HAVE ACCESS! TRY
+   > AGAIN!"** and I'll re-run it. If it still fails on the retry, a quick sign-in
    > refresh usually fixes it
    > (https://leeraleigh.groundedintelligence.io/setup#connect-sign-in) — or email
    > David at david@groundedintelligence.io and he'll get you sorted.
