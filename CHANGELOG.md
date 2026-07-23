@@ -7,6 +7,23 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.28.3] - 2026-07-23
+
+### Fixed
+- **Connector-auth copy now retries before it reconnects (gi-plugins#135).** A live
+  incident (2026-07-23) proved Claude's app can display a tool call as auth-failed
+  while the Worker's audit log shows the same call authorized and served — the broker
+  was walked through a pointless sign-in for a connection that was never broken. The
+  canonical connector-auth block now ladders the response: on the FIRST auth-looking
+  failure with the lee-raleigh tools loaded, the broker is told this is most likely a
+  Claude glitch (Anthropic's side, not the Lee tools) and to reply "you do have
+  access — try again"; only a SECOND consecutive failure — or the tools missing from
+  the session entirely (the genuine-disconnect signature) — gets the full
+  sign-in walkthrough. Both replies now carry the david@groundedintelligence.io
+  escalation contact. Propagated to all 19 lee-raleigh-riding skills via
+  `scripts/sync-connector-auth.sh`. Copy/guidance only — zero changes to the auth
+  system.
+
 ## [1.28.1] - 2026-07-20
 
 ### Fixed
