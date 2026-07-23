@@ -16,17 +16,12 @@ AND asserts each skill's workbook builder actually writes that short stub name.
 Card: davidmshaner-gi/gi-plugins#7 (re-opened).
 """
 
-import importlib.util
 import os
-import sys
 import tempfile
 
 from openpyxl import Workbook, load_workbook
 
-SKILLS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "skills",
-)
+from conftest import load_skill_helpers
 
 # Generous ceiling: the stub + enumeration suffix stays well under this. The point
 # of the change is that the name is tiny (~6 chars), not the old 50-char cap. The
@@ -35,17 +30,10 @@ SKILLS_DIR = os.path.join(
 MAX_NAME_LEN = 16
 
 
-def _load(skill_name):
-    """Import a skill's helpers.py as a uniquely-named module (isolated per skill)."""
-    path = os.path.join(SKILLS_DIR, skill_name, "helpers.py")
-    mod_name = f"_skill_{skill_name.replace('-', '_')}"
-    spec = importlib.util.spec_from_file_location(mod_name, path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[mod_name] = mod
-    # Each skill dir must be importable for any in-file `load_sibling` calls.
-    sys.path.insert(0, os.path.join(SKILLS_DIR, skill_name))
-    spec.loader.exec_module(mod)
-    return mod
+# Skill helpers load via the shared conftest loader (unique module name, no
+# sys.path mutation — the old per-skill sys.path.insert here armed the bare
+# `import helpers` collision that gi-plugins#137 fixed).
+_load = load_skill_helpers
 
 
 # ---------------------------------------------------------------------------

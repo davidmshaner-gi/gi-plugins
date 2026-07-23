@@ -10,17 +10,9 @@ fix in mcp-server/src/lib/summary_stats.ts.
 Card: davidmshaner-gi/gi-plugins#82.
 """
 
-import os
-import sys
+from conftest import load_skill_helpers
 
-SKILL_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "skills",
-    "internal-comps",
-)
-sys.path.insert(0, SKILL_DIR)
-
-import helpers  # noqa: E402
+helpers = load_skill_helpers("internal-comps")
 
 
 def test_sale_stats_exclude_zero_placeholders():

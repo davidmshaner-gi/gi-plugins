@@ -16,29 +16,18 @@ Note: this test loads each skill's helpers.py by file path under a unique module
 name and does NOT mutate sys.path, so it can't pollute other tests' `import helpers`.
 """
 
-import importlib.util
 import os
 import tempfile
 
 from openpyxl import load_workbook
 
+from conftest import load_skill_helpers
+
 LEE_RED = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28)
 
-SKILLS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skills"
-)
-
-
-def _load_helpers(skill: str):
-    """Load a skill's helpers.py under a unique module name (the two skills both
-    expose a module called `helpers`; a plain import would collide). No sys.path
-    mutation -- both helpers import only stdlib + openpyxl at module load."""
-    path = os.path.join(SKILLS_DIR, skill, "helpers.py")
-    mod_name = f"helpers_{skill.replace('-', '_')}"
-    spec = importlib.util.spec_from_file_location(mod_name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+# This file pioneered the unique-module-name load; the loader now lives in
+# conftest.py so every test file shares it (gi-plugins#137).
+_load_helpers = load_skill_helpers
 
 
 def _build_main_sheet(skill: str, transaction_type: str):
