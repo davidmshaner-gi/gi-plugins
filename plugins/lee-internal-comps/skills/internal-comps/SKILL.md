@@ -239,14 +239,27 @@ or "needs to be authorized" unless an actual tool call just failed with an auth 
    credential field, a `/mcp` probe, or any other indirect signal is NOT authorization
    state; the only way to know is to make the call. If you have not attempted the call
    in this conversation, you do not know the auth state — so call it.
-2. **Only a tool-level auth error counts.** Treat the connector as unauthorized ONLY
-   when a call you just made returned an authorization error (`401` / `invalid_token`).
-   Any other failure — a timeout, an empty result, a data error — is not an auth
-   problem; handle it per this skill's error handling, and a plain retry line ("try
-   again in a few minutes") is only ever for those transient, not-an-auth failures.
-3. **On a genuine auth failure** — an attempted call returned `401`/`invalid_token`, or
-   the lee-raleigh tools are missing from this session entirely — reply warmly, in
-   broker language:
+2. **Only a tool-level auth error counts.** Treat a call as auth-failed ONLY when it
+   returned an authorization error (`401` / `invalid_token`). Any other failure — a
+   timeout, an empty result, a data error — is not an auth problem; handle it per this
+   skill's error handling, and a plain retry line ("try again in a few minutes") is
+   only ever for those transient, not-an-auth failures.
+3. **First auth failure in this conversation, with the lee-raleigh tools loaded:** the
+   most likely cause is a known Claude bug that reports a successful call as failed —
+   the connection is usually fine, so do NOT send the broker to sign-in yet. Reply
+   warmly, in broker language:
+
+   > That error is most likely a Claude glitch (on Anthropic's side, not the Lee
+   > tools) — the connection is usually fine. Tell me **"you do have access — try
+   > again"** and I'll re-run it; that clears it most of the time. If it still fails
+   > on the retry, a quick sign-in refresh usually fixes it
+   > (https://leeraleigh.groundedintelligence.io/setup#connect-sign-in) — or email
+   > David at david@groundedintelligence.io and he'll get you sorted.
+
+   When the broker prompts the retry, attempt the call again.
+4. **Second consecutive auth failure in this conversation — or the lee-raleigh tools
+   are missing from this session entirely:** treat it as a genuine sign-in problem.
+   Reply warmly, in broker language:
 
    > It looks like the Lee Raleigh connection needs a quick sign-in refresh — this can
    > happen after a reinstall, a new computer, or an app update. In Claude, open the
@@ -256,7 +269,8 @@ or "needs to be authorized" unless an actual tool call just failed with an auth 
    > that's normal — just request another from the sign-in page; the second request is
    > what signs you in. Full walkthrough with screenshots:
    > https://leeraleigh.groundedintelligence.io/setup#connect-sign-in — it takes about
-   > a minute, then just ask me again.
+   > a minute, then just ask me again. If that doesn't get you back in, email David at
+   > david@groundedintelligence.io and he'll get you sorted.
 
    Never point a broker at "/mcp", never mention MCP or OAuth by name, and never answer
    an auth failure with "try again in a few minutes" — those leave them stuck.
