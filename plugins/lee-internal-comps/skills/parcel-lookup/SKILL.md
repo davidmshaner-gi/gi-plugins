@@ -1,6 +1,6 @@
 ---
 name: parcel-lookup
-description: Pull the full county property record for a US property address in the covered NC counties (Wake, Durham, New Hanover, Lee, Johnston, Orange, Chatham) — owner of record + mailing address, parcel ID (PIN), lot size, building SF, year built, tax assessed value, last sale date/price, zoning code with ordinance link, and building permits from the last 5 years. Returns the record inline, a flyer-ready Property Facts fragment, and a Lee-branded PDF card. Use for "what is this property," "property record card," "zoning for," "permits at," or pre-tour/pre-call homework on an address. Wraps the lee-raleigh-mcp pull_parcel_lookup tool.
+description: Pull the full county property record for a US property address in the covered NC counties (Wake, Durham, New Hanover, Lee, Johnston, Orange, Chatham) — owner of record + mailing address, parcel ID (PIN), lot size, building SF, year built, tax assessed value, last sale date/price, zoning code with ordinance link, and building permits from the last 5 years. Returns the record inline, a flyer-ready Property Facts fragment, and a Lee-branded PDF card. Near-miss addresses (reordered wording, wrong house number, abbreviation variants) return a ranked did-you-mean candidate list instead of a dead not-found. Use for "what is this property," "property record card," "zoning for," "permits at," or pre-tour/pre-call homework on an address. Wraps the lee-raleigh-mcp pull_parcel_lookup tool.
 ---
 
 # Parcel Lookup (Lee & Associates)
@@ -47,6 +47,7 @@ Triggers:
 The tool returns broker-legible errors; surface them as-is:
 
 - **"No parcel found for ..."** — outside the covered counties, or the address needs a city/state. Echo the input back and ask for a more specific spelling or a county hint.
+- **"No exact match for ... Closest parcels on record:"** — near-miss recovery: the address didn't match exactly but close candidates exist (reordered wording, slightly different house number, abbreviation variants). Show the broker the candidate list (ranked nearest-first, each with parcel_id, county, and site address) and re-run with the exact site address shown — or use `owner-lookup` with the candidate's parcel_id (PIN). Reordered-but-identical addresses now resolve automatically with no broker action.
 - **"Multiple parcels match ..."** — same street address in more than one county; the error lists candidates. Ask which county and re-call with `county`.
 - **geocode_failed / out_of_region** — the address didn't geocode or isn't NC; ask for a cleaner address.
 - Anything else — apologize, surface the short message, suggest a retry; worst case point the broker at the county GIS portal (table below).
