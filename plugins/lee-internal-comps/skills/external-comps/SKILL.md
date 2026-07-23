@@ -296,7 +296,8 @@ If you find yourself regenerating openpyxl formatting, hand-writing date math, o
 ## Connector auth — attempt the call first
 
 **Never tell the broker the lee-raleigh connector is "not authorized", "not connected",
-or "needs to be authorized" unless an actual tool call just failed with an auth error.**
+or "needs to be authorized" unless an actual tool call just failed with an auth error —
+or the lee-raleigh tools are missing from this session entirely.**
 
 1. **Attempt first.** If the lee-raleigh tools appear in your available tools, call the
    one you need — do not assess authorization beforehand. A needs-auth flag, an empty
@@ -308,21 +309,23 @@ or "needs to be authorized" unless an actual tool call just failed with an auth 
    timeout, an empty result, a data error — is not an auth problem; handle it per this
    skill's error handling, and a plain retry line ("try again in a few minutes") is
    only ever for those transient, not-an-auth failures.
-3. **First auth failure in this conversation, with the lee-raleigh tools loaded:** the
-   most likely cause is a known Claude bug that reports a successful call as failed —
-   the connection is usually fine, so do NOT send the broker to sign-in yet. Reply
-   warmly, in broker language:
+3. **Auth failure with the lee-raleigh tools loaded — and the immediately preceding
+   attempt (if any) did NOT also auth-fail:** the most likely cause is a known Claude
+   bug that reports a successful call as failed — the connection is usually fine, so
+   do NOT send the broker to sign-in yet. This applies to any such failure, including
+   one later in a conversation whose earlier glitch already healed. Reply warmly, in
+   broker language:
 
    > That error is most likely a Claude glitch (on Anthropic's side, not the Lee
    > tools) — the connection is usually fine. Tell me **"you do have access — try
-   > again"** and I'll re-run it; that clears it most of the time. If it still fails
-   > on the retry, a quick sign-in refresh usually fixes it
+   > again"** and I'll re-run it. If it still fails on the retry, a quick sign-in
+   > refresh usually fixes it
    > (https://leeraleigh.groundedintelligence.io/setup#connect-sign-in) — or email
    > David at david@groundedintelligence.io and he'll get you sorted.
 
    When the broker prompts the retry, attempt the call again.
-4. **Second consecutive auth failure in this conversation — or the lee-raleigh tools
-   are missing from this session entirely:** treat it as a genuine sign-in problem.
+4. **Two auth failures in a row — or the lee-raleigh tools are missing from this
+   session entirely:** treat it as a genuine sign-in problem.
    Reply warmly, in broker language:
 
    > It looks like the Lee Raleigh connection needs a quick sign-in refresh — this can
