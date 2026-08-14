@@ -51,6 +51,20 @@ jobs:
       - name: Connector-auth block present and un-drifted in every covered skill
         run: bash scripts/test/connector-auth-guidance.test.sh
 
+  source-neutrality:
+    name: source-neutrality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # Company policy (2026-08-14): no comps-data vendor proper noun anywhere
+      # in the repo (broker-surface guard remains as the belt to this suspenders).
+      - name: No data-vendor proper nouns repo-wide
+        run: bash scripts/test/source-neutrality.sh
+
+      - name: No vendor brand on broker-facing surfaces
+        run: bash scripts/test/no-costar-broker-surfaces.sh
+
   pytest:
     name: pytest
     runs-on: ubuntu-latest
