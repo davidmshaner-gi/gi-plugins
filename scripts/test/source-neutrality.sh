@@ -31,7 +31,7 @@ hits=$(git grep -niE "${B1}|${B2}|${B3}" -- \
   ':!scripts/test/source-neutrality.sh' \
   ':!scripts/test/no-costar-broker-surfaces.sh' \
   2>/dev/null \
-  | grep -viE "${B1}_(property_id|property_url)|https?://[^ ]*${B1}" \
+  | grep -viE "${B1}_(property_id|property_url)|https?://[^ ]*${B1}|no-${B1}-broker-surfaces" \
   || true)
 
 if [[ -n "$hits" ]]; then
