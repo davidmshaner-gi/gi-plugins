@@ -75,7 +75,7 @@ If `placed_comps` is 0, no comps matched the filters within range — tell the b
 ## What's deliberately NOT in v1
 
 - **Drive-time bands** (isochrones) — the map ships with straight-line distance rings only; drive-time bands are a planned fast-follow (tracked in gi-plugins#77).
-- **External comps as a distinct layer** — v1 maps the internal Dealius set; external (CoStar) comps as a visually distinct third layer is follow-on scope.
+- **External comps as a distinct layer** — v1 maps the internal Dealius set; external comps as a visually distinct third layer is follow-on scope.
 - Database-mode free-text search / date-range UI beyond the `since` / `types` / `brokers` filters.
 - Non-NC coverage.
 

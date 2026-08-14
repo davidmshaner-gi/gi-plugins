@@ -66,7 +66,7 @@ sale.
 ### Check 2 — SQL view / MCP table name coverage
 
 If helpers.py contains string literals matching `[a-z_]+_safe` (an
-internal Dealius mirror view) or `[a-z_]+_external` (an external CoStar
+internal Dealius mirror view) or `[a-z_]+_external` (an external the external platform
 table), the description should mention the corresponding capability
 domain (e.g. "lease comps", "sale comps", "owner records"). Missing a
 view in the description is a `warning`, not a blocker — the human may

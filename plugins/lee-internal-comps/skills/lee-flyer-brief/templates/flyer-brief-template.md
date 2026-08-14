@@ -50,7 +50,7 @@ proven. Suggest-first from pulled data + web context.}
 
 | # | Property | Date | SF | Rate / Price | $/SF | Source |
 |---|---|---|---|---|---|---|
-{selected comps only — internal DB / external (CoStar cache) / broker-provided}
+{selected comps only — internal DB / external (comps cache) / broker-provided}
 
 ### Comp narrative
 

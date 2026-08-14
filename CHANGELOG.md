@@ -7,6 +7,20 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.29.0] - 2026-08-14
+
+### Changed
+
+- **Source-neutrality sweep (company policy).** The comps database replaces the reference
+  spreadsheets brokers already keep; what a broker chooses to load into it is their own
+  prerogative. Accordingly, no third-party data vendor is named anywhere in this repo:
+  all prose, skill instructions, deliverable strings, and code comments now say
+  "external" / "the external platform." Broker-visible strings changed: the unified
+  Source tag is now `External` (was branded) and the Excel detail sheet is now
+  `External` (was branded). Live data-contract identifiers (`costar_property_id`,
+  `costar_property_url`, the MCP response shapes) are unchanged — renaming those is
+  tracked separately. The stashed platform-specific SOP skill was removed.
+
 ## [1.28.5] - 2026-07-23
 
 ### Fixed
@@ -143,7 +157,7 @@ carry the same version as of 1.4.0.
 
 ### Changed
 - **Comps Excel: three broker-flagged lease/export fixes (Will Fogleman, 2026-06-17 feedback).**
-  - **External CoStar lease comps no longer show building size as "Leased SF."** CoStar's external lease data carries the building footprint, not the true leased premises area, so in the unified all-comps output (`internal-and-external-comps`) the "Leased SF" column now renders **blank** for external CoStar lease rows instead of mislabeling building size as leased area. Internal (Dealius) lease rows are unchanged — they keep their real leased area. (#105)
+  - **External lease comps no longer show building size as "Leased SF."** The external platform's external lease data carries the building footprint, not the true leased premises area, so in the unified all-comps output (`internal-and-external-comps`) the "Leased SF" column now renders **blank** for external lease rows instead of mislabeling building size as leased area. Internal (Dealius) lease rows are unchanged — they keep their real leased area. (#105)
   - **Removed the "Lease Executed" column** from the internal lease comps Excel, per broker request. The lease execution date is still used to filter and sort the results; it is just no longer shown as a column. (#106)
   - **Lease comps Excel number formatting is now correct.** The internal lease export had several columns formatted as the wrong type (Lease Type and Tenant rendered as currency, TI $/SF rendered as a plain integer) because the formatting was keyed to fixed column positions; it is now derived from each column by name, so Leased SF / Building SF / Free Rent read as numbers and the $/SF columns read as currency — and the layout can change without re-introducing a mismatch. (#106)
 
@@ -247,7 +261,7 @@ carry the same version as of 1.4.0.
 ## [1.11.0] - 2026-06-08
 
 ### Added
-- **`lee-flyer-brief` skill** — a broker says "build a flyer for my listing" (or drops a listing agreement) and gets walked through assembling everything a marketing flyer needs: the skill auto-pulls owner of record, business key facts, and demographics, then runs the comp set, key facts, and demographics each through a **present → augment → select → narrate** loop so the broker adds their own data and picks exactly what appears. It writes a provenance-tagged **flyer brief** (every figure tagged `internal comps DB` / `external (CoStar cache)` / `broker-provided` / `listing agreement` / `county record` / `Census`) and hands the broker carry-over instructions into **Claude Design** (Lee design system) for visual polish. Replaces Lee marketing's Formstack "New Listing Marketing Request" intake. Write-back of broker-provided comps + the subject listing to the comps DB is **confirmation-gated** (no auto-write). Prototype validated through Rings 1–3 (simulated + two live Cowork runs + Claude Design number-fidelity diffs). (#67)
+- **`lee-flyer-brief` skill** — a broker says "build a flyer for my listing" (or drops a listing agreement) and gets walked through assembling everything a marketing flyer needs: the skill auto-pulls owner of record, business key facts, and demographics, then runs the comp set, key facts, and demographics each through a **present → augment → select → narrate** loop so the broker adds their own data and picks exactly what appears. It writes a provenance-tagged **flyer brief** (every figure tagged `internal comps DB` / `external (comps cache)` / `broker-provided` / `listing agreement` / `county record` / `Census`) and hands the broker carry-over instructions into **Claude Design** (Lee design system) for visual polish. Replaces Lee marketing's Formstack "New Listing Marketing Request" intake. Write-back of broker-provided comps + the subject listing to the comps DB is **confirmation-gated** (no auto-write). Prototype validated through Rings 1–3 (simulated + two live Cowork runs + Claude Design number-fidelity diffs). (#67)
   - **Pending (does not block this release, gates broker self-serve distribution):** the listing-agreement **compliance-gate** decision (David/Jamie — must an agreement be confirmed on file before a flyer ships?); Ring 4 (verify `lee_comps_add_write` accepts an on-market/subject-listing record) and Ring 5 (Will's first live end-to-end run). Reliability deps lee-and-associates #75 (comps MCP hardening) and #29 (external lease backfill) are non-blocking — the skill carries inline workarounds and degrades gracefully.
 
 ## [1.10.0] - 2026-06-08
@@ -268,12 +282,12 @@ carry the same version as of 1.4.0.
 ## [1.8.1] - 2026-06-03
 
 ### Fixed
-- **Unified "all comps": external Comp ID now shows a short, broker-readable id** (CoStar property id / `external_comp_id`) instead of the 64-char `external_id` address hash that was dumped into the Comp ID column. Internal ids unchanged. (#57)
+- **Unified "all comps": external Comp ID now shows a short, broker-readable id** (external property id / `external_comp_id`) instead of the 64-char `external_id` address hash that was dumped into the Comp ID column. Internal ids unchanged. (#57)
 
 ## [1.8.0] - 2026-06-02
 
 ### Added
-- **`add-comps` skill** — turn a contributed comp set a broker pastes, forwards, or uploads (a forwarded email with several brokerage comp tables, an xlsx/csv export, a pasted tab/pipe table, or a screenshot) into canonical records tagged by source and provenance, and ingest them into the comps database as a **third source** alongside internal Dealius + external CoStar. Handles lease and sale; flags (never drops) incomplete rows for review. Brokers can then query across all three sources from one surface via the new `pull_unified_comps` MCP tool. Backed by lee-raleigh-mcp v0.7.0 (`comp_imports` + `comps_added` tables, a unit-reconciled `comps_unified` view, and the `lee_comps_add_write` MCP tool). (#11, coupled with lee-and-associates #64)
+- **`add-comps` skill** — turn a contributed comp set a broker pastes, forwards, or uploads (a forwarded email with several brokerage comp tables, an xlsx/csv export, a pasted tab/pipe table, or a screenshot) into canonical records tagged by source and provenance, and ingest them into the comps database as a **third source** alongside internal Dealius + external the external platform. Handles lease and sale; flags (never drops) incomplete rows for review. Brokers can then query across all three sources from one surface via the new `pull_unified_comps` MCP tool. Backed by lee-raleigh-mcp v0.7.0 (`comp_imports` + `comps_added` tables, a unit-reconciled `comps_unified` view, and the `lee_comps_add_write` MCP tool). (#11, coupled with lee-and-associates #64)
 
 ## [1.7.1] - 2026-06-02
 
@@ -283,7 +297,7 @@ carry the same version as of 1.4.0.
 ## [1.7.0] - 2026-06-02
 
 ### Added
-- **New skill: `internal-and-external-comps` — the default "all comps" experience.** When a broker asks for comps **without** saying internal or external, this skill runs both the internal (Dealius) and external (CoStar) pulls in parallel and returns **one** combined deliverable: a chat table, an Excel (an "All Comps" sheet plus per-source detail sheets), and **one Lee-branded unified PDF**, with every row tagged by **Source** (`Internal — Dealius` / `External — CoStar`). No dedup — a property in both sources shows as two tagged rows. Works for sale and lease. Explicit "internal comps" / "external comps" requests still route to the single-source skills. The unified PDF is powered by the new `cache_external_rows` MCP tool + `unified` template on `lee-raleigh-mcp` v0.6.0. (#29, coupled with lee-and-associates#45)
+- **New skill: `internal-and-external-comps` — the default "all comps" experience.** When a broker asks for comps **without** saying internal or external, this skill runs both the internal (Dealius) and external pulls in parallel and returns **one** combined deliverable: a chat table, an Excel (an "All Comps" sheet plus per-source detail sheets), and **one Lee-branded unified PDF**, with every row tagged by **Source** (`Internal — Dealius` / `External`). No dedup — a property in both sources shows as two tagged rows. Works for sale and lease. Explicit "internal comps" / "external comps" requests still route to the single-source skills. The unified PDF is powered by the new `cache_external_rows` MCP tool + `unified` template on `lee-raleigh-mcp` v0.6.0. (#29, coupled with lee-and-associates#45)
 
 ## [1.6.0] - 2026-06-02
 
@@ -297,7 +311,7 @@ Reconciling release: four broker-facing / owner-lookup changes had merged to `ma
 ### Fixed
 - **internal-comps: LAND sale comps price on `$/Acre`, not `$/SF`.** For a sale pull where `asset_type == "land"`, the Excel shows a `$/Acre` column (`price_per_acre = sale_price / acres`, whole-dollar currency, blank when acres is null/zero) where `$/SF` used to be; the `Acres` column stays. Non-land asset types and all lease pulls are unchanged. $/SF is meaningless for raw land. Broker request from Mike Glennon. (#28 / PR #39)
 - **owner-lookup: Lee County verify link uses `mode=realprop`, not `parid`.** The Lee County verify-footer link used a Tyler mode that throws; it now opens the working real-property search. (#18 / PR #44)
-- **lee-internal-comps: stripped the "CoStar" brand from broker-facing surfaces.** (#6 / PR #37)
+- **lee-internal-comps: stripped the "the external platform" brand from broker-facing surfaces.** (#6 / PR #37)
 
 ### Added
 - **owner-lookup verify-link QA harness** (`scripts/qa/verify-links/`) — drives each county verify-footer portal with a sentinel PIN and asserts the parcel resolves, catching a load-fine/search-broken portal before a broker hits it. Run before any release that touches owner-lookup verify links. (#19)
@@ -333,7 +347,7 @@ two version manifests (`marketplace.json` had drifted to 0.7.1).
 
 ### Changed
 - Comps skills now **surface the data freshness banner** so brokers can see how current
-  the Dealius/CoStar data is before relying on it.
+  the Dealius/external data is before relying on it.
 - `internal-comps` description corrected to advertise **both lease and sale** comps (it
   previously read lease-only).
 

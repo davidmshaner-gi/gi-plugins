@@ -34,7 +34,7 @@ def load_sibling(skill_name: str):
 # =====================================================================
 
 SOURCE_INTERNAL = "Internal — Dealius"
-SOURCE_EXTERNAL = "External — CoStar"
+SOURCE_EXTERNAL = "External"
 
 
 def _first(row: dict, *keys):
@@ -47,7 +47,7 @@ def _first(row: dict, *keys):
 
 
 def to_core(row: dict, source: str, tx_type: str) -> dict:
-    """Map one source row (internal Dealius or external CoStar) to the unified CORE schema.
+    """Map one source row (internal Dealius or external) to the unified CORE schema.
 
     The core row carries BOTH display-label keys (what the unified table/Excel/PDF render)
     AND the snake_case stat keys that the MCP `computeSummaryStats` reads server-side
@@ -62,7 +62,7 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
         city = row.get("city")
         url = ""
     else:
-        # Broker-readable id: prefer CoStar's id, then the short external_comp_id.
+        # Broker-readable id: prefer the external platform's id, then the short external_comp_id.
         # NEVER external_id (a 64-char address hash that overflows the comp table).
         comp_id = row.get("costar_property_id") or row.get("external_comp_id") or ""
         address = row.get("property_address")
@@ -108,7 +108,7 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
         date = _first(row, "lease_execution", "lease_commencement")
         lease_type = row.get("lease_type")
     else:
-        # CoStar's external lease ingest carries building_sf (building size) but NO
+        # The external lease ingest carries building_sf (building size) but NO
         # true leased-area field. We must NOT show building size as "Leased SF"
         # (gi-plugins#105, Will Fogleman 2026-06-17) — render it BLANK rather than
         # mislabel building size as the leased premises. Internal Dealius rows keep
@@ -206,7 +206,7 @@ def _fmt(value) -> str:
 def unified_markdown_table(core_rows: list, validated: dict) -> str:
     """Combined chat table over the core columns, Source first.
 
-    External CoStar lease rows render a blank "Leased SF" (CoStar carries no true
+    External lease rows render a blank "Leased SF" (the external platform carries no true
     leased area; gi-plugins#105), so there is no building-size-substitution footnote.
     """
     tx_type = validated.get("comp_type") or validated.get("transaction_type") or "sale"
@@ -252,8 +252,8 @@ def format_unified_excel(core_rows: list, internal_native: list, external_native
     int_cols = list(internal_native[0].keys()) if internal_native else ["(no internal rows)"]
     _write_sheet(ws_int, int_cols, internal_native)
 
-    # Sheet 3 — External (CoStar) native
-    ws_ext = wb.create_sheet("External (CoStar)")
+    # Sheet 3 — External native
+    ws_ext = wb.create_sheet("External")
     ext_cols = list(external_native[0].keys()) if external_native else ["(no external rows)"]
     _write_sheet(ws_ext, ext_cols, external_native)
 
