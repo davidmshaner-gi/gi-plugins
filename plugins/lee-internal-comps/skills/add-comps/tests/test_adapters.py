@@ -90,7 +90,7 @@ def test_parse_spreadsheet_skips_prose_tabs(tmp_path):
     comp.append(["1 Foo St", "Durham", "$6,000,000", "2025-03-01",
                  "6.5%", "Acme REIT", "Old Owner LLC"])
     notes = wb.create_sheet("Read Me")
-    notes.append(["These comps were pulled from CoStar in May."])
+    notes.append(["These comps were pulled from the external platform in May."])
     notes.append(["Contact the analyst with questions."])
     path = tmp_path / "with_prose.xlsx"
     wb.save(path)

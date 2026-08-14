@@ -1,13 +1,13 @@
 """
-External CoStar lease rows must NOT show building SF in the "Leased SF" column
+External lease rows must NOT show building SF in the "Leased SF" column
 (gi-plugins#105).
 
 Broker request (Will Fogleman, Lee, 2026-06-17 'Initial Feedback' email):
-"For external CoStar lease records, 'Leased SF' appears to be pulling the total
+"For external lease records, 'Leased SF' appears to be pulling the total
 building square footage instead of the actual leased area. Please ensure this
 field reflects the leased premises and not the building size."
 
-Root cause: CoStar's external lease ingest carries `building_sf` but NO true
+Root cause: The external platform's external lease ingest carries `building_sf` but NO true
 leased-area field (confirmed against external-comps DISPLAY_COLUMNS_LEASE and the
 lee external-comps-db schema). The unified skill previously mapped `building_sf`
 into the Leased SF slot under a W1 footnote. Since the data genuinely lacks leased

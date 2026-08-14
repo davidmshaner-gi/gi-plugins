@@ -98,9 +98,9 @@ RDU_CITY_TO_COUNTY: dict[str, str] = {
 # the filter (see SKILL.md Process step 7). Below threshold, silent enrichment.
 NULL_COUNTY_DIALOG_THRESHOLD = 0.20
 
-# CoStar property_type taxonomy — values are the verbatim strings the MCP expects.
-# Maps the skill's `asset_type` (broker shorthand) to CoStar's `property_type`.
-ASSET_TYPE_TO_COSTAR_SALE = {
+# The external platform property_type taxonomy — values are the verbatim strings the MCP expects.
+# Maps the skill's `asset_type` (broker shorthand) to the external platform's `property_type`.
+ASSET_TYPE_TO_EXTERNAL_SALE = {
     "industrial": "Industrial",
     "office": "Office",
     "retail": "Retail",
@@ -113,7 +113,7 @@ ASSET_TYPE_TO_COSTAR_SALE = {
     "specialty": "Specialty",
 }
 
-ASSET_TYPE_TO_COSTAR_LEASE = {
+ASSET_TYPE_TO_EXTERNAL_LEASE = {
     "industrial": "Industrial",
     "office": "Office",
     "retail": "Retail",
@@ -179,7 +179,7 @@ def validate_request(parsed: dict) -> dict:
         }
 
     # --- Property-type taxonomy check (warn, don't block) ---
-    table = ASSET_TYPE_TO_COSTAR_SALE if tx_type == "sale" else ASSET_TYPE_TO_COSTAR_LEASE
+    table = ASSET_TYPE_TO_EXTERNAL_SALE if tx_type == "sale" else ASSET_TYPE_TO_EXTERNAL_LEASE
     if asset_type not in table:
         warnings.append(
             f"asset_type '{asset_type}' not in {tx_type} taxonomy "
@@ -257,7 +257,7 @@ def build_mcp_params(validated: dict) -> dict:
     )
 
     # --- Property type ---
-    table = ASSET_TYPE_TO_COSTAR_SALE if tx == "sale" else ASSET_TYPE_TO_COSTAR_LEASE
+    table = ASSET_TYPE_TO_EXTERNAL_SALE if tx == "sale" else ASSET_TYPE_TO_EXTERNAL_LEASE
     property_type = table.get(asset, asset.title())  # fallback: title-case the broker value
 
     # --- Date window ---
@@ -421,7 +421,7 @@ def rank_comps(
     """Split rows into ranked-top, tagged-under-contract, tagged-sublet,
     tagged-rent-undisclosed. Returns four lists.
 
-    Tagging rules (borrowed from stashed costar-comps flows):
+    Tagging rules (borrowed from retired platform-SOP flows):
       - Sale: rows with sale_conditions LIKE 'Under Contract%' → tagged_under_contract.
       - Lease: rows with rent_type == 'Sublet' → tagged_sublet.
       - Lease: rows where base_rent is missing → tagged_rent_undisclosed.

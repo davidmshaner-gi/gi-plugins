@@ -23,7 +23,7 @@ ready to hand to Claude Design for visual generation and polish.
    excluded a comp, it does not inform the positioning narrative — even if it
    would make the story stronger.
 4. **No invented numbers.** Every figure in the brief carries a provenance tag:
-   `internal comps DB`, `external (CoStar cache)`, `broker-provided`,
+   `internal comps DB`, `external (comps cache)`, `broker-provided`,
    `listing agreement`, `county record`, or `Census (ACS/LODES)`. Demographic and key-facts data
    is **public Census data only** (ACS 5-year, Decennial, LEHD LODES) — never
    attribute it to Esri/BAO; Esri appears in our methodology docs only as a

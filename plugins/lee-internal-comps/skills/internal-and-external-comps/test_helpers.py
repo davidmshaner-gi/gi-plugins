@@ -38,22 +38,22 @@ def test_to_core_external_sale():
            "external_comp_id": 98, "property_address": "2 B St", "property_city": "Cary",
            "county": "Wake", "property_type": "Industrial", "building_sf": 60000,
            "sale_price": 7200000, "price_per_sf": 120, "actual_cap_rate": 6.0,
-           "sale_date": "2025-06-01", "costar_property_url": "https://costar/e1"}
+           "sale_date": "2025-06-01", "costar_property_url": "https://ext.example/e1"}
     core = to_core(row, SOURCE_EXTERNAL, "sale")
     assert core["Comp ID"] == 98                       # short id, never the hash
     assert row["external_id"] not in core.values()     # the hash never leaks into any cell
     assert core["City"] == "Cary"
     assert core["Size (SF)"] == 60000
     assert core["Date"] == "2025-06-01"
-    assert core["Source URL"] == "https://costar/e1"
+    assert core["Source URL"] == "https://ext.example/e1"
     assert core["square_feet_sold"] == 60000  # external building_sf mapped to stat key
 
 
-def test_to_core_external_comp_id_prefers_costar_id_then_falls_back():
+def test_to_core_external_comp_id_prefers_source_property_id_then_falls_back():
     # costar_property_id wins when present
     r1 = {"external_id": "hash", "external_comp_id": 7, "costar_property_id": "CS-12345"}
     assert to_core(r1, SOURCE_EXTERNAL, "sale")["Comp ID"] == "CS-12345"
-    # falls back to external_comp_id when no costar id
+    # falls back to external_comp_id when no source property id
     r2 = {"external_id": "hash", "external_comp_id": 7}
     assert to_core(r2, SOURCE_EXTERNAL, "sale")["Comp ID"] == 7
     # never the hash
@@ -76,7 +76,7 @@ def test_to_core_internal_lease():
 
 
 def test_to_core_external_lease_leased_sf_is_blank():
-    # gi-plugins#105: CoStar carries no true leased area for leases, so "Leased SF"
+    # gi-plugins#105: The external platform carries no true leased area for leases, so "Leased SF"
     # must render BLANK for external lease rows — never the building size.
     row = {"external_id": "e2", "property_address": "4 D St", "property_city": "Apex",
            "county": "Wake", "property_type": "Industrial", "building_sf": 40000,
@@ -124,11 +124,11 @@ def test_unified_markdown_table_has_source_column():
     md = unified_markdown_table(rows, {"comp_type": "sale"})
     assert md.splitlines()[0].startswith("| Source")
     assert "Internal — Dealius" in md
-    assert "External — CoStar" in md
+    assert "External" in md
 
 
 def test_unified_markdown_external_lease_blanks_leased_sf_no_footnote():
-    # gi-plugins#105: external lease Leased SF is blank (CoStar has no leased area),
+    # gi-plugins#105: external lease Leased SF is blank (the external platform has no leased area),
     # so the building-size value never appears and the old W1 footnote is gone.
     ext = [to_core({"external_id": "e2", "property_address": "4 D St", "building_sf": 40000,
                     "base_rent": 11.0, "lease_start_date": "2025-05-01", "rent_type": "Gross"},
@@ -157,7 +157,7 @@ def test_format_unified_excel_writes_three_sheets(tmp_path):
         wb = openpyxl.load_workbook(written)
     finally:
         os.chdir(cwd)
-    assert set(wb.sheetnames) >= {"All Comps", "Internal (Dealius)", "External (CoStar)"}
+    assert set(wb.sheetnames) >= {"All Comps", "Internal (Dealius)", "External"}
     assert wb["All Comps"].cell(row=1, column=1).value == "Source"
 
 

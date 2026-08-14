@@ -1,11 +1,11 @@
 ---
 name: internal-and-external-comps
-description: The DEFAULT comps skill for Lee & Associates — pull a unified "all comps" set covering BOTH internal Dealius AND external CoStar in one deliverable. Use whenever a broker asks for comps WITHOUT specifying internal or external (e.g. "pull industrial sale comps in Garner, 2yr", "any retail comps in Raleigh past year"). Runs both queries in parallel, normalizes both sources into one table tagged by Source (Internal — Dealius / External — CoStar), and produces one combined chat table, one Excel (an "All Comps" sheet plus per-source detail sheets), and one Lee-branded combined PDF. Keeps both rows when a property appears in both sources (no dedup). Handles sale and lease. Only defer to the separate internal-comps / external-comps skills when the broker explicitly asks for internal-only or external-only.
+description: The DEFAULT comps skill for Lee & Associates — pull a unified "all comps" set covering BOTH internal Dealius AND external in one deliverable. Use whenever a broker asks for comps WITHOUT specifying internal or external (e.g. "pull industrial sale comps in Garner, 2yr", "any retail comps in Raleigh past year"). Runs both queries in parallel, normalizes both sources into one table tagged by Source (Internal — Dealius / External), and produces one combined chat table, one Excel (an "All Comps" sheet plus per-source detail sheets), and one Lee-branded combined PDF. Keeps both rows when a property appears in both sources (no dedup). Handles sale and lease. Only defer to the separate internal-comps / external-comps skills when the broker explicitly asks for internal-only or external-only.
 ---
 
 # Internal-and-External Comps (Lee & Associates) — the unified "all comps" default
 
-Pull a combined internal (Dealius) + external (CoStar) comp set and produce ONE deliverable:
+Pull a combined internal (Dealius) + external comp set and produce ONE deliverable:
 a combined chat table, a combined Excel, and a Lee-branded combined PDF. This is what a
 broker gets by default when they ask for "comps" without qualifying the source — they want
 the best picture, not two separate runs.
@@ -22,7 +22,7 @@ phrasing is open — what matters is the intent.
 
 **Defer to the single-source skills only when the broker is explicit:**
 - "internal comps" / "Dealius" / "our data" → use the `internal-comps` skill.
-- "external comps" / "CoStar" → use the `external-comps` skill.
+- "external comps" → use the `external-comps` skill.
 - Pure analysis on comps already pasted into chat (no DB lookup) → neither skill.
 
 ## Architecture
@@ -55,7 +55,7 @@ external = load_sibling("external-comps")
      invoke MCP `search_external_sale_comps` or `search_external_lease_comps`. Response is
      `{"rows": [...], "freshness": "..."}`.
    - **Surface BOTH freshness lines verbatim as the first two lines of your reply.** They are
-     not optional and must never be omitted or rephrased — one for Dealius, one for the CoStar
+     not optional and must never be omitted or rephrased — one for Dealius, one for the external platform
      snapshot.
    - If one source errors or returns 0 rows, deliver the other with a clear note (e.g.
      "External returned 0 — showing internal only"). Never silently drop a source.
@@ -94,8 +94,8 @@ external = load_sibling("external-comps")
 3. **One transaction type per request.** If the broker mixes sale and lease, ask them to split
    into two runs (same rule as the single-source skills).
 4. **Source tagging is non-negotiable.** Every row, in every output, shows its Source.
-5. **External lease "Leased SF" is blank by design.** CoStar's external lease data carries the
-   building size, not the true leased premises area, so for external (CoStar) lease rows the
+5. **External lease "Leased SF" is blank by design.** The external platform's external lease data carries the
+   building size, not the true leased premises area, so for external lease rows the
    "Leased SF" column renders **blank** — building size is never shown as Leased SF (gi-plugins#105).
    Internal (Dealius) lease rows keep their real leased area (`space_sf`).
 
@@ -103,7 +103,7 @@ external = load_sibling("external-comps")
 
 - One combined chat table (Source column first).
 - One Excel: an **All Comps** sheet (core columns, Source first) plus **Internal (Dealius)** and
-  **External (CoStar)** detail sheets preserving each source's native columns.
+  **External** detail sheets preserving each source's native columns.
 - One Lee-branded combined PDF rendered via the `unified` template.
 - A draft email reply and a feedback capture.
 
