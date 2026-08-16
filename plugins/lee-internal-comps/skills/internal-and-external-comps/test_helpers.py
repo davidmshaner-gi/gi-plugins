@@ -33,12 +33,12 @@ def test_to_core_internal_sale():
 
 def test_to_core_external_sale():
     # external_id is a 64-char hash and must NOT be the broker-facing Comp ID;
-    # use external_comp_id (short int) / costar_property_id instead.
+    # use external_comp_id (short int) / external_property_id instead.
     row = {"external_id": "e31389800c8f344fa0ad7fe718fdf8f498ed52b5a994f6119ed4f50973b32f5c",
            "external_comp_id": 98, "property_address": "2 B St", "property_city": "Cary",
            "county": "Wake", "property_type": "Industrial", "building_sf": 60000,
            "sale_price": 7200000, "price_per_sf": 120, "actual_cap_rate": 6.0,
-           "sale_date": "2025-06-01", "costar_property_url": "https://ext.example/e1"}
+           "sale_date": "2025-06-01", "external_property_url": "https://ext.example/e1"}
     core = to_core(row, SOURCE_EXTERNAL, "sale")
     assert core["Comp ID"] == 98                       # short id, never the hash
     assert row["external_id"] not in core.values()     # the hash never leaks into any cell
@@ -50,8 +50,8 @@ def test_to_core_external_sale():
 
 
 def test_to_core_external_comp_id_prefers_source_property_id_then_falls_back():
-    # costar_property_id wins when present
-    r1 = {"external_id": "hash", "external_comp_id": 7, "costar_property_id": "CS-12345"}
+    # external_property_id wins when present
+    r1 = {"external_id": "hash", "external_comp_id": 7, "external_property_id": "CS-12345"}
     assert to_core(r1, SOURCE_EXTERNAL, "sale")["Comp ID"] == "CS-12345"
     # falls back to external_comp_id when no source property id
     r2 = {"external_id": "hash", "external_comp_id": 7}
@@ -179,10 +179,10 @@ def test_combine_sorts_mixed_date_formats_chronologically():
                 SOURCE_INTERNAL, "sale"),
     ]
     external = [
-        to_core({"costar_property_id": "EXT-MID", "sale_date": "2026-01-15",
+        to_core({"external_property_id": "EXT-MID", "sale_date": "2026-01-15",
                  "sale_price": 1, "price_per_sf": 1, "building_sf": 1},
                 SOURCE_EXTERNAL, "sale"),
-        to_core({"costar_property_id": "EXT-OLDEST", "sale_date": "2024-03-10",
+        to_core({"external_property_id": "EXT-OLDEST", "sale_date": "2024-03-10",
                  "sale_price": 1, "price_per_sf": 1, "building_sf": 1},
                 SOURCE_EXTERNAL, "sale"),
     ]
@@ -202,7 +202,7 @@ def test_combine_blank_or_unparseable_dates_sort_last():
                 SOURCE_INTERNAL, "sale"),
     ]
     external = [
-        to_core({"costar_property_id": "BAD-DATE", "sale_date": "not-a-date",
+        to_core({"external_property_id": "BAD-DATE", "sale_date": "not-a-date",
                  "sale_price": 1, "price_per_sf": 1, "building_sf": 1},
                 SOURCE_EXTERNAL, "sale"),
     ]

@@ -47,7 +47,7 @@ prose, deliverable strings, comments, manifests, CHANGELOG, filenames, commit me
 Say "external" / "the external platform" instead.
 (Policy set by David, 2026-08-14; supersedes the broker-surfaces-only scope of #6.)
 
-- **Live-contract identifiers are exempt** until the rename card on lee-and-associates lands:
-  the lowercase response-shape field names the skills read, and client-export test fixtures.
+- **Client-export test fixtures are the only code exemption** — lee#442 (2026-08-15) landed
+  the live-contract renames (external_property_id / external_property_url response fields).
 - **Guards (both in CI):** `bash scripts/test/source-neutrality.sh` (repo-wide) and
   `bash scripts/test/no-costar-broker-surfaces.sh` (broker-surface pin).
