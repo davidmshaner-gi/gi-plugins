@@ -7,11 +7,11 @@
 # broker deliverables (Excel Methodology sheet, email body).
 #
 # Scope decision (David, 2026-06-02): generic-ize CoStar -> "external",
-# keep "Dealius". Data-contract identifiers are deliberately OUT of scope and
-# allowed to keep the string: column names (costar_property_url,
-# costar_property_id), the ASSET_TYPE_TO_COSTAR_* maps, "CoStar taxonomy"
-# schema/terminology references, and internal code comments. Those are not
-# broker-facing and renaming them risks breaking the live MCP tool contract.
+# keep "Dealius". Originally the data-contract identifiers were exempt; the
+# 2026-08-14 policy extended scope repo-wide and lee#442 (2026-08-15) renamed
+# the live contract itself (external_property_id/_url, ASSET_TYPE_TO_EXTERNAL_*),
+# so nothing carries the string anymore. This guard stays as the broker-surface
+# pin; scripts/test/source-neutrality.sh covers the whole repo.
 #
 # This guard therefore checks the *advertising + deliverable* surfaces only,
 # not a blanket repo grep.

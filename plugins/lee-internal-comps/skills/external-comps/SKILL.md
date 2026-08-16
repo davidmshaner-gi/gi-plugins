@@ -138,7 +138,7 @@ Response: `{"rows": [...]}` with all typed lease columns plus `external_id`, `ra
 | Param | Shape | Notes |
 |---|---|---|
 | `external_id` | str | preferred. |
-| `costar_property_id` | str | alternate. |
+| `external_property_id` | str | alternate. |
 
 Response: `{"row": {...}}` with all typed columns AND `raw_fields` (parsed JSON of the unpromoted external columns). Use after a search to drill into one row.
 
@@ -204,9 +204,9 @@ When the broker uses a term that isn't in this list, behavioral rule #3 applies:
 
 The model does not need to memorize the column list, but for ranking and the Markdown table here is what to expect (full list in `column_map.py`):
 
-**Sale (`search_external_sale_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `costar_property_id`, `costar_property_url`, `property_type`, `property_secondary_type`, `building_sf`, `year_built`, `sale_price`, `price_per_sf`, `sale_date`, `actual_cap_rate`, `noi`, `percent_leased`, `sale_type`, `sale_conditions`, `days_on_market`, `sale_notes`, `buyer_true_company`, `seller_true_company`, `buyers_broker_company`, `listing_broker_company`, ...
+**Sale (`search_external_sale_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `external_property_id`, `external_property_url`, `property_type`, `property_secondary_type`, `building_sf`, `year_built`, `sale_price`, `price_per_sf`, `sale_date`, `actual_cap_rate`, `noi`, `percent_leased`, `sale_type`, `sale_conditions`, `days_on_market`, `sale_notes`, `buyer_true_company`, `seller_true_company`, `buyers_broker_company`, `listing_broker_company`, ...
 
-**Lease (`search_external_lease_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `costar_property_id`, `property_type`, `building_sf`, `lease_start_date`, `lease_term_months`, `lease_expiration_date`, `base_rent`, `rent_type`, `escalations`, `free_rent_months`, `ti_allowance`, `tenant_name`, `tenant_industry`, `floor`, `suite`, `space_type`, ...
+**Lease (`search_external_lease_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `external_property_id`, `property_type`, `building_sf`, `lease_start_date`, `lease_term_months`, `lease_expiration_date`, `base_rent`, `rent_type`, `escalations`, `free_rent_months`, `ti_allowance`, `tenant_name`, `tenant_industry`, `floor`, `suite`, `space_type`, ...
 
 Both shapes also include `raw_fields_json` — a stringified JSON blob of unpromoted external columns. Don't surface it directly to the broker; use `get_external_comp_detail` to inspect a specific row's full record.
 

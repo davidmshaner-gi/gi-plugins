@@ -7,6 +7,18 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.30.0] - 2026-08-15
+
+### Changed
+
+- **External comps response fields follow the lee#442 contract rename.** The MCP server's
+  external tables now serve `external_property_id` / `external_property_url` (previously the
+  vendor-branded names); the external-comps and unified-comps helpers read the new fields.
+  Broker-visible effect: none when plugin and server are both current. A plugin older than
+  this version pointed at the renamed server falls back to the short `external_comp_id` in
+  the Comp ID column and leaves Source URL blank until the marketplace sync picks this up.
+  Guards tightened: the response-shape identifier exemption is retired.
+
 ## [1.29.0] - 2026-08-14
 
 ### Changed
@@ -17,8 +29,8 @@ carry the same version as of 1.4.0.
   all prose, skill instructions, deliverable strings, and code comments now say
   "external" / "the external platform." Broker-visible strings changed: the unified
   Source tag is now `External` (was branded) and the Excel detail sheet is now
-  `External` (was branded). Live data-contract identifiers (`costar_property_id`,
-  `costar_property_url`, the MCP response shapes) are unchanged — renaming those is
+  `External` (was branded). Live data-contract identifiers (`external_property_id`,
+  `external_property_url`, the MCP response shapes) are unchanged — renaming those is
   tracked separately. The stashed platform-specific SOP skill was removed.
 
 ## [1.28.5] - 2026-07-23

@@ -169,7 +169,7 @@ def test_internal_and_external_comps_writer_writes_safe_basename():
     unified = _load("internal-and-external-comps")
     internal_core = []
     external_core = [unified.to_core({
-        "costar_property_id": "C-1", "property_address": "3 Pine St",
+        "external_property_id": "C-1", "property_address": "3 Pine St",
         "property_city": "Durham", "county": "Durham", "property_type": "Industrial",
         "building_sf": 60000, "base_rent": 10.0, "rent_type": "NNN",
         "lease_start_date": "2026-01-01",

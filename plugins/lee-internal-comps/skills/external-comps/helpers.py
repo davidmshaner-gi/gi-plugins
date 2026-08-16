@@ -134,7 +134,7 @@ DISPLAY_COLUMNS_SALE = [
     "sale_price", "price_per_sf", "sale_date", "actual_cap_rate", "noi",
     "percent_leased", "sale_type", "sale_conditions", "days_on_market",
     "buyer_true_company", "seller_true_company", "listing_broker_company",
-    "costar_property_url", "sale_notes",
+    "external_property_url", "sale_notes",
 ]
 
 DISPLAY_COLUMNS_LEASE = [
@@ -142,7 +142,7 @@ DISPLAY_COLUMNS_LEASE = [
     "property_type", "building_sf", "lease_start_date", "lease_term_months",
     "lease_expiration_date", "base_rent", "rent_type", "escalations",
     "free_rent_months", "ti_allowance", "tenant_name", "tenant_industry",
-    "floor", "suite", "space_type", "costar_property_url",
+    "floor", "suite", "space_type", "external_property_url",
 ]
 
 

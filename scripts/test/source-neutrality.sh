@@ -13,9 +13,9 @@
 # Complements (does not replace) no-costar-broker-surfaces.sh, which pins the
 # specific broker-visible surfaces.
 #
-# Exemptions (live MCP/D1 data-contract, tracked on lee-and-associates):
-# lowercase identifier forms (…_property_id, …_property_url — response-shape
-# field names the skills read) and client-export test fixtures.
+# Exemptions: client-export test fixtures only. lee#442 (2026-08-15) retired
+# the old response-shape identifier exemptions — the Worker now serves
+# external_property_id / external_property_url and this repo reads them.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -31,7 +31,7 @@ hits=$(git grep -niE "${B1}|${B2}|${B3}" -- \
   ':!scripts/test/source-neutrality.sh' \
   ':!scripts/test/no-costar-broker-surfaces.sh' \
   2>/dev/null \
-  | grep -viE "${B1}_(property_id|property_url)|https?://[^ ]*${B1}|no-${B1}-broker-surfaces" \
+  | grep -viE "https?://[^ ]*${B1}|no-${B1}-broker-surfaces" \
   || true)
 
 if [[ -n "$hits" ]]; then

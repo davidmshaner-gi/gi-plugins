@@ -64,10 +64,10 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
     else:
         # Broker-readable id: prefer the external platform's id, then the short external_comp_id.
         # NEVER external_id (a 64-char address hash that overflows the comp table).
-        comp_id = row.get("costar_property_id") or row.get("external_comp_id") or ""
+        comp_id = row.get("external_property_id") or row.get("external_comp_id") or ""
         address = row.get("property_address")
         city = row.get("property_city")
-        url = row.get("costar_property_url") or ""
+        url = row.get("external_property_url") or ""
     county = row.get("county")
     asset = row.get("property_type")
 

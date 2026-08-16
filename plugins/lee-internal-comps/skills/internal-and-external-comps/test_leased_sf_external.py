@@ -31,7 +31,7 @@ from helpers import (  # noqa: E402
 )
 
 EXT_LEASE = {
-    "costar_property_id": "C-1", "property_address": "3 Pine St",
+    "external_property_id": "C-1", "property_address": "3 Pine St",
     "property_city": "Durham", "county": "Durham", "property_type": "Industrial",
     "building_sf": 60000, "base_rent": 10.0, "rent_type": "NNN",
     "lease_start_date": "2026-01-01",
