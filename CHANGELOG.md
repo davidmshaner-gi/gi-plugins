@@ -7,6 +7,14 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.30.1] - 2026-08-19
+
+### Changed
+
+- **Plugin description rewritten** (marketplace.json + plugin.json). The old one was a
+  run-on catalogue of every skill's internals; it's now a short broker-facing summary of
+  what the toolkit does. No functional change.
+
 ## [1.30.0] - 2026-08-15
 
 ### Changed
