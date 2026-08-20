@@ -7,6 +7,17 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.31.0] - 2026-08-19
+
+### Changed
+
+- **`drive-time-isochrones` now drives the new `anchors[]` param** (Worker 0.39.0,
+  lee-and-associates#458 / gi-plugins#148): broker asks like "with drive times to RDU,
+  downtown Durham, ..." pass named destinations to `pull_drive_time_isochrones`
+  and present each one's smallest containing band ("<= 25 min") or "beyond 60 min".
+  Hard-linked sibling of lee-and-associates#458 -- shipped together so the live
+  param is never inert (G11 sub-case d).
+
 ## [1.30.1] - 2026-08-19
 
 ### Changed
