@@ -91,8 +91,9 @@ brokers:
 - `geojson` — the isochrone FeatureCollection (one Feature per band).
 - `anchor_reach[]` (only when you passed `anchors`) — per named destination: `name`,
   the `resolved` point (with `matched_address` for address-form anchors), and `reach`
-  ("<= 25 min" = within the 25-minute band; "beyond 60 min" = outside every requested
-  band). A non-null `note` means that one anchor didn't resolve — relay it verbatim.
+  ("<= 25 min" = within the 25-minute band; "beyond N min" = outside every requested
+  band, where N is your largest requested band). A non-null `note` means that one
+  anchor didn't resolve — relay it verbatim.
   JSON only in v1: the PDF card doesn't draw anchors yet.
 - `fragment_html` — a compact polygons-only SVG card for inline composition.
 - `pdf_url` — Lee-branded flyer-component card (map over OSM basemap + reach table),
@@ -104,7 +105,8 @@ brokers:
 
 - Time-of-day / `depart_at` isochrones (rush-hour shrinkage) — the v2 Valhalla path,
   roadmap #57.
-- Point-to-point drive times and distance matrices.
+- Exact point-to-point drive times (minute counts) and distance matrices —
+  named-destination *band* answers are in scope via `anchors`.
 - Drive-time-band demographics (population within the 10-min polygon) — lands when
   the demographic tools adopt this isochrone primitive.
 - Multi-state coverage — NC only.
