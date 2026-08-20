@@ -20,16 +20,13 @@ Triggers:
 - "Drive-time map for [address]"
 - "Trade area / drive-time rings for [listing]"
 - "How far can you get in 15 minutes from [site]?"
-- "Drive times to RDU, Duke, and downtown Durham from [address]"
-- "How far is [destination] from the site?" (answered as a band: "<= 25 min", not a
-  point-to-point minute count)
 
 **Don't apply this skill to:**
 
 - Fixed mile-ring demographics (use `demographic-summary` / `business-key-facts`).
-- Exact point-to-point routing ("it takes 23 minutes from A to B") — this tool draws
-  reach polygons from one site and can place a named destination in a band
-  ("<= 25 min" via `anchors`), but it does not compute exact A-to-B minutes.
+- "How long does it take to drive from A to B" / "drive times to RDU, Duke, ..." —
+  point-to-point questions. This tool draws reach polygons from one site; it does not
+  route between two addresses. Say so and offer the drive-time map instead.
 - Rush-hour or time-of-day commute analysis — v1 returns free-flow times only.
 - Non-NC addresses (v1 supports NC only).
 
@@ -103,8 +100,7 @@ brokers:
 
 - Time-of-day / `depart_at` isochrones (rush-hour shrinkage) — the v2 Valhalla path,
   roadmap #57.
-- Exact point-to-point drive times (minute counts) and distance matrices —
-  named-destination *band* answers are in scope via `anchors`.
+- Point-to-point drive times and distance matrices.
 - Drive-time-band demographics (population within the 10-min polygon) — lands when
   the demographic tools adopt this isochrone primitive.
 - Multi-state coverage — NC only.
