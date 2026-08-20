@@ -36,7 +36,7 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 1. **Parse** the broker's paste into a request dict (see Input Contract below).
 2. Call `validate_request(parsed)` → applies defaults, lists missing/warnings.
 3. If `missing_required` is non-empty: draft a clarifying reply, stop. Do not call MCP.
-4. **Output format handling.** v1 always produces Markdown + Excel. If the broker explicitly asks for a PDF, reply once with the v1.1 deferral message:
+4. **Output format handling.** v1 always produces Markdown + Excel for a non-empty result (an empty result is a chat reply; see "Empty result" below). If the broker explicitly asks for a PDF, reply once with the v1.1 deferral message:
 
    > Lee-branded PDF for external comps is coming in the next update (depends on a small server-side change). For now I can deliver the Markdown table + an Excel — that work for you?
 
@@ -99,8 +99,9 @@ covers: it tells you **why** nothing matched, so the broker is never left with s
    sold 2026-07-31 for $28.8M — 13,508 sf over your ceiling."
 3. **Offer the relaxation as a yes/no**: "Want me to lift the ceiling to 225,000 sf and re-run?"
    Do not re-run on your own — narrow/loosen is the broker's call (Behavioral rule 5).
-4. If `binding_filters` lists more than one, name the others in one clause ("the date window
-   would also unlock one if widened to 2024"). If `tightest` is null, say plainly that no single
+4. If `binding_filters` lists more than one, name the others in one clause with only the
+   number you have ("widening the date window would also unlock 1"). `nearest` / `miss` exist
+   only for `tightest` — never state HOW FAR another filter would have to move. If `tightest` is null, say plainly that no single
    change would produce a match and how many comps the city holds in total
    (`location_only_rows`), then ask which two filters to loosen.
 5. Never invent a comp that is not in `nearest`, and never present a near miss as a match —
