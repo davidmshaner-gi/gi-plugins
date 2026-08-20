@@ -1,6 +1,6 @@
 ---
 name: drive-time-isochrones
-description: Map how far you can get from a property in 5, 10, and 15 minutes by car (or on foot / by bike) for any NC address. Use when a broker asks "what's within a 10-minute drive", wants a drive-time map for a flyer, OM, or BOV, wants trade-area reach instead of crude mile rings, or asks for drive-time isochrones. Also handles "with drive times to RDU / downtown Durham / <named destinations>" — pass anchors to get each destination's drive-time band ("<= 25 min") from the same pull. Returns per-band reach areas, isochrone GeoJSON, per-anchor reach, and a Lee-branded map card PDF. Wraps the lee-raleigh-mcp pull_drive_time_isochrones tool.
+description: Map how far you can get from a property in 5, 10, and 15 minutes by car (or on foot / by bike) for any NC address. Use when a broker asks "what's within a 10-minute drive", wants a drive-time map for a flyer, OM, or BOV, wants trade-area reach instead of crude mile rings, or asks for drive-time isochrones. Returns per-band reach areas and a Lee-branded map card PDF (isochrone GeoJSON on request for downstream programs). Not for point-to-point "how long to drive from A to B" questions. Wraps the lee-raleigh-mcp pull_drive_time_isochrones tool.
 ---
 
 # Drive-Time Isochrones (Lee & Associates)
@@ -20,16 +20,13 @@ Triggers:
 - "Drive-time map for [address]"
 - "Trade area / drive-time rings for [listing]"
 - "How far can you get in 15 minutes from [site]?"
-- "Drive times to RDU, Duke, and downtown Durham from [address]"
-- "How far is [destination] from the site?" (answered as a band: "<= 25 min", not a
-  point-to-point minute count)
 
 **Don't apply this skill to:**
 
 - Fixed mile-ring demographics (use `demographic-summary` / `business-key-facts`).
-- Exact point-to-point routing ("it takes 23 minutes from A to B") — this tool draws
-  reach polygons from one site and can place a named destination in a band
-  ("<= 25 min" via `anchors`), but it does not compute exact A-to-B minutes.
+- "How long does it take to drive from A to B" / "drive times to RDU, Duke, ..." —
+  point-to-point questions. This tool draws reach polygons from one site; it does not
+  route between two addresses. Say so and offer the drive-time map instead.
 - Rush-hour or time-of-day commute analysis — v1 returns free-flow times only.
 - Non-NC addresses (v1 supports NC only).
 
@@ -40,25 +37,24 @@ Triggers:
 2. Defaults are 5/10/15 minutes driving. Honor explicit asks: "20-minute drive" →
    `minutes: [20]` (1–60, up to 5 bands); "walking distance" → `profile: "walking"`;
    "bike" → `profile: "biking"`.
-3. If the broker names destinations ("with drive times to RDU, downtown Durham, ..."),
-   pass them as `anchors`:
-   `[{ name: "RDU Airport", address: "RDU Airport, Morrisville, NC" }, ...]`
-   (max 12; use `{ name, lat, lng }` if you already have coordinates). Pick `minutes`
-   bands that bracket the likely spread — for Triangle-scale anchor sets use
-   `[15, 25, 35, 45, 60]` unless the broker asked for specific bands. Each anchor
-   comes back in `anchor_reach` with its smallest containing band
-   (`reach: "<= 25 min"`) or `"beyond 60 min"`. Anchors add no extra routing calls
-   and don't slow the pull meaningfully.
+3. `anchors` is a programmatic input for the flyer engine (the time-to-anchors table
+   on a flyer page reads `anchor_reach`). Do not offer or use it to answer "how long
+   to drive from the site to RDU" in chat — that is a point-to-point question this
+   tool does not answer (see "Don't apply this skill to"). If a broker asks it, say
+   so plainly and offer the drive-time map instead.
 4. Call the MCP tool `pull_drive_time_isochrones` with
-   `{ address, minutes?, profile?, anchors? }`. Typical latency ~5–15s (first pull of
-   an address calls the routing engine; repeats are cached and faster).
-5. Read the JSON: each band's `area_sq_miles` is the headline — lead with the widest
-   band ("~99 sq mi is within a 15-minute drive of the site"). `geojson` carries the
-   polygon geometry for anyone composing maps downstream. `anchor_reach[]` (when you
-   passed anchors) gives each named destination's honest bound — present the list
-   grouped the way the broker asked (airport / universities / towns). An anchor with
-   a non-null `note` didn't resolve: relay the note verbatim and offer to re-run that
-   anchor with coordinates or a cleaner address — the rest of the pull is unaffected.
+   `{ address, minutes?, profile? }`. Typical latency ~5–15s (first pull of
+   an address calls the routing engine; repeats are cached and faster). **Never pass
+   `detail: "full"` in a chat session** — the default summary (~2K chars) is the shape
+   you can read; `full` adds ~365K chars of polygon geometry that overflows the tool
+   result, and then you cannot read the answer at all. `full` exists only for programs
+   that consume the JSON directly (the flyer engine).
+5. Read the JSON directly from the tool result — it is small enough to read whole.
+   Each band's `area_sq_miles` is the headline — lead with the widest band ("~99 sq mi
+   is within a 15-minute drive of the site"). One pull answers the ask: do not re-run
+   with narrower `minutes` windows, and do not switch to a public routing or maps
+   service to sharpen a number — those are a different engine and not what the broker
+   asked for.
 6. If `pdf_url` is a non-null string, surface it as a "📄 Open PDF" link with a
    1-hour expiry note: *"Link expires in ~1 hour — download or share it now."* If
    `pdf_url` is `null` (transient render failure — the JSON is non-fatal on PDF
@@ -88,14 +84,13 @@ brokers:
 
 - `bands[]` — per drive-time band: `minutes`, `area_sq_miles` (reach area),
   Lee-maroon `fill_color`/`stroke_color` (light = close, dark = far).
-- `geojson` — the isochrone FeatureCollection (one Feature per band).
-- `anchor_reach[]` (only when you passed `anchors`) — per named destination: `name`,
-  the `resolved` point (with `matched_address` for address-form anchors), and `reach`
-  ("<= 25 min" = within the 25-minute band; "beyond N min" = outside every requested
-  band, where N is your largest requested band). A non-null `note` means that one
-  anchor didn't resolve — relay it verbatim.
-  JSON only in v1: the PDF card doesn't draw anchors yet.
-- `fragment_html` — a compact polygons-only SVG card for inline composition.
+- `meta.detail` — `"summary"` (the default; what you get in chat) or `"full"`.
+- `anchor_reach[]` (only when a program passed `anchors`) — per named destination, its
+  smallest containing band ("<= 25 min") or "beyond N min". Flyer-engine input; not a
+  chat feature.
+- `geojson` + `fragment_html` — **only with `detail: "full"`** (programmatic consumers):
+  the isochrone FeatureCollection (one Feature per band) and a compact polygons-only
+  SVG card for inline composition. Absent from the default summary.
 - `pdf_url` — Lee-branded flyer-component card (map over OSM basemap + reach table),
   fit-to-content at the standard 6.5-in component width.
 - `meta` — engine (OpenRouteService), road-network vintage, `free_flow_only: true`,
@@ -105,8 +100,7 @@ brokers:
 
 - Time-of-day / `depart_at` isochrones (rush-hour shrinkage) — the v2 Valhalla path,
   roadmap #57.
-- Exact point-to-point drive times (minute counts) and distance matrices —
-  named-destination *band* answers are in scope via `anchors`.
+- Point-to-point drive times and distance matrices.
 - Drive-time-band demographics (population within the 10-min polygon) — lands when
   the demographic tools adopt this isochrone primitive.
 - Multi-state coverage — NC only.
