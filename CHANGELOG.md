@@ -7,6 +7,19 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.31.1] - 2026-08-20
+
+### Fixed
+
+- **`drive-time-isochrones` reads the tool result instead of overflowing it** (Worker
+  0.40.0, lee-and-associates#460): `pull_drive_time_isochrones` now returns a chat-sized
+  summary by default (`geojson` + `fragment_html` moved behind `detail: "full"`). The
+  skill tells the session never to request `full` in chat, to present anchor reach as
+  bands from the one pull, and never to re-run narrower windows or fall back to public
+  routing services for exact minutes. Closes the 4a finding from lee-and-associates#458
+  (the session dumped the 365K-char result to a file and answered from Google Maps via
+  seven quota-burning pulls). Hard-linked sibling of lee-and-associates#460 (G11 sub-case d).
+
 ## [1.31.0] - 2026-08-19
 
 ### Changed
