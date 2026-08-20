@@ -7,6 +7,17 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.32.0] - 2026-08-20
+
+### Added
+
+- **`labor-shed` by drive time** (Worker 0.41.0, lee-and-associates#464): "how many
+  workers live within a 30-minute drive of this site" now passes
+  `geometry: "drive_time"` + `minutes` to `pull_labor_shed` and presents the
+  resident labor pool and employer mix per drive-time band (15/30/45 by default).
+  Mile-ring asks are unchanged. Free-flow drive times; same routing budget and
+  error envelope as the drive-time map.
+
 ## [1.31.1] - 2026-08-20
 
 ### Fixed
