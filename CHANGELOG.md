@@ -16,7 +16,10 @@ carry the same version as of 1.4.0.
   summary by default (`geojson` + `fragment_html` moved behind `detail: "full"`). The
   skill tells the session never to request `full` in chat, to present anchor reach as
   bands from the one pull, and never to re-run narrower windows or fall back to public
-  routing services for exact minutes. Closes the 4a finding from lee-and-associates#458
+  routing services for exact minutes. Re-scoped (David, 2026-08-20): `anchors` /
+  `anchor_reach` is a flyer-engine input, not a chat feature -- the skill no longer
+  advertises "drive times to RDU" asks (point-to-point questions are out of scope).
+  Closes the 4a finding from lee-and-associates#458
   (the session dumped the 365K-char result to a file and answered from Google Maps via
   seven quota-burning pulls). Hard-linked sibling of lee-and-associates#460 (G11 sub-case d).
 
