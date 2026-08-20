@@ -44,6 +44,7 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 
 5. Call `build_mcp_params(validated)` → `(tool_name, params_dict)`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly.
 6. Invoke the MCP tool with the params dict. The response shape is `{"rows": [...], "freshness": "..."}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed external columns plus `external_id` and `raw_fields_json`. **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ External sale comps: ingested 2026-05-16 17:12 UTC (10 days ago)`). The freshness line tells the broker how current the external snapshot is — it is not optional, never omit or rephrase it.
+   **If `rows` is empty, the response also carries `empty_result`** — read it before you reply (see "Empty result — name the binding filter" below). Never answer a zero-row search with a bare "no comps found".
 7. **Handle the county filter strategy.** Call `null_county_rate(rows)` → `(null_count, total_count, share)`. If `share > NULL_COUNTY_DIALOG_THRESHOLD` (0.20) AND `post_filter_counties` is non-None, surface the 3-strategy dialog (see "Null-county strategy dialog" in the Geography registry section). Wait for the broker's choice. Below threshold, default to strategy 1 (silent city-map enrichment). Then call `apply_post_filters(rows, validated, post_filter_counties, city_to_county=<map or None>)` → `(filtered_rows, applied_filters)`. `applied_filters` is a list of human-readable strings describing what was filtered/inferred, surfaced in the email body and Methodology sheet.
 8. Call `rank_comps(filtered_rows, validated)` → returns `(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed)`. `top` is the ranked sweet-spot list (typically 7-10).
 9. Call `format_excel(filtered_rows, validated, xlsx_path, applied_defaults, warnings, applied_filters, last_sync)` → writes a 3-sheet workbook to the sandbox. The full filtered set goes into the Excel, not just the top N — brokers want the working file with everything. **The filename is forced to a tiny constant stub (`c.xlsx`, enumerating `c1.xlsx`/`c2.xlsx` on repeat) by the helper regardless of what you pass as `xlsx_path`; `format_excel` returns the name actually written — use it when you reference the file to the broker, and tell them they can rename it. This is load-bearing for Windows brokers; see the "Excel filename rule" in Output below.**
@@ -60,6 +61,53 @@ Borrowed from the prior external-comps SOP. These compound with the Process step
 3. **If the broker uses a term you don't recognize** ("IOS," "the Triangle," internal nicknames, etc.), ask them to describe what it maps to in the platform's terms. Don't translate or guess. This rule applies to broker-internal shorthand, not the external platform's own labels.
 4. **Confirm the resolved query back to the broker before you call the MCP.** Wait for explicit "yes" or "go" before executing.
 5. **Narrow/loosen is a separate conversation.** When the result count is far from 7-10, propose adjustments — narrowing axes (tighter date, tighter size, smaller geo, property-type subset) or loosening — and let the broker decide. They can override with "show me all of them" or pick a different target count.
+
+## Empty result — name the binding filter, offer the nearest miss
+
+When a search returns `rows: []`, the MCP server adds an `empty_result` object (Worker 0.42.0,
+lee-and-associates#463). It is the comps equivalent of owner-lookup naming the counties it
+covers: it tells you **why** nothing matched, so the broker is never left with silence.
+
+```json
+"empty_result": {
+  "active_filters":  {"city": "Wilmington", "property_type": "Industrial", "max_building_sf": 200000, ...},
+  "binding_filters": [{"filter": "max_building_sf", "value": 200000, "rows_if_relaxed": 1}, ...],
+  "tightest":        {"filter": "max_building_sf", "value": 200000, "rows_if_relaxed": 1},
+  "nearest":         [{ ...full comp row..., "miss": {"filter": "max_building_sf", "by": 13508, "unit": "sf"}}],
+  "location_only_rows": 5,
+  "note": "No external sale comps match. The binding filter is max_building_sf = 200,000 sf; ..."
+}
+```
+
+- `binding_filters` — every filter that, dropped **on its own**, would have returned rows.
+- `tightest` — the one whose nearest miss is the smallest relaxation (range filters first; a
+  city / property type only shows up here when no numeric or date bound is the reason).
+- `nearest` — up to 3 comps just past the tightest bound, nearest first. `miss.by` + `miss.unit`
+  (`sf`, `usd`, `days`, `months`, `cap_rate`) say how far each one misses; for a city /
+  property-type filter you get `miss.value_seen` instead (what that row has).
+- `location_only_rows` — only present when **nothing** binds alone (two or more filters would
+  have to loosen together); it is how many comps exist in the requested city / zip at all.
+- `note` — a one-sentence plain-English version of the above.
+
+**How to reply (after the freshness line):**
+
+1. Say the search came back empty and **which filter did it**, in broker words, using the
+   broker's own numbers: "Nothing in Wilmington industrial sales between 100,000 and 200,000 sf
+   in the last year. The 200,000 sf ceiling is what cut it."
+2. **Show the nearest misses as a short table** (address, city, the bound's column, sale or
+   lease date, price or rent) with the miss amount stated: "3241 Pennington Dr, 213,508 sf,
+   sold 2026-07-31 for $28.8M — 13,508 sf over your ceiling."
+3. **Offer the relaxation as a yes/no**: "Want me to lift the ceiling to 225,000 sf and re-run?"
+   Do not re-run on your own — narrow/loosen is the broker's call (Behavioral rule 5).
+4. If `binding_filters` lists more than one, name the others in one clause ("the date window
+   would also unlock one if widened to 2024"). If `tightest` is null, say plainly that no single
+   change would produce a match and how many comps the city holds in total
+   (`location_only_rows`), then ask which two filters to loosen.
+5. Never invent a comp that is not in `nearest`, and never present a near miss as a match —
+   it failed the broker's filter and the table must say so.
+
+Skip the Excel / email steps on an empty result unless the broker asks for the near misses as a
+file; the chat reply is the deliverable.
 
 ## Input Contract
 
@@ -116,7 +164,7 @@ These are the live tools on `leeraleigh.groundedintelligence.io`. The skill call
 | `min_cap_rate` / `max_cap_rate` | float | `0.075` = 7.5%. |
 | `limit` | int | default 50, max 200. |
 
-Response: `{"rows": [...]}` with all typed sale columns plus `external_id`, `raw_fields_json`.
+Response: `{"rows": [...], "freshness": "..."}` with all typed sale columns plus `external_id`, `raw_fields_json`; `empty_result` when `rows` is empty (see "Empty result" above).
 
 ### `search_external_lease_comps`
 
@@ -131,7 +179,7 @@ Response: `{"rows": [...]}` with all typed sale columns plus `external_id`, `raw
 | `tenant_industry` | str | exact match. |
 | `limit` | int | default 50, max 200. |
 
-Response: `{"rows": [...]}` with all typed lease columns plus `external_id`, `raw_fields_json`.
+Response: `{"rows": [...], "freshness": "..."}` with all typed lease columns plus `external_id`, `raw_fields_json`; `empty_result` when `rows` is empty (same shape as sale; the units are `sf`, `usd` for rent, `days`, `months`).
 
 ### `get_external_comp_detail`
 
