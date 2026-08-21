@@ -7,6 +7,24 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.34.0] - 2026-08-21
+
+### Fixed
+
+- **External lease comps size on the space leased, not the building** (Worker
+  0.43.0, lee-and-associates#469, closes lee-and-associates#180 / the
+  gi-plugins#105 interim): a broker's lease size range used to go out as
+  `min/max_building_sf`, and `building_sf` (the building footprint) is empty on
+  most external lease rows, so any size-bounded external lease search returned
+  ~0 (Christian Sommer's Apex 2,000–20,000 SF ask on 2026-08-21). The Worker now
+  carries `leased_sf` (the external platform's "Size Leased SF", promoted and
+  backfilled) and `search_external_lease_comps` takes `min/max_leased_sf`;
+  `external-comps` sends the lease size range there (sales still filter
+  `building_sf`), and every lease size surface (Excel column, Summary stats,
+  chat table, ranking) reads `leased_sf`. `internal-and-external-comps` retires
+  the #105 blank: external lease rows show their real "Leased SF", never the
+  building size, blank only when the row has no leased size.
+
 ## [1.33.0] - 2026-08-20
 
 ### Added

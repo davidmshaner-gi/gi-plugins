@@ -75,20 +75,32 @@ def test_to_core_internal_lease():
     assert core["effective_rate"] == 9.5 and core["space_sf"] == 12000
 
 
-def test_to_core_external_lease_leased_sf_is_blank():
-    # gi-plugins#105: The external platform carries no true leased area for leases, so "Leased SF"
-    # must render BLANK for external lease rows — never the building size.
+def test_to_core_external_lease_leased_sf_is_the_leased_premises():
+    # lee#469 (closes lee#180 / gi-plugins#105 interim): the external lease row now
+    # carries the promoted leased_sf; "Leased SF" shows it and never the building size.
     row = {"external_id": "e2", "property_address": "4 D St", "property_city": "Apex",
            "county": "Wake", "property_type": "Industrial", "building_sf": 40000,
-           "base_rent": 11.0, "lease_start_date": "2025-05-01", "rent_type": "Gross"}
+           "leased_sf": 3075, "base_rent": 11.0, "lease_start_date": "2025-05-01",
+           "rent_type": "Gross"}
     core = to_core(row, SOURCE_EXTERNAL, "lease")
-    assert core["Leased SF"] is None
-    assert core["Leased SF"] != 40000          # building size must not leak in
+    assert core["Leased SF"] == 3075
     assert core["Rent"] == 11.0
     assert core["Lease Type"] == "Gross"
     assert "_leased_sf_is_building_size" not in core
-    # space_sf stat key mirrors the (now-blank) leased value.
-    assert core["effective_rate"] == 11.0 and core["space_sf"] is None
+    assert core["effective_rate"] == 11.0 and core["space_sf"] == 3075
+
+
+def test_to_core_external_lease_without_leased_sf_stays_blank_never_building_sf():
+    # A row not yet backfilled (leased_sf NULL) renders blank, not the footprint.
+    row = {"external_id": "e3", "property_address": "5 E St", "property_city": "Apex",
+           "building_sf": 40000, "leased_sf": None, "base_rent": 11.0,
+           "lease_start_date": "2025-05-01"}
+    core = to_core(row, SOURCE_EXTERNAL, "lease")
+    assert core["Leased SF"] is None
+    assert core["space_sf"] is None
+    # 0 is a placeholder (gi-plugins#82), never shown as a size
+    zero = to_core({**row, "leased_sf": 0}, SOURCE_EXTERNAL, "lease")
+    assert zero["Leased SF"] is None and zero["space_sf"] is None
 
 
 def test_combine_keeps_both_rows_and_sorts_desc():

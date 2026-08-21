@@ -108,12 +108,13 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
         date = _first(row, "lease_execution", "lease_commencement")
         lease_type = row.get("lease_type")
     else:
-        # The external lease ingest carries building_sf (building size) but NO
-        # true leased-area field. We must NOT show building size as "Leased SF"
-        # (gi-plugins#105, Will Fogleman 2026-06-17) — render it BLANK rather than
-        # mislabel building size as the leased premises. Internal Dealius rows keep
-        # their real space_sf above.
-        leased = None
+        # leased_sf is the external platform's "Size Leased SF", promoted to a
+        # typed column and backfilled (lee#469, closes lee#180). building_sf is the
+        # building footprint and must NEVER stand in for the leased premises
+        # (gi-plugins#105, Will Fogleman 2026-06-17): a row without leased_sf
+        # renders BLANK rather than mislabel building size. 0 is an unknown-value
+        # placeholder, never a real size (gi-plugins#82), so it renders blank too.
+        leased = row.get("leased_sf") or None
         rent = row.get("base_rent")
         asking = None
         date = row.get("lease_start_date")
@@ -206,8 +207,9 @@ def _fmt(value) -> str:
 def unified_markdown_table(core_rows: list, validated: dict) -> str:
     """Combined chat table over the core columns, Source first.
 
-    External lease rows render a blank "Leased SF" (the external platform carries no true
-    leased area; gi-plugins#105), so there is no building-size-substitution footnote.
+    External lease rows show the leased premises (`leased_sf`, lee#469) or blank when
+    it is absent — never the building size (gi-plugins#105), so there is no
+    building-size-substitution footnote.
     """
     tx_type = validated.get("comp_type") or validated.get("transaction_type") or "sale"
     cols = _core_columns(tx_type)

@@ -88,6 +88,9 @@ covers: it tells you **why** nothing matched, so the broker is never left with s
 - `location_only_rows` — only present when **nothing** binds alone (two or more filters would
   have to loosen together); it is how many comps exist in the requested city / zip at all.
 - `note` — a one-sentence plain-English version of the above.
+- The example above is a **sale**; on a **lease** the size filter is named `min_leased_sf` /
+  `max_leased_sf` (the space leased), so tell the broker "the leased size range" cut the
+  candidates, never "the building size" (lee#469).
 
 **How to reply (after the freshness line):**
 
@@ -119,7 +122,7 @@ The dict you pass to `validate_request`. `asset_type` and `transaction_type` are
 | `asset_type` | yes | `"industrial"` \| `"office"` \| `"retail"` \| `"flex"` \| `"medical"` \| `"multifamily"` \| `"student"` \| `"land"` \| `"hospitality"` \| `"health_care"` \| `"specialty"` |
 | `transaction_type` | yes | `"lease"` \| `"sale"` |
 | `geography` | no | `{"named_market": str}` or `{"cities": [str, ...]}` |
-| `size_range` | no | `{"min_sf": int, "max_sf": int}` |
+| `size_range` | no | `{"min_sf": int, "max_sf": int}` — building SF for a sale, **leased** SF for a lease (the space the tenant took). |
 | `date_window` | no | `{"lookback_months": int}` or `{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}` |
 | `target_count` | no | int (default 8) |
 | `min_sale_price` | no | int — sale only |
@@ -174,7 +177,7 @@ Response: `{"rows": [...], "freshness": "..."}` with all typed sale columns plus
 | `city`, `state`, `zip` | str | same as sale. |
 | `property_type` | str | source-platform taxonomy. |
 | `min_lease_start_date` / `max_lease_start_date` | str (ISO) | inclusive. |
-| `min_building_sf` / `max_building_sf` | int | inclusive. |
+| `min_leased_sf` / `max_leased_sf` | int | inclusive. The space the tenant **leased** (`leased_sf`) — this is what a broker's size range means for a lease comp. `build_mcp_params` maps `size_range` here for leases. Never send a lease size range as `min/max_building_sf`: `building_sf` is the building footprint and is empty on most external lease rows, so that filter returns ~0 (lee#469). The Worker still accepts the old names as aliases for `leased_sf`. |
 | `min_base_rent` / `max_base_rent` | float | $/SF/yr. |
 | `min_lease_term_months` / `max_lease_term_months` | int | inclusive. |
 | `tenant_industry` | str | exact match. |
@@ -255,7 +258,7 @@ The model does not need to memorize the column list, but for ranking and the Mar
 
 **Sale (`search_external_sale_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `external_property_id`, `external_property_url`, `property_type`, `property_secondary_type`, `building_sf`, `year_built`, `sale_price`, `price_per_sf`, `sale_date`, `actual_cap_rate`, `noi`, `percent_leased`, `sale_type`, `sale_conditions`, `days_on_market`, `sale_notes`, `buyer_true_company`, `seller_true_company`, `buyers_broker_company`, `listing_broker_company`, ...
 
-**Lease (`search_external_lease_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `external_property_id`, `property_type`, `building_sf`, `lease_start_date`, `lease_term_months`, `lease_expiration_date`, `base_rent`, `rent_type`, `escalations`, `free_rent_months`, `ti_allowance`, `tenant_name`, `tenant_industry`, `floor`, `suite`, `space_type`, ...
+**Lease (`search_external_lease_comps`):** `external_id`, `property_address`, `property_city`, `property_state`, `property_zip`, `county`, `submarket`, `market`, `external_property_id`, `property_type`, `leased_sf` (the leased premises — the lease comp's size; use it for the SF column, ranking, and size stats), `building_sf` (the building footprint, often empty), `lease_start_date`, `lease_term_months`, `lease_expiration_date`, `base_rent`, `rent_type`, `escalations`, `free_rent_months`, `ti_allowance`, `tenant_name`, `tenant_industry`, `floor`, `suite`, `space_type`, ...
 
 Both shapes also include `raw_fields_json` — a stringified JSON blob of unpromoted external columns. Don't surface it directly to the broker; use `get_external_comp_detail` to inspect a specific row's full record.
 

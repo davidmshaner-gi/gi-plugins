@@ -102,10 +102,11 @@ external = load_sibling("external-comps")
 3. **One transaction type per request.** If the broker mixes sale and lease, ask them to split
    into two runs (same rule as the single-source skills).
 4. **Source tagging is non-negotiable.** Every row, in every output, shows its Source.
-5. **External lease "Leased SF" is blank by design.** The external platform's external lease data carries the
-   building size, not the true leased premises area, so for external lease rows the
-   "Leased SF" column renders **blank** — building size is never shown as Leased SF (gi-plugins#105).
-   Internal (Dealius) lease rows keep their real leased area (`space_sf`).
+5. **External lease "Leased SF" is the leased premises, never the building.** External lease
+   rows carry `leased_sf` (the space the tenant took; lee#469) and the "Leased SF" column shows
+   it. `building_sf` is the building footprint and is never shown as Leased SF (gi-plugins#105);
+   a row without `leased_sf` renders blank. Internal (Dealius) lease rows keep `space_sf`.
+   When the external pull takes a size range for a lease, send it as `min/max_leased_sf`.
 
 ## Output
 
