@@ -137,9 +137,11 @@ DISPLAY_COLUMNS_SALE = [
     "external_property_url", "sale_notes",
 ]
 
+# leased_sf = the space the tenant took (the external platform's "Size Leased SF",
+# promoted lee#469); building_sf is the footprint and is NULL on most lease rows.
 DISPLAY_COLUMNS_LEASE = [
     "external_id", "property_address", "property_city", "county", "submarket",
-    "property_type", "building_sf", "lease_start_date", "lease_term_months",
+    "property_type", "leased_sf", "building_sf", "lease_start_date", "lease_term_months",
     "lease_expiration_date", "base_rent", "rent_type", "escalations",
     "free_rent_months", "ti_allowance", "tenant_name", "tenant_industry",
     "floor", "suite", "space_type", "external_property_url",
@@ -275,10 +277,14 @@ def build_mcp_params(validated: dict) -> dict:
 
     if validated.get("size_range"):
         sr = validated["size_range"]
+        # A broker's size range means the building for a sale and the SPACE
+        # LEASED for a lease (lee#469: sending a lease range as building_sf
+        # returned ~0 because building_sf is NULL on most external lease rows).
+        size_key = "building_sf" if tx == "sale" else "leased_sf"
         if "min_sf" in sr:
-            base["min_building_sf"] = int(sr["min_sf"])
+            base[f"min_{size_key}"] = int(sr["min_sf"])
         if "max_sf" in sr:
-            base["max_building_sf"] = int(sr["max_sf"])
+            base[f"max_{size_key}"] = int(sr["max_sf"])
 
     # --- Transaction-type specific filters ---
     if tx == "sale":
@@ -458,11 +464,12 @@ def rank_comps(
 
     # --- Score the main set ---
     date_key = "sale_date" if tx == "sale" else "lease_start_date"
+    size_key = "building_sf" if tx == "sale" else "leased_sf"
 
     def score(r: dict) -> float:
         recency = _months_since(r.get(date_key))
-        if target_size and r.get("building_sf"):
-            size_prox = abs(float(r["building_sf"]) - target_size)
+        if target_size and r.get(size_key):
+            size_prox = abs(float(r[size_key]) - target_size)
         else:
             size_prox = 0.0  # no target → skip the term
         # Geo score: core RDU submarkets get 0; edge gets 1.
@@ -602,8 +609,9 @@ def format_excel(
     # stats keeps "Median $/SF: $0.00" off broker-facing workbooks. Count stays len(rows).
     rate_vals = [r.get(rate_col) for r in rows
                  if isinstance(r.get(rate_col), (int, float)) and r.get(rate_col) > 0]
-    size_vals = [r.get("building_sf") for r in rows
-                 if isinstance(r.get("building_sf"), (int, float)) and r.get("building_sf") > 0]
+    size_col = "building_sf" if tx == "sale" else "leased_sf"
+    size_vals = [r.get(size_col) for r in rows
+                 if isinstance(r.get(size_col), (int, float)) and r.get(size_col) > 0]
 
     def _stat(label: str, fn, vals, row_idx: int) -> None:
         summary.cell(row=row_idx, column=1, value=label).font = Font(bold=True)
@@ -613,8 +621,8 @@ def format_excel(
     _stat(f"Median {rate_col}", statistics.median, rate_vals, 3)
     _stat(f"Min {rate_col}", min, rate_vals, 4)
     _stat(f"Max {rate_col}", max, rate_vals, 5)
-    _stat("Avg building_sf", statistics.mean, size_vals, 6)
-    _stat("Median building_sf", statistics.median, size_vals, 7)
+    _stat(f"Avg {size_col}", statistics.mean, size_vals, 6)
+    _stat(f"Median {size_col}", statistics.median, size_vals, 7)
 
     # --- Sheet 3: Methodology ---
     meth = wb.create_sheet("Methodology")
@@ -696,7 +704,7 @@ def markdown_table(
         for i, r in enumerate(top_n, start=1):
             parts.append(
                 f"| {i} | {r.get('property_address','—')} | {r.get('property_city','—')} | "
-                f"{r.get('county','—')} | {_fmt_int(r.get('building_sf'))} | "
+                f"{r.get('county','—')} | {_fmt_int(r.get('leased_sf'))} | "
                 f"{_fmt_rate(r.get('base_rent'))} | {r.get('rent_type','—')} | "
                 f"{r.get('lease_term_months','—')} | {r.get('tenant_name','—')} | "
                 f"{r.get('lease_start_date','—')} | {(r.get('tenant_industry') or '')[:40]} |"
