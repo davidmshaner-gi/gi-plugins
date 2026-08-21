@@ -7,6 +7,20 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.33.0] - 2026-08-20
+
+### Added
+
+- **Empty external comp searches explain themselves** (Worker 0.42.0,
+  lee-and-associates#463): when `search_external_sale_comps` /
+  `search_external_lease_comps` return no rows, the response now carries
+  `empty_result` (the binding filter, the nearest comps just past it with how far
+  each misses, a one-line note). `external-comps` and `internal-and-external-comps`
+  read it and tell the broker which filter cut the last candidates, show the near
+  misses as a short table, and offer the relaxation as a yes/no instead of a bare
+  "no comps found". The same Wilmington ask that returned silence on 2026-08-20
+  now surfaces 3241 Pennington Dr at 13,508 sf over the ceiling.
+
 ## [1.32.0] - 2026-08-20
 
 ### Added

@@ -59,6 +59,14 @@ external = load_sibling("external-comps")
      snapshot.
    - If one source errors or returns 0 rows, deliver the other with a clear note (e.g.
      "External returned 0 — showing internal only"). Never silently drop a source.
+   - **When external returns 0 rows it also returns `empty_result`** (Worker 0.42.0,
+     lee-and-associates#463): `tightest` names the filter that cut the last candidates and
+     `nearest[]` holds up to 3 comps just past that bound with `miss.by` / `miss.unit`. Put
+     that in the note instead of a bare zero — "External: 0 in the 100k–200k band; the 200k
+     ceiling cut it, nearest is 3241 Pennington Dr at 213,508 sf (13,508 over). Lift it?" —
+     and let the broker decide whether to re-run wider. Never list a near miss as a match.
+     If BOTH sources return 0, the reply is that explanation plus the offer to relax; no
+     empty Excel or PDF.
 5. **Normalize + combine.**
    ```python
    internal_core = [to_core(r, SOURCE_INTERNAL, validated["transaction_type"]) for r in internal_rows]
