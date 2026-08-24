@@ -11,7 +11,8 @@ brokerage shop has pasted several comp tables — into clean, canonical
 comps database via the `lee_comps_add_write` MCP tool.
 
 The helpers are deterministic and run in the Cowork sandbox. The model
-orchestrates and performs the MCP write; the sandbox has no MCP access.
+orthestrates and performs the dry run and the MCP write (see "Write flow"
+below); the sandbox has no MCP access.
 
 ## When to use
 
@@ -66,21 +67,29 @@ database. Typical shapes:
    dict the `lee_comps_add_write` MCP tool expects (`added_by`,
    `import_method`, `raw_blob`, `parser_version` from the `PARSER_VERSION`
    constant, `rows`, plus optional `client_id` / `source_label` /
-   `raw_blob_ref` / `notes`). The model performs the actual MCP write.
+   `raw_blob_ref` / `notes`). The model performs the dry run and the actual MCP
+   write (see "Write flow").
 
 ## Write flow (the model's job — do this every time)
 
 1. **Dry run first.** Call `lee_comps_add_write` with the assembled payload **plus
    `dry_run: true`**. It returns, per row, `new` or `likely_duplicate` with the
    matching `added_comp_id` / `import_id` / `original_source` from the contributed
-   book. Nothing is written.
+   book. Nothing is written. (This is the server-side duplicate check against the
+   book, separate from the local `dry_run_summary` helper, which only reports
+   missing fields.) The response must echo `dry_run: true` and `import_id: null`;
+   if it instead returns a numeric `import_id`, the server wrote — tell the broker
+   immediately and offer the undo in step 4.
 2. **Show the broker the likely duplicates** (address, tenant or buyer, size, rent or
    price, and which earlier import they match). Ask whether to drop them from this
    import, keep them, or stop. Rows the broker drops: remove them from `rows` before
-   the real write. Never silently drop or merge on the broker's behalf.
+   the real write. Never silently drop or merge on the broker's behalf. If every row
+   matches the same earlier `import_id`, this set is already loaded — say so and
+   stop; do not write. If the broker drops every row, there is nothing to write — stop.
 3. **Write.** Call `lee_comps_add_write` again WITHOUT `dry_run`. Any remaining likely
    duplicates are inserted but flagged (`flagged=1`, `flag_reason` names the match) and
-   echoed back as `likely_duplicates` — tell the broker the count and the `import_id`.
+   echoed back as `likely_duplicates` — tell the broker `added`, the likely-duplicate
+   count, and the `import_id`.
 4. **Undo.** If the broker says the import was a mistake, call
    `lee_comps_delete_import` with that `import_id` (confirm first — it deletes every
    comp that import wrote and the import record, and cannot be undone). The same file
