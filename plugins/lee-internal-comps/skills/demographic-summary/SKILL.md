@@ -1,11 +1,11 @@
 ---
 name: demographic-summary
-description: Pull a 1/3/5-mile demographic summary (single-page Lee infographic) for any NC address. Returns population, households, income, education, workforce mix, daytime population, and growth rates with per-metric methodology metadata, plus a Lee-branded PDF link (1-hour signed URL). Wraps the lee-raleigh-mcp pull_demographic_summary tool.
+description: Pull a demographic summary (one Lee infographic page per ring) for any NC address -- 1/3/5-mile rings by default, or the broker's own radii (e.g. 3/5/7). Returns population, households, income, education, workforce mix, daytime population, and growth (a GI blended annual rate plus an MOE-guarded raw rate) with per-metric methodology metadata, plus a Lee-branded PDF link (1-hour signed URL). Wraps the lee-raleigh-mcp pull_demographic_summary tool.
 ---
 
 # Intellisite Demographic Infographic (Lee & Associates)
 
-Pull a demographic profile for 1, 3, and 5-mile rings around any NC address.
+Pull a demographic profile for concentric rings around any NC address -- 1, 3, and 5 miles by default, or the ring sizes the broker names (up to three, e.g. 3/5/7 to match an OM).
 
 ## When to use
 
@@ -23,13 +23,12 @@ Triggers:
 
 - Sale or lease comp requests (those are `internal-comps` / `external-comps`).
 - Multi-address batch requests (v1 supports one address at a time).
-- Custom ring sizes (v1 is hardcoded to 1/3/5 mi).
 
 ## Process
 
 1. Parse the broker's request to extract the address as a single free-text string. Don't try to canonicalize or pre-validate — the Census Geocoder does that server-side.
-2. Call the MCP tool `pull_demographic_summary` with `{address: "<the extracted address>"}`. The tool takes ~10-15 seconds.
-3. The response is structured JSON with three top-level ring keys (`1mi`, `3mi`, `5mi`) plus metadata. Render it inline conversationally — Claude already handles ring-keyed objects well; no custom formatting helper is needed.
+2. Call the MCP tool `pull_demographic_summary` with `{address: "<the extracted address>"}`. The tool takes ~10-15 seconds. **Ring sizes:** omit `radii` unless the broker names ring sizes. If they do ("3, 5 and 7 miles", "a 2-mile ring", "match the OM's 3/5/7"), pass `radii` as ascending miles, up to 3 values, each 0.5-10 (e.g. `{address, radii: [3, 5, 7]}`). Never invent radii the broker did not ask for. If the tool returns `invalid_radii`, relay its message and ask for radii that fit (up to three, 0.5-10 miles, ascending).
+3. The response is structured JSON with one top-level key per ring, named `<miles>mi` -- iterate `radii_miles` (e.g. `[3, 5, 7]` -> `3mi`, `5mi`, `7mi`; default `[1, 3, 5]` -> `1mi`, `3mi`, `5mi`) -- plus metadata. Render it inline conversationally — Claude already handles ring-keyed objects well; no custom formatting helper is needed.
 4. If `pdf_url` is a non-null string (the expected v1.1 path), surface it as a "📄 Open PDF" link with a 1-hour expiry note: *"Link expires in ~1 hour — download or share it now."* If `pdf_url` is `null` (transient render failure — the JSON response is non-fatal on PDF errors), deliver the structured data as usual and add a short note: *"The PDF render hit a snag this run; the data is fully present. Re-run the command to regenerate the PDF."*
 
 ## Error handling
@@ -43,28 +42,23 @@ The tool returns structured errors:
 
 ## What's in the response
 
-Per-ring metrics, each carrying inline `method` / `source` / `vintage`:
+`radii_miles` lists the ring radii; ring blocks are keyed `<miles>mi`. Per-ring metrics, each carrying inline `method` / `source` / `vintage`:
 
 - **Counts**: population, households, housing units, mean & median household income, median home value, median age
 - **Mix**: bachelor's or higher %, workforce office/services/trades %
-- **Baseline**: Decennial 2020 + recent ACS 5yr pop + housing, with the annualized growth rate between them
+- **Baseline**: Decennial 2020 + recent ACS 5yr pop + housing, with the MOE-guarded annualized raw rate between them, and the GI blended annual growth rate (`gi_blended_growth_annual_pct`)
 - **LEHD-derived**: employee count, resident workers, daytime population (`total_pop - resident_workers + workplace_workers`), daytime ratio
 
 `methodology_version` is the Bonner package version this Worker port is calibrated against. `methodology_doc` points at the design spec.
 
-## CRITICAL: how to present growth rates
+## CRITICAL: how to present growth
 
-`pop_growth_annual_pct` and `housing_growth_annual_pct` are **backward-looking** annual rates derived from 2020 Decennial → 2023 ACS 5-year, NOT current/forward growth.
+Each ring carries two growth fields:
 
-The ACS 5-year vintage labeled "2023" is a *rolling average* of 2019–2023 survey responses. In fast-growth markets — Cary, Apex, Holly Springs, Raleigh exurbs, anywhere with post-2020 in-migration — this rolling average smooths over the actual growth and frequently produces **negative annual rates even where the area is visibly booming**. This is a real methodology artifact, not a data error.
+- **`gi_blended_growth_annual_pct`** -- the headline. GI's blended annual rate (0.55 county + 0.25 state + 0.10 ring + 0.10 national; county and national run Decennial 2020 -> ACS 1-year, see the block's `source`). This is the rate the projection engine uses and the one the PDF prints. Present it as "Growth (GI blended): +1.8%/yr".
+- **`pop_growth_annual_pct` / `housing_growth_annual_pct`** -- the ring's own raw Decennial 2020 -> ACS 5-year rate, **MOE-guarded**: when the endpoint change does not clear the ACS 90% margin of error (`endpoint_delta <= moe_90pct`) the `value` is `null` and `notes` says why. A null here is a finding, not a failure: "the ring's own change is inside the survey's margin of error, so we don't print it." Do NOT substitute the blended rate into the raw field or vice versa; if the broker asks for the ring's own rate and it is suppressed, say so and point at the blended rate.
 
-**When the broker sees a negative growth rate in an obvious-growth market:**
-- DO present the number as-is — don't hide it
-- DO NOT editorialize "this is unusual" or "this might be wrong"
-- DO add a one-line context note when growth is negative or surprising: *"Note: this is a backward-looking annual rate from the 2020 Decennial → 2023 ACS 5-year rolling average; it lags actual on-the-ground growth in fast-moving submarkets. Forward-projection growth (Esri-style 2025/2028 estimates) arrives in v1.2."*
-- Housing growth tends to be more reliable than population growth at small rings (Cary 3mi/5mi housing growth +3.2%/+2.2% is in line with what you'd expect)
-
-If both pop growth AND housing growth are negative at all rings, that's typically the rolling-average artifact, not a real signal. Flag the data, don't doubt the data.
+Do not editorialize a surprising blended rate; quote its `source`. The raw rate, where it prints, is backward-looking (a 2019-2023 rolling ACS average against the 2020 count) and lags fast-moving submarkets -- say that in one line if it is negative in an obvious-growth market.
 
 ## CRITICAL: per-metric source/vintage disclosure
 
@@ -77,7 +71,6 @@ Every metric in the response has `source` (e.g. "ACS 5yr B01003_001E") and `vint
 ## What's deliberately NOT in v1
 
 - Tapestry segmentation, Wealth Index, Total Sales, Largest Businesses in Area — Esri-only data, not portable.
-- Forward-projection growth (e.g. "Population (2025)") — deferred to a future version.
 - Multi-state coverage — NC only for v1.
 - Charts (age distribution, income, race breakdowns) — v1.1 PDF is tile-grid only; charts arrive in v1.2 once the JSON shape widens to carry the breakdowns the charts plot.
 

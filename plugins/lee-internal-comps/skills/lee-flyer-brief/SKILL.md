@@ -64,7 +64,7 @@ If they give just an address, proceed as below.
 Immediately auto-pull, in parallel where possible:
 - `owner_lookup` — owner of record, mailing address
 - `pull_business_key_facts` — the BAO-style key-facts set for the location
-- `pull_demographic_summary` — headline demographics (1/3/5-mi or drive-time)
+- `pull_demographic_summary` — headline demographics (1/3/5-mi by default; pass `radii` when the broker's flyer uses other rings, e.g. 3/5/7; or drive-time)
 
 Show a one-screen recap: "Here's what I found for {address} — owner, county
 facts, headline demographics. Correct property?" Fix before proceeding.
@@ -151,7 +151,7 @@ household growth, consumer spending, …). Traffic counts (VPD/AADT) are a
 standard broker ask for visibility-driven listings — no MCP tool serves them
 yet (vpd-lookup port is lee-and-associates#23), so until it ships, ask the
 broker for their figure and tag it `broker-provided`. Ask the broker to pick which items appear on
-the flyer, and at which geography (1/3/5-mile or drive-time) where applicable.
+the flyer, and at which geography (1/3/5-mile, the broker's own radii, or drive-time) where applicable.
 Offer `pull_demographic_detail` for anything they want deeper before deciding.
 Record the selections; unselected items do not appear anywhere in the brief.
 
