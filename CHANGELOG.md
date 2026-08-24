@@ -7,6 +7,19 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.35.0] - 2026-08-24
+
+### Added
+
+- **Custom ring radii on the demographic summary** (Worker 0.47.0, lee-and-associates#487):
+  `demographic-summary` passes `radii` when a broker names ring sizes ("3/5/7 like the OM");
+  default stays 1/3/5. Response ring keys follow the radii (`3mi`/`5mi`/`7mi`), listed in
+  `radii_miles`.
+- **GI blended growth per ring** (`gi_blended_growth_annual_pct`) is the headline growth figure;
+  the ring's own raw Decennial->ACS rate is now MOE-guarded (null with a note when the change is
+  inside the ACS 90% margin of error -- the brentway -23.7%/yr artifact). The skill's
+  growth-presentation rules are rewritten accordingly.
+
 ## [1.34.0] - 2026-08-21
 
 ### Fixed
