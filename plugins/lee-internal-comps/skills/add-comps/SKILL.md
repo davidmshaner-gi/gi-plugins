@@ -1,6 +1,6 @@
 ---
 name: add-comps
-description: Normalize a contributed comp set a Lee broker pastes, forwards, or uploads (a forwarded email with several brokerage comp tables, an xlsx/csv export, a pasted tab/pipe table, or a screenshot) into canonical AddCompRow records ready for ingestion via the lee_comps_add_write MCP tool. parse_email extracts the comp tables from a forwarded email body, attaches the contributing source (JLL, Foundry, etc.) to each row, and skips signature / confidentiality decoy tables. parse_spreadsheet reads an xlsx or csv, picks the comp-shaped sheet(s) and skips prose/view tabs, and raises AmbiguousSheetError when more than one comp sheet is present so the operator can choose. parse_text parses a pasted tab- or pipe-delimited table. parse_image and llm_fallback extract rows via an injected model-vision callable (the skill's own Claude runtime) for screenshots or blobs the deterministic parsers can't handle. detect_transaction_type decides lease vs. sale from the column headers. apply_alias_map folds contributor headers into the canonical keys, coerces numerics (strips $ , %), preserves the verbatim Transaction Type as txn_subtype, and keeps any unmapped columns in raw_fields_json. validate_row flags (never drops) rows missing the minimum keys. dry_run_summary reports total + per-source counts + flagged rows for operator review, and build_write_payload assembles the exact AddCompsPayload (with parser_version) for the lee_comps_add_write MCP tool — the MCP write itself is the model's job.
+description: Normalize a contributed comp set a Lee broker pastes, forwards, or uploads (a forwarded email with several brokerage comp tables, an xlsx/csv export, a pasted tab/pipe table, or a screenshot) into canonical AddCompRow records ready for ingestion via the lee_comps_add_write MCP tool. parse_email extracts the comp tables from a forwarded email body, attaches the contributing source (JLL, Foundry, etc.) to each row, and skips signature / confidentiality decoy tables. parse_spreadsheet reads an xlsx or csv, picks the comp-shaped sheet(s) and skips prose/view tabs, and raises AmbiguousSheetError when more than one comp sheet is present so the operator can choose. parse_text parses a pasted tab- or pipe-delimited table. parse_image and llm_fallback extract rows via an injected model-vision callable (the skill's own Claude runtime) for screenshots or blobs the deterministic parsers can't handle. detect_transaction_type decides lease vs. sale from the column headers. apply_alias_map folds contributor headers into the canonical keys, coerces numerics (strips $ , %), preserves the verbatim Transaction Type as txn_subtype, and keeps any unmapped columns in raw_fields_json. validate_row flags (never drops) rows missing the minimum keys. dry_run_summary reports total + per-source counts + flagged rows for operator review, and build_write_payload assembles the exact AddCompsPayload (with parser_version) for the lee_comps_add_write MCP tool. The model then calls lee_comps_add_write with dry_run=true first, shows the broker any likely duplicates already in the contributed book, and only then writes; a bad import is reversible with lee_comps_delete_import by its import_id.
 ---
 
 # Add Comps (Lee & Associates)
@@ -11,7 +11,8 @@ brokerage shop has pasted several comp tables — into clean, canonical
 comps database via the `lee_comps_add_write` MCP tool.
 
 The helpers are deterministic and run in the Cowork sandbox. The model
-orchestrates and performs the MCP write; the sandbox has no MCP access.
+orthestrates and performs the dry run and the MCP write (see "Write flow"
+below); the sandbox has no MCP access.
 
 ## When to use
 
@@ -66,7 +67,33 @@ database. Typical shapes:
    dict the `lee_comps_add_write` MCP tool expects (`added_by`,
    `import_method`, `raw_blob`, `parser_version` from the `PARSER_VERSION`
    constant, `rows`, plus optional `client_id` / `source_label` /
-   `raw_blob_ref` / `notes`). The model performs the actual MCP write.
+   `raw_blob_ref` / `notes`). The model performs the dry run and the actual MCP
+   write (see "Write flow").
+
+## Write flow (the model's job — do this every time)
+
+1. **Dry run first.** Call `lee_comps_add_write` with the assembled payload **plus
+   `dry_run: true`**. It returns, per row, `new` or `likely_duplicate` with the
+   matching `added_comp_id` / `import_id` / `original_source` from the contributed
+   book. Nothing is written. (This is the server-side duplicate check against the
+   book, separate from the local `dry_run_summary` helper, which only reports
+   missing fields.) The response must echo `dry_run: true` and `import_id: null`;
+   if it instead returns a numeric `import_id`, the server wrote — tell the broker
+   immediately and offer the undo in step 4.
+2. **Show the broker the likely duplicates** (address, tenant or buyer, size, rent or
+   price, and which earlier import they match). Ask whether to drop them from this
+   import, keep them, or stop. Rows the broker drops: remove them from `rows` before
+   the real write. Never silently drop or merge on the broker's behalf. If every row
+   matches the same earlier `import_id`, this set is already loaded — say so and
+   stop; do not write. If the broker drops every row, there is nothing to write — stop.
+3. **Write.** Call `lee_comps_add_write` again WITHOUT `dry_run`. Any remaining likely
+   duplicates are inserted but flagged (`flagged=1`, `flag_reason` names the match) and
+   echoed back as `likely_duplicates` — tell the broker `added`, the likely-duplicate
+   count, and the `import_id`.
+4. **Undo.** If the broker says the import was a mistake, call
+   `lee_comps_delete_import` with that `import_id` (confirm first — it deletes every
+   comp that import wrote and the import record, and cannot be undone). The same file
+   can then be re-imported after corrections.
 
 ## Importing the helpers (read before writing a script)
 
@@ -96,9 +123,9 @@ The output keys match the `lee_comps_add_write` MCP tool's `AddCompRow` exactly
 
 ## Out of scope
 
-- The MCP write itself (`lee_comps_add_write`) — the model performs it after the
-  broker reviews the normalized rows (`build_write_payload` assembles the
-  payload; the model calls the tool).
+- The helpers never call MCP — the sandbox has no MCP access. The model performs
+  the dry run, the write, and any undo per "Write flow" above (`build_write_payload`
+  assembles the payload; the model calls the tools).
 
 ## Tests
 

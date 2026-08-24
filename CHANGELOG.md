@@ -7,6 +7,16 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.36.0] - 2026-08-24
+
+### Added
+- **add-comps: duplicate check before every write + import undo (lee#74; Worker 0.47.0).**
+  The skill now calls `lee_comps_add_write` with `dry_run: true` first, shows the broker
+  any rows that look like comps already in the contributed book (same address, deal
+  size, and rent/tenant or price/buyer), and only writes after they decide. Remaining
+  likely duplicates are flagged, never dropped. A mistaken import is reversible with
+  `lee_comps_delete_import` by its `import_id`.
+
 ## [1.35.0] - 2026-08-24
 
 ### Added
