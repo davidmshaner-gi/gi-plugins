@@ -70,9 +70,9 @@ RDU_MSA_COUNTIES = {"Wake", "Durham", "Orange", "Chatham", "Johnston", "Franklin
 # Aliases for the RDU named market — case-insensitive match in validate_request.
 RDU_MARKET_ALIASES = {"rdu msa", "rdu", "triangle", "raleigh-durham", "raleigh durham"}
 
-# RDU MSA city → county fallback map. Surfaced in SKILL.md so brokers can
-# read/override it. Passed to apply_post_filters via the city_to_county
-# parameter when the skill needs to enrich null county values.
+# RDU MSA city → county fallback map. Retained, unused since 1.38.1: the RDU
+# path is filtered server-side and the null-county dialog it fed is gone
+# (gi-plugins#158); the Worker derives county from the geocode instead (lee#515).
 RDU_CITY_TO_COUNTY: dict[str, str] = {
     # Wake
     "Raleigh": "Wake", "Cary": "Wake", "Garner": "Wake", "Apex": "Wake",
@@ -94,9 +94,8 @@ RDU_CITY_TO_COUNTY: dict[str, str] = {
     "Creedmoor": "Granville", "Oxford": "Granville", "Butner": "Granville",
 }
 
-# When the share of rows with null county exceeds this threshold AND a county
-# filter is requested, the model surfaces a 3-strategy dialog before applying
-# the filter (see SKILL.md Process step 7). Below threshold, silent enrichment.
+# Retained, unused since 1.38.1 (the null-county strategy dialog was retired
+# with the post-fetch whitelist, gi-plugins#158).
 NULL_COUNTY_DIALOG_THRESHOLD = 0.20
 
 # The external platform property_type taxonomy — values are the verbatim strings the MCP expects.
@@ -255,8 +254,8 @@ def build_mcp_params(validated: dict) -> dict:
       {
         "tool_name": "search_external_sale_comps" | "search_external_lease_comps",
         "params_list": [params_dict, ...],   # one entry per MCP call needed
-                                             # (1 call for named_market; N calls for cities)
-        "post_filter_counties": set[str] | None,  # apply post-fetch if named_market
+                                             # (one per county for counties / RDU; one per city)
+        "post_filter_counties": set[str] | None,  # RDU: the G26 stale-connector guard
       }
 
     The model loops `params_list`, invoking the MCP tool for each entry, then unions
@@ -353,8 +352,17 @@ def build_mcp_params(validated: dict) -> dict:
             p = dict(base)
             p["county"] = county
             params_list.append(p)
+        # The whitelist stays on as a GUARD, not a filter: when the Worker
+        # honoured `county` it drops nothing. If a Cowork connector's cached
+        # tools list predates the param (G26), the client strips it, every call
+        # becomes the statewide-200 pull, and this is the only thing standing
+        # between the broker and Charlotte comps on an RDU ask -- the drop count
+        # in applied_filters is the stale-cache signal (SKILL.md step 7).
+        post_filter_counties = set(RDU_MSA_COUNTIES)
     elif "named_market" in geo:
-        # An unregistered named market: no geography predicate we can express.
+        # An unregistered named market: no geography predicate we can express,
+        # so this is a statewide call -- the one shape that reliably hits the
+        # cap; `truncated` + paging is what keeps that honest.
         params_list.append(dict(base))
     elif "cities" in geo and geo["cities"]:
         # Cities → one call per city, no county filter post-fetch.
@@ -450,15 +458,20 @@ def merge_rows(*pages: list[dict]) -> list[dict]:
     return out
 
 
-def truncation_note(retrieved: int, total_available: int, pages: int) -> str:
-    """One plain sentence for applied_filters / the email / the Methodology sheet
-    saying how much of the matching book the broker is looking at."""
-    pg = f"{pages} page{'s' if pages != 1 else ''}"
+def truncation_note(retrieved: int, total_available: int, pages: int, label: str = "") -> str:
+    """One plain sentence for the email / the Methodology sheet saying how much
+    of the matching book the broker is looking at. One note per params dict
+    that was truncated: `total_available` is the FIRST page's value for that
+    dict (later pages count only what sits at or below the cursor), `retrieved`
+    is its de-duplicated row count, `label` names the county / city the dict
+    carried so a 7-county RDU ask says WHICH county was clipped."""
+    pg = f"{pages} page{'s' if pages != 1 else ''}, 200 rows each"
+    where = f"{label.strip()}: " if label and label.strip() else ""
     if retrieved >= total_available:
-        return f"Retrieved all {total_available:,} matching comps ({pg} of 200)."
+        return f"{where}retrieved all {total_available:,} matching comps ({pg})."
     missing = total_available - retrieved
     return (
-        f"Retrieved the newest {retrieved:,} of {total_available:,} matching comps ({pg} of 200); "
+        f"{where}retrieved the newest {retrieved:,} of {total_available:,} matching comps ({pg}); "
         f"the {missing:,} oldest are not included -- narrow the date window or the filters to reach them."
     )
 
@@ -481,11 +494,17 @@ def apply_post_filters(
     validated: dict,
     post_filter_counties: Optional[set[str]] = None,
     city_to_county: Optional[dict[str, str]] = None,
+    keep_blank_county: bool = False,
 ) -> tuple[list[dict], list[str]]:
     """Apply Python-side filters that the MCP couldn't express.
 
-    Currently: county whitelist (for named_market="RDU MSA"), with optional
-    city → county fallback when the snapshot has null counties.
+    Since 1.38.1 the RDU whitelist is applied server-side (one `county` call
+    per county) and this runs only as the G26 stale-connector guard: with
+    keep_blank_county=True a row whose county is blank is KEPT (the Worker
+    matched it through its geo-derived county, lee#515) and only a row whose
+    own county is outside the whitelist is dropped -- which can only happen
+    when the connector stripped the `county` param. The city_to_county
+    enrichment is retained, unused since 1.38.1 (the null-county dialog is gone).
 
     Args:
       rows: MCP-returned rows.
@@ -524,7 +543,11 @@ def apply_post_filters(
 
         # --- County whitelist filter ---
         before = len(out)
-        out = [r for r in out if (r.get("county") or "").strip() in post_filter_counties]
+        out = [
+            r for r in out
+            if (r.get("county") or "").strip() in post_filter_counties
+            or (keep_blank_county and not (r.get("county") or "").strip())
+        ]
         dropped = before - len(out)
         if dropped > 0:
             applied.append(
@@ -764,7 +787,7 @@ def format_excel(
         ("Date window", json.dumps(validated.get("date_window"))),
         ("Applied defaults", "; ".join(applied_defaults) or "—"),
         ("Warnings", "; ".join(warnings) or "—"),
-        ("Applied filters", "; ".join(applied_filters) or "—"),
+        ("Retrieval notes", "; ".join(applied_filters) or "—"),
         ("Last snapshot sync", last_sync or "unknown"),
         ("Caveat", "External comps data ingested weekly. Latest snapshot only."),
     ]
@@ -907,7 +930,7 @@ def draft_email(
 
     if applied_filters:
         body_lines.append("")
-        body_lines.append("Filters applied post-fetch:")
+        body_lines.append("Notes on what was retrieved:")
         for f in applied_filters:
             body_lines.append(f"  - {f}")
 

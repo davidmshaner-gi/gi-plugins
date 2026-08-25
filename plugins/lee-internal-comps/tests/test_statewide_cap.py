@@ -76,8 +76,9 @@ def test_rdu_ask_fans_out_one_server_side_county_call_per_whitelist_county():
     counties = [p["county"] for p in out["params_list"]]
     assert counties == sorted(helpers.RDU_MSA_COUNTIES)
     assert all("city" not in p and p["state"] == "NC" for p in out["params_list"])
-    # nothing left to post-filter: the whitelist is applied by the Worker now
-    assert out["post_filter_counties"] is None
+    # the whitelist stays on as the G26 stale-connector guard (drops nothing when
+    # the Worker honoured `county`; see test_stale_connector_guard below)
+    assert out["post_filter_counties"] == set(helpers.RDU_MSA_COUNTIES)
 
 
 def test_rdu_comps_older_than_the_200_newest_statewide_rows_are_returned():
@@ -87,7 +88,8 @@ def test_rdu_comps_older_than_the_200_newest_statewide_rows_are_returned():
 
     out = helpers.build_mcp_params(RDU_SALE)
     rows = helpers.merge_rows(*(fake_worker(book, p) for p in out["params_list"]))
-    filtered, _ = helpers.apply_post_filters(rows, RDU_SALE, out["post_filter_counties"])
+    filtered, applied = helpers.apply_post_filters(rows, RDU_SALE, out["post_filter_counties"], keep_blank_county=True)
+    assert applied == []                                    # the guard dropped nothing
     got = {r["external_id"] for r in filtered}
     assert got == {f"rdu{i}" for i in range(60)}
     assert got.isdisjoint(newest_200_statewide)
@@ -98,7 +100,23 @@ def test_rdu_aliases_still_resolve_to_the_county_fan_out():
                                   "geography": {"named_market": "Triangle"}})["validated"]
     out = helpers.build_mcp_params(v)
     assert [p["county"] for p in out["params_list"]] == sorted(helpers.RDU_MSA_COUNTIES)
-    assert out["post_filter_counties"] is None
+    assert out["post_filter_counties"] == set(helpers.RDU_MSA_COUNTIES)
+
+
+def test_stale_connector_guard_drops_out_of_market_rows_but_keeps_geo_matched_blank_ones():
+    """G26: a Cowork connector whose cached tools list predates the `county`
+    param strips it, so every RDU call silently becomes the statewide pull.
+    The guard drops the out-of-market rows (and its drop count is the signal);
+    a row the Worker matched through its geo-derived county comes back with a
+    blank county and must be KEPT."""
+    rows = [
+        {"external_id": "w1", "county": "Wake"},
+        {"external_id": "blank", "county": None},           # matched via comps_external_county_geo
+        {"external_id": "clt", "county": "Mecklenburg"},    # only reachable if the param was stripped
+    ]
+    kept, applied = helpers.apply_post_filters(rows, RDU_SALE, set(helpers.RDU_MSA_COUNTIES), keep_blank_county=True)
+    assert [r["external_id"] for r in kept] == ["w1", "blank"]
+    assert applied and "dropped 1 row" in applied[0]
 
 
 def test_cities_and_counties_paths_are_unchanged():
@@ -151,12 +169,69 @@ def test_merge_rows_dedupes_on_external_id_keeping_the_first_seen():
 
 
 def test_truncation_note_says_how_much_of_the_book_the_broker_is_looking_at():
-    partial = helpers.truncation_note(retrieved=1000, total_available=1431, pages=5)
+    partial = helpers.truncation_note(retrieved=1000, total_available=1431, pages=5, label="Wake")
+    assert partial.startswith("Wake: ")
     assert "1,000" in partial and "1,431" in partial and "431" in partial
-    assert "oldest" in partial.lower()
+    assert "oldest" in partial.lower() and "5 pages, 200 rows each" in partial
     complete = helpers.truncation_note(retrieved=431, total_available=431, pages=3)
     assert "431" in complete and "3 pages" in complete
     assert "not included" not in complete
+
+
+def _serve(book: list[dict], params: dict) -> dict:
+    """fake_worker plus the 0.53.0 `truncated` notice, mirroring describeTruncation:
+    only when the page is AT the cap and an uncapped count finds more behind it."""
+    rows = fake_worker(book, params)
+    limit = min(200, params.get("limit", 50))
+    resp = {"rows": rows}
+    if len(rows) >= limit:
+        # an uncapped count: same predicates, no LIMIT
+        uncapped = dict(params); uncapped.pop("limit", None)
+        total = len(_uncapped(book, uncapped))
+        if total > len(rows):
+            resp["truncated"] = {"returned": len(rows), "total_available": total, "limit": limit,
+                                 "ordered_by": "sale_date DESC", "oldest_returned": rows[-1]["sale_date"], "note": "…"}
+    return resp
+
+
+def _uncapped(book: list[dict], params: dict) -> list[dict]:
+    """fake_worker's predicates without its LIMIT (COUNT(*) in the Worker)."""
+    rows = book
+    for key, col in (("city", "property_city"), ("county", "county"), ("state", "property_state"),
+                     ("property_type", "property_type")):
+        if key in params:
+            rows = [r for r in rows if (r.get(col) or "") == params[key]]
+    if "min_sale_date" in params:
+        rows = [r for r in rows if r["sale_date"] >= params["min_sale_date"]]
+    if "max_sale_date" in params:
+        rows = [r for r in rows if r["sale_date"] <= params["max_sale_date"]]
+    return rows
+
+
+def test_a_statewide_survey_pages_to_completion_across_seam_duplicates():
+    """The loop SKILL.md prescribes, end to end: 431 NC retail sales, 30 of
+    them sharing the seam date, fetched 200 at a time by date cursor."""
+    book = []
+    for i in range(431):
+        # days back: 0..400 one per day, then 30 rows all dated day 199 (the first page's seam)
+        days = i if i < 401 else 199
+        book.append({"external_id": f"r{i}", "property_city": "Anywhere", "county": "Any",
+                     "property_state": "NC", "property_type": "Retail",
+                     "sale_date": _iso(days), "sale_price": 1_000_000})
+    params = {"state": "NC", "property_type": "Retail", "min_sale_date": _iso(3 * 365), "max_sale_date": _iso(0), "limit": 200}
+    pages, p, first_total = [], params, None
+    while p is not None and len(pages) < helpers.MAX_PAGES:
+        resp = _serve(book, p)
+        pages.append(resp["rows"])
+        if first_total is None and "truncated" in resp:
+            first_total = resp["truncated"]["total_available"]
+        p = helpers.next_page_params(p, resp)
+    rows = helpers.merge_rows(*pages)
+    assert len(pages) == 3
+    assert {r["external_id"] for r in rows} == {r["external_id"] for r in book}
+    assert len(rows) == 431                                  # no seam duplicate survived
+    note = helpers.truncation_note(retrieved=len(rows), total_available=first_total, pages=len(pages))
+    assert note == "retrieved all 431 matching comps (3 pages, 200 rows each)."
 
 
 def test_max_pages_bounds_a_runaway_survey():

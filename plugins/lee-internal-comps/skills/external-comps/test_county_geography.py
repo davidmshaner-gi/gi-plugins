@@ -57,7 +57,8 @@ def test_named_market_rdu_is_the_same_server_side_county_fan_out():
     # Python, which let the 200-row cap bind before the county filter ran.
     out = helpers.build_mcp_params(_validated(geography={"named_market": "RDU MSA"}))
     assert [p["county"] for p in out["params_list"]] == sorted(helpers.RDU_MSA_COUNTIES)
-    assert out["post_filter_counties"] is None
+    # kept as the G26 stale-connector guard, not a filter (gi-plugins#158)
+    assert out["post_filter_counties"] == set(helpers.RDU_MSA_COUNTIES)
 
 
 def test_cities_path_is_unchanged():
@@ -89,7 +90,7 @@ def test_blank_county_list_does_not_silently_widen_to_the_whole_state():
     params = helpers.build_mcp_params(out["validated"])
     # every call carries an RDU county: the ask never reaches the whole state
     assert {p["county"] for p in params["params_list"]} == set(helpers.RDU_MSA_COUNTIES)
-    assert params["post_filter_counties"] is None
+    assert params["post_filter_counties"] == set(helpers.RDU_MSA_COUNTIES)
 
 
 def test_counties_take_precedence_over_named_market_like_the_internal_skill():
