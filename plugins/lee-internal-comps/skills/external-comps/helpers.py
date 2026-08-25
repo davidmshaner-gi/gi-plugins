@@ -70,7 +70,7 @@ RDU_MSA_COUNTIES = {"Wake", "Durham", "Orange", "Chatham", "Johnston", "Franklin
 # Aliases for the RDU named market — case-insensitive match in validate_request.
 RDU_MARKET_ALIASES = {"rdu msa", "rdu", "triangle", "raleigh-durham", "raleigh durham"}
 
-# RDU MSA city → county fallback map. Retained, unused since 1.38.1: the RDU
+# RDU MSA city → county fallback map. Retained, unused since 1.39.1: the RDU
 # path is filtered server-side and the null-county dialog it fed is gone
 # (gi-plugins#158); the Worker derives county from the geocode instead (lee#515).
 RDU_CITY_TO_COUNTY: dict[str, str] = {
@@ -94,7 +94,7 @@ RDU_CITY_TO_COUNTY: dict[str, str] = {
     "Creedmoor": "Granville", "Oxford": "Granville", "Butner": "Granville",
 }
 
-# Retained, unused since 1.38.1 (the null-county strategy dialog was retired
+# Retained, unused since 1.39.1 (the null-county strategy dialog was retired
 # with the post-fetch whitelist, gi-plugins#158).
 NULL_COUNTY_DIALOG_THRESHOLD = 0.20
 
@@ -498,13 +498,13 @@ def apply_post_filters(
 ) -> tuple[list[dict], list[str]]:
     """Apply Python-side filters that the MCP couldn't express.
 
-    Since 1.38.1 the RDU whitelist is applied server-side (one `county` call
+    Since 1.39.1 the RDU whitelist is applied server-side (one `county` call
     per county) and this runs only as the G26 stale-connector guard: with
     keep_blank_county=True a row whose county is blank is KEPT (the Worker
     matched it through its geo-derived county, lee#515) and only a row whose
     own county is outside the whitelist is dropped -- which can only happen
     when the connector stripped the `county` param. The city_to_county
-    enrichment is retained, unused since 1.38.1 (the null-county dialog is gone).
+    enrichment is retained, unused since 1.39.1 (the null-county dialog is gone).
 
     Args:
       rows: MCP-returned rows.
