@@ -1,6 +1,6 @@
 ---
 name: external-comps
-description: Pull external lease or sale comps for a Lee & Associates broker. Broker pastes a free-form comp request into chat; skill parses, calls the typed external-comps MCP tools (search_external_sale_comps / search_external_lease_comps / get_external_comp_detail), and produces a Markdown table in chat plus an Excel deliverable and draft email reply. PDF deferred to v1.1.
+description: Pull external lease or sale comps for a Lee & Associates broker, by city, by county, or across the RDU market. Broker pastes a free-form comp request into chat; skill parses, calls the typed external-comps MCP tools (search_external_sale_comps / search_external_lease_comps / get_external_comp_detail), and produces a Markdown table in chat plus an Excel deliverable and draft email reply. PDF deferred to v1.1.
 ---
 
 # External Comps (Lee & Associates)
@@ -45,7 +45,7 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 5. Call `build_mcp_params(validated)` → `(tool_name, params_dict)`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly.
 6. Invoke the MCP tool with the params dict. The response shape is `{"rows": [...], "freshness": "..."}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed external columns plus `external_id` and `raw_fields_json`. **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ External sale comps: ingested 2026-05-16 17:12 UTC (10 days ago)`). The freshness line tells the broker how current the external snapshot is — it is not optional, never omit or rephrase it.
    **If `rows` is empty, the response also carries `empty_result`** — read it before you reply (see "Empty result — name the binding filter" below). Never answer a zero-row search with a bare "no comps found".
-7. **Handle the county filter strategy.** Call `null_county_rate(rows)` → `(null_count, total_count, share)`. If `share > NULL_COUNTY_DIALOG_THRESHOLD` (0.20) AND `post_filter_counties` is non-None, surface the 3-strategy dialog (see "Null-county strategy dialog" in the Geography registry section). Wait for the broker's choice. Below threshold, default to strategy 1 (silent city-map enrichment). Then call `apply_post_filters(rows, validated, post_filter_counties, city_to_county=<map or None>)` → `(filtered_rows, applied_filters)`. `applied_filters` is a list of human-readable strings describing what was filtered/inferred, surfaced in the email body and Methodology sheet.
+7. **Handle the county filter strategy** — *only on the `named_market` path* (a `counties` geography is already filtered server-side and returns `post_filter_counties=None`, so skip straight to step 8). Call `null_county_rate(rows)` → `(null_count, total_count, share)`. If `share > NULL_COUNTY_DIALOG_THRESHOLD` (0.20) AND `post_filter_counties` is non-None, surface the 3-strategy dialog (see "Null-county strategy dialog" in the Geography registry section). Wait for the broker's choice. Below threshold, default to strategy 1 (silent city-map enrichment). Then call `apply_post_filters(rows, validated, post_filter_counties, city_to_county=<map or None>)` → `(filtered_rows, applied_filters)`. `applied_filters` is a list of human-readable strings describing what was filtered/inferred, surfaced in the email body and Methodology sheet.
 8. Call `rank_comps(filtered_rows, validated)` → returns `(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed)`. `top` is the ranked sweet-spot list (typically 7-10).
 9. Call `format_excel(filtered_rows, validated, xlsx_path, applied_defaults, warnings, applied_filters, last_sync)` → writes a 3-sheet workbook to the sandbox. The full filtered set goes into the Excel, not just the top N — brokers want the working file with everything. **The filename is forced to a tiny constant stub (`c.xlsx`, enumerating `c1.xlsx`/`c2.xlsx` on repeat) by the helper regardless of what you pass as `xlsx_path`; `format_excel` returns the name actually written — use it when you reference the file to the broker, and tell them they can rename it. This is load-bearing for Windows brokers; see the "Excel filename rule" in Output below.**
 10. Call `markdown_table(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed, validated)` → returns a Markdown string for the chat reply.
@@ -121,7 +121,7 @@ The dict you pass to `validate_request`. `asset_type` and `transaction_type` are
 |---|---|---|
 | `asset_type` | yes | `"industrial"` \| `"office"` \| `"retail"` \| `"flex"` \| `"medical"` \| `"multifamily"` \| `"student"` \| `"land"` \| `"hospitality"` \| `"health_care"` \| `"specialty"` |
 | `transaction_type` | yes | `"lease"` \| `"sale"` |
-| `geography` | no | `{"named_market": str}` or `{"cities": [str, ...]}` |
+| `geography` | no | `{"named_market": str}` or `{"cities": [str, ...]}` or `{"counties": [str, ...]}` |
 | `size_range` | no | `{"min_sf": int, "max_sf": int}` — building SF for a sale, **leased** SF for a lease (the space the tenant took). |
 | `date_window` | no | `{"lookback_months": int}` or `{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}` |
 | `target_count` | no | int (default 8) |
@@ -161,6 +161,7 @@ These are the live tools on `leeraleigh.groundedintelligence.io`. The skill call
 | `city` | str | exact match on `property_city`. Pass only when broker named a single specific city. |
 | `state` | str | `"NC"` for all RDU work. |
 | `zip` | str | exact match. |
+| `county` | str | exact match on the county, **normalized server-side** — pass the broker's spelling verbatim, with or without the word "County". One county per call. |
 | `property_type` | str | source-platform taxonomy (`"Industrial"`, `"Office"`, ...). |
 | `min_sale_date` / `max_sale_date` | str (ISO `YYYY-MM-DD`) | inclusive. |
 | `min_building_sf` / `max_building_sf` | int | inclusive. |
@@ -175,6 +176,7 @@ Response: `{"rows": [...], "freshness": "..."}` with all typed sale columns plus
 | Param | Shape | Notes |
 |---|---|---|
 | `city`, `state`, `zip` | str | same as sale. |
+| `county` | str | same as sale — normalized server-side, one county per call. |
 | `property_type` | str | source-platform taxonomy. |
 | `min_lease_start_date` / `max_lease_start_date` | str (ISO) | inclusive. |
 | `min_leased_sf` / `max_leased_sf` | int | inclusive. The space the tenant **leased** (`leased_sf`) — this is what a broker's size range means for a lease comp. `build_mcp_params` maps `size_range` here for leases. Never send a lease size range as `min/max_building_sf`: `building_sf` is the building footprint and is empty on most external lease rows, so that filter returns ~0 (lee#469). The Worker still accepts the old names as aliases for `leased_sf`. |
@@ -201,6 +203,16 @@ Response: `{"row": {...}}` with all typed columns AND `raw_fields` (parsed JSON 
 For `{"cities": [...]}`, the skill calls the MCP once per city (each MCP query expects a single exact-match `city`) and unions the results. Pass the cities verbatim — the external platform stores them as title case (e.g. `"Raleigh"`, `"Garner"`, `"Cary"`).
 
 Sub-regional broker shorthand (e.g. "Garner / South Raleigh", "North Hills") is NOT enriched in V1. Parse the cities explicitly with the broker (rule #3) and pass `geography={"cities": [...]}`.
+
+### County asks go server-side (lee#496)
+
+A request that names one or more **counties** — "retail leases in Brunswick County", "anything in New Hanover and Brunswick", "Wake and Durham only" — maps to `geography={"counties": [...]}`. Do **not** enumerate the county's cities: `build_mcp_params` issues one MCP call per county carrying the typed `county` param, and the Worker filters server-side.
+
+Pass the broker's spelling **verbatim**. The two comp books spell counties oppositely (the external mirror stores `Brunswick`, the internal Dealius mirror stores `Brunswick County`); the Worker normalizes both sides, so either form matches either book. Never "helpfully" add or strip the word County.
+
+Why this exists: on 2026-08-25 a broker asking for retail leases around Brunswick County got four separate zero-results because the skill had no county shape — it enumerated the four southwest beach towns, which genuinely hold no retail leases, while every Brunswick retail lease we hold sits in Leland, Shallotte or Southport. Each individual zero was correct; the county-level answer was wrong.
+
+`post_filter_counties` is `None` on this path — there is nothing to post-filter, so the null-county dialog below does **not** apply. Rows with no county at all are excluded server-side by construction (13 of 1,529 external lease rows and 254 of 4,512 sale rows carry no county). If the broker asks about coverage, say so plainly rather than guessing.
 
 ### Null-county fallback (city → county map)
 

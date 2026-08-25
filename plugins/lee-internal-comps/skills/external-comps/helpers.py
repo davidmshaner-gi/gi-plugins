@@ -320,6 +320,18 @@ def build_mcp_params(validated: dict) -> dict:
         params_list.append(dict(base))
         if geo["named_market"] == "RDU MSA":
             post_filter_counties = set(RDU_MSA_COUNTIES)
+    elif "counties" in geo and geo["counties"]:
+        # lee#496: county is a first-class SERVER-side filter now. One call per
+        # county (each query takes a single exact county), passing the broker's
+        # spelling VERBATIM -- the Worker normalizes, so "Brunswick" and
+        # "Brunswick County" both match, in both comp books. No post-filter.
+        # Before this the skill had no county shape at all, so a county ask was
+        # enumerated city-by-city and a broker lost four on-point Brunswick
+        # retail leases (audit_log 4153-4159, 2026-08-25).
+        for county in geo["counties"]:
+            p = dict(base)
+            p["county"] = county
+            params_list.append(p)
     elif "cities" in geo and geo["cities"]:
         # Cities → one call per city, no county filter post-fetch.
         for city in geo["cities"]:
@@ -503,6 +515,8 @@ def _sheet_title(validated: dict) -> str:
     geo = validated["geography"]
     if "named_market" in geo:
         geo_str = geo["named_market"]
+    elif geo.get("counties"):
+        geo_str = ", ".join(geo["counties"])
     elif "cities" in geo:
         geo_str = ", ".join(geo["cities"])
     else:
@@ -748,7 +762,11 @@ def draft_email(
     tx = validated["transaction_type"]
     asset = validated["asset_type"]
     geo = validated["geography"]
-    geo_str = geo.get("named_market") or ", ".join(geo.get("cities", []) or ["NC"])
+    geo_str = (
+        geo.get("named_market")
+        or ", ".join(geo.get("counties") or [])
+        or ", ".join(geo.get("cities", []) or ["NC"])
+    )
     target = validated.get("target_count", DEFAULT_TARGET_COUNT)
     total_count = len(filtered_rows)
     top_count = len(top)
