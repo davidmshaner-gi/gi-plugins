@@ -7,6 +7,31 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.39.0] - 2026-08-25
+
+### Changed
+- **`lee-branding` now calls the connector before it renders, and stops when it cannot (lee#507):**
+  the skill ships Lee's brand package on disk (the Cowork sandbox has no outbound HTTPS), so it could
+  produce a fully Lee-branded deliverable without ever touching `lee-raleigh`. Every branding session
+  was therefore absent from the activity record, and a broker who had the plugin installed but never
+  completed sign-in could use it with nothing anywhere to say so. It now calls `pull_brand_package`
+  (lee-raleigh-mcp 0.52.0) first, passing the bundled `brand-colors.json` version, and renders from
+  what comes back -- colors, tints, gradient, font stacks, tagline, logo rules, and the `usage_rules`
+  that govern which colors may carry small text. The tool also answers the one question the skill
+  cannot answer locally: whether the bundled package is still current.
+- **The assets stay bundled; the values are confirmed per run.** Fonts and the logo are still read from
+  disk, because the sandbox has no network for file reads at render time. `brand-colors.json` is now
+  the version stamp the skill sends, not the authority it renders from.
+- **`lee-branding` gains the canonical connector-auth block** and leaves the `NO_CONNECTOR_SKILLS`
+  exclusion in `scripts/sync-connector-auth.sh` and its drift test. `process-mapping` remains excluded:
+  it is a guided interview with no MCP tools, and gating it is a separate decision.
+
+### Note
+- **This is a deliberate capability trade.** A broker with the plugin but no working connector used to
+  get a branded deliverable; they now get a stop with the standard sign-in guidance. That is the point:
+  a capability that works unauthenticated is invisible to us, and a visible failure is the only thing
+  that surfaces a broker who was never fully set up.
+
 ## [1.38.0] - 2026-08-25
 
 ### Added

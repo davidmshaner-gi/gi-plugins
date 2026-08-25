@@ -1,6 +1,6 @@
 ---
 name: lee-branding
-description: Make anything you're building for a Lee & Associates broker look on-brand — apply the Lee logo, the brand red, and the Avenir Next fonts to a flyer, one-pager, deck, chart, PDF, or email header right here in the chat. Use when a broker says "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee," "add the Lee logo," "use our brand colors," or is riffing on a deliverable and wants it polished to the Lee look. Ships Lee's official brand package on disk (logo, colors, guidelines, fonts) so you apply it without asking the broker for files. Also covers the one-time Claude Design setup for the marketing team.
+description: Make anything you're building for a Lee & Associates broker look on-brand — apply the Lee logo, the brand red, and the Avenir Next fonts to a flyer, one-pager, deck, chart, PDF, or email header right here in the chat. Use when a broker says "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee," "add the Lee logo," "use our brand colors," or is riffing on a deliverable and wants it polished to the Lee look. Ships Lee's official brand package on disk (logo, colors, guidelines, fonts) so you apply it without asking the broker for files, and checks that bundled package against the current one on every run so a deliverable never goes out against stale brand values. Also covers the one-time Claude Design setup for the marketing team.
 ---
 
 # Lee & Associates Branding
@@ -8,7 +8,32 @@ description: Make anything you're building for a Lee & Associates broker look on
 Make what you're building for a Lee broker look like Lee. This skill carries Lee's
 official brand package — the logo, the exact colors, the brand guidelines, and the
 Avenir Next brand fonts — on disk, right next to this file. You never have to ask the
-broker to hand over brand files; apply the brand directly to whatever's being composed.
+broker to hand over brand files. One tool call comes first (below), then you apply the
+brand directly to whatever's being composed.
+
+## Before you render anything: pull the brand package
+
+**Every branded deliverable starts with one tool call.** Call the lee-raleigh MCP
+tool `pull_brand_package`, passing the `version` value from the bundled
+`brand-colors.json` (currently `2021.02`):
+
+```
+pull_brand_package({ local_version: "2021.02" })
+```
+
+Render from what it returns. It carries the authoritative colors, tints, gradient,
+font stacks, tagline and logo rules, plus `usage_rules` — and those are
+constraints, not notes (they are what tells you charcoal, never slate, carries
+text under 10pt). It also answers the one question this skill cannot answer on its
+own: whether the brand package bundled with this plugin is still the current one.
+`local_package_current` is that answer, and `notes` tells you what to say if the
+two copies have diverged.
+
+**If the call cannot be completed, stop and say so. Do not fall back to the
+bundled files.** The fonts and the logo on disk are still there, but a deliverable
+built without this call is unverified against Lee's current brand, and going ahead
+anyway hides a broker whose plugin was never fully set up. Follow the connector-auth
+ladder at the end of this file to work out what to tell them.
 
 ## Primary use: brand a deliverable you're building right now
 
@@ -16,8 +41,8 @@ The common case: a broker is riffing in the chat, wants a quick-turnaround deliv
 — a listing flyer, a one-pager, a BOV/OM section, a deck slide, a chart, an email
 header, a cover — and wants it to come out on-brand for Lee. Do it in place, in this
 session. You do **not** need to leave for another tool, and you do **not** need Claude
-Design set up first. Everything you need is the bundled assets below plus the render
-rules that follow.
+Design set up first. Everything you need is the `pull_brand_package` response above,
+the bundled assets below, and the render rules that follow.
 
 When you compose HTML that will be rendered to PDF or image (headless Chrome / print
 CSS), wire in the three brand signals — **fonts, color, logo** — like this.
@@ -136,7 +161,8 @@ deliverable.
 
 ## Files
 
-- `SKILL.md` — this file.
+- `SKILL.md` — this file. Calls the `pull_brand_package` MCP tool on `lee-raleigh`
+  before rendering anything.
 - `brand-colors.json` — machine-readable color tokens (HEX / PMS / CMYK / RGB, tints, the
   icon gradient). Pull exact values from here at render time.
 - `fonts/` — the five Avenir Next WOFFs + a README; the real Lee primary typeface.
@@ -145,6 +171,11 @@ deliverable.
 - `lee-associates-brand-guidelines.md` — Lee's full brand standards (logo, colors, fonts,
   photography, templates). Deep reference, not a per-render read.
 - `claude-design-setup.md` — the step-by-step guide for the one-time Claude Design setup.
+
+**The assets are bundled; the VALUES are confirmed per run.** `brand-colors.json` on
+disk is the version stamp this skill sends to `pull_brand_package`, not the authority
+it renders from — the tool's response is. The fonts and the logo stay on disk because
+the sandbox has no network for file reads at render time.
 
 **Canonical brand home.** This skill is the canonical on-disk home for the Lee logo and
 brand assets. Other skills that render a Lee-branded deliverable in-session
@@ -159,3 +190,54 @@ byte-identical to `lee_logo.png` here (the asset test enforces the match).
 For brand-asset access or approvals, the Lee corporate contact in the guidelines is
 **Pamela Murphy, Director of Marketing & PR** (pmurphy@lee-associates.com), or
 lee-hq.com. Don't promise approvals or invent contacts beyond what the guidelines state.
+
+<!-- BEGIN CONNECTOR-AUTH BLOCK (canonical: shared/connector-auth.md — edit there, then scripts/sync-connector-auth.sh) -->
+## Connector auth — attempt the call first
+
+**Never tell the broker the lee-raleigh connector is "not authorized", "not connected",
+or "needs to be authorized" unless an actual tool call just failed with an auth error —
+or the lee-raleigh tools are missing from this session entirely.**
+
+1. **Attempt first.** If the lee-raleigh tools appear in your available tools, call the
+   one you need — do not assess authorization beforehand. A needs-auth flag, an empty
+   credential field, a `/mcp` probe, or any other indirect signal is NOT authorization
+   state; the only way to know is to make the call. If you have not attempted the call
+   in this conversation, you do not know the auth state — so call it.
+2. **Only a tool-level auth error counts.** Treat a call as auth-failed ONLY when it
+   returned an authorization error (`401` / `invalid_token`). Any other failure — a
+   timeout, an empty result, a data error — is not an auth problem; handle it per this
+   skill's error handling, and a plain retry line ("try again in a few minutes") is
+   only ever for those transient, not-an-auth failures.
+3. **Auth failure with the lee-raleigh tools loaded — and the immediately preceding
+   attempt (if any) did NOT also auth-fail:** the most likely cause is a known Claude
+   bug that reports a successful call as failed — the connection is usually fine, so
+   do NOT send the broker to sign-in yet. This applies to any such failure, including
+   one later in a conversation whose earlier glitch already healed. Reply warmly, in
+   broker language:
+
+   > That error is most likely a Claude glitch (on Anthropic's side, not the Lee
+   > tools) — the connection is usually fine. Tell me **"YOU DO HAVE ACCESS! TRY
+   > AGAIN!"** and I'll re-run it. If it still fails on the retry, a quick sign-in
+   > refresh usually fixes it
+   > (https://leeraleigh.groundedintelligence.io/setup#connect-sign-in) — or email
+   > David at david@groundedintelligence.io and he'll get you sorted.
+
+   When the broker prompts the retry, attempt the call again.
+4. **Two auth failures in a row — or the lee-raleigh tools are missing from this
+   session entirely:** treat it as a genuine sign-in problem.
+   Reply warmly, in broker language:
+
+   > It looks like the Lee Raleigh connection needs a quick sign-in refresh — this can
+   > happen after a reinstall, a new computer, or an app update. In Claude, open the
+   > **Lee internal comps** plugin, go to its **Connectors** tab, and click the button
+   > next to **lee-raleigh**. Sign in with the email you use for Claude (your Lee email
+   > for most people) and send yourself the magic link. If the link says it expired,
+   > that's normal — just request another from the sign-in page; the second request is
+   > what signs you in. Full walkthrough with screenshots:
+   > https://leeraleigh.groundedintelligence.io/setup#connect-sign-in — it takes about
+   > a minute, then just ask me again. If that doesn't get you back in, email David at
+   > david@groundedintelligence.io and he'll get you sorted.
+
+   Never point a broker at "/mcp", never mention MCP or OAuth by name, and never answer
+   an auth failure with "try again in a few minutes" — those leave them stuck.
+<!-- END CONNECTOR-AUTH BLOCK -->
