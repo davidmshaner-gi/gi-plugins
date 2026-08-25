@@ -632,10 +632,46 @@ def _date_cutoff(date_window: dict) -> Optional[str]:
     return None
 
 
+def normalize_county(value: str) -> str:
+    """lee#496: the Python twin of the Worker's normalizeCounty and of the
+    `county_normalized` expression on both safe views. Trim, lowercase, drop a
+    trailing " county", trim again.
+
+    The internal Dealius book stores "Brunswick County" (100% of its non-blank
+    rows); the external book stores "Brunswick"; a broker types either. All
+    three meet on this normalized form -- which is exactly why a generated
+    `county = 'Brunswick'` came back empty from a fully populated column
+    (audit_log 4158, 2026-08-25).
+    """
+    s = (value or "").strip().lower()
+    if s.endswith(" county"):
+        s = s[: -len(" county")].strip()
+    return s
+
+
+def _resolve_counties(geography: dict) -> list[str]:
+    """Geography dict → normalized county list, or [] when the ask is not
+    county-shaped. A county geography REPLACES the city filter (lee#496)."""
+    if not geography:
+        return []
+    counties = geography.get("counties") or []
+    return [c for c in (normalize_county(x) for x in counties) if c]
+
+
 def _resolve_cities(geography: dict) -> list[str]:
-    """Geography dict → concrete city list. Falls back to RDU MSA on unknowns."""
+    """Geography dict → concrete city list. Falls back to RDU MSA on unknowns.
+
+    Returns [] ONLY for a geography that resolved to real counties -- counties
+    filter on `county_normalized` instead, and layering a city list on top would
+    re-introduce the lee#496 bug from the other direction. A `counties` key that
+    normalizes to nothing (blank strings) is NOT a county ask: it falls through
+    to the normal city resolution, because dropping both predicates would return
+    the whole book statewide to a broker who asked about one county -- a silent
+    widening, which is worse than the zero this card replaced."""
     if not geography:
         return list(RDU_MSA_CITIES)
+    if _resolve_counties(geography):
+        return []
     if "cities" in geography:
         return list(geography["cities"])
     if "named_market" in geography:
@@ -696,10 +732,19 @@ def build_sql(validated: dict) -> dict:
     size = validated.get("size_range")
     date_window = validated.get("date_window") or {"lookback_months": 12}
     cutoff = _date_cutoff(date_window)
-    cities = _resolve_cities(validated.get("geography", {}))
+    geography = validated.get("geography", {})
+    counties = _resolve_counties(geography)
+    cities = _resolve_cities(geography)
 
     where: list[str] = []
     where.append(f"property_type IN ({', '.join(_sql_quote(t) for t in types)})")
+    if counties:
+        # lee#496: bind the NORMALIZED column, never `county`. The internal book
+        # stores the suffixed spelling, so `county = 'Brunswick'` silently
+        # returns 0 rows from a populated column. `county` is for display only.
+        where.append(
+            f"county_normalized IN ({', '.join(_sql_quote(c) for c in counties)})"
+        )
     if cities:
         where.append(f"city IN ({', '.join(_sql_quote(c) for c in cities)})")
     if size:
@@ -732,6 +777,14 @@ def _asset_title(asset_type: str) -> str:
 def _geography_label(geography: dict) -> str:
     if not geography:
         return ""
+    # lee#496: counties first, matching _resolve_cities' precedence -- the label
+    # must describe the geography actually queried, never a different one.
+    counties = _resolve_counties(geography)
+    if counties:
+        raw = [str(c).strip() for c in geography.get("counties") or [] if str(c).strip()]
+        if len(raw) <= 3:
+            return ", ".join(raw)
+        return f"{raw[0]} +{len(raw) - 1} more"
     if "named_market" in geography:
         return geography["named_market"]
     if "anchor" in geography:

@@ -7,6 +7,42 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.38.0] - 2026-08-25
+
+### Added
+- **Comps can be pulled by county (lee#496).** `internal-comps`, `external-comps` and
+  `internal-and-external-comps` accept a new geography shape, `{"counties": [...]}`. Until now the
+  skills had only `named_market` and `cities`, so "retail leases in Brunswick County" was enumerated
+  as beach towns: on 2026-08-25 a broker got four correct city-level zeroes and no comps, while every
+  Brunswick retail lease we hold sits in Leland, Shallotte or Southport (43 Brunswick lease comps and
+  191 sale comps in the external book, plus one in the internal one).
+  - `external-comps` issues one MCP call per county carrying the new typed `county` param
+    (Worker 0.51.0). No post-filter, so the `named_market` null-county dialog does not apply.
+  - `internal-comps` emits a `county_normalized` predicate against the safe views instead of a city
+    list. The raw `county` column stores the **suffixed** spelling ("Brunswick County"), so filtering
+    it directly returns 0 rows from a fully populated column; `county` is for display only.
+  - Pass the broker's spelling **verbatim** on both paths. The two comp books store counties
+    oppositely and the Worker normalizes both sides, so either form matches either book.
+
+### Changed
+- `internal-comps` / `external-comps` frontmatter descriptions now name county as a supported
+  geography, so a county-shaped ask routes to them.
+- A `counties` geography now takes precedence over `named_market` in BOTH skills (they previously
+  disagreed), and a `counties` list that holds only blanks is treated as "not a county ask" and
+  falls back to the normal geography default rather than dropping every geography predicate --
+  silently returning the whole statewide book to a broker who asked about one county would be
+  worse than the zero this release replaces.
+- Requires Worker **0.51.0** for the external `county` param and the `county_normalized` view column.
+
+### Fixed
+- **County-shaped internal pulls no longer ship a blank geography label.** `_geography_label` had
+  no `counties` branch, so the Excel sheet name read "Retail Comps" instead of
+  "Retail Brunswick County Comps" and the email body ended "for ." Found in review before release.
+- **The marketplace card now matches the plugin manifest.** `marketplace.json` -- the description a
+  broker actually reads when syncing -- had drifted from `plugin.json`. New guard
+  `scripts/test/manifest-parity.sh` asserts both `version` and `description` agree for every listed
+  plugin, so the convention is enforced instead of remembered.
+
 ## [1.37.0] - 2026-08-25
 
 ### Changed

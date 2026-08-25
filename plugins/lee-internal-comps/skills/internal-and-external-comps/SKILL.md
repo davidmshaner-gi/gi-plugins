@@ -54,6 +54,7 @@ external = load_sibling("external-comps")
    - External: build params with `external.build_mcp_params(validated)` → `(tool_name, params)`;
      invoke MCP `search_external_sale_comps` or `search_external_lease_comps`. Response is
      `{"rows": [...], "freshness": "..."}`.
+   - **County asks flow through both legs automatically (lee#496).** A `geography={"counties": [...]}` request needs no handling here: `internal.build_sql` emits a `county_normalized` predicate against the safe views and `external.build_mcp_params` emits one call per county carrying the typed `county` param. Pass the broker's spelling verbatim to both — each side normalizes, and the two comp books store opposite spellings ("Brunswick County" internal, "Brunswick" external).
    - **Surface BOTH freshness lines verbatim as the first two lines of your reply.** They are
      not optional and must never be omitted or rephrased — one for Dealius, one for the external platform
      snapshot.
