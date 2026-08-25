@@ -111,3 +111,50 @@ def test_description_leads_with_applying_the_brand_not_claude_design():
         assert fm.index("on-brand") < fm.index(
             "claude design"
         ), "lead with applying the brand, demote Claude Design to later in the description"
+
+
+# --- The gate (lee#507) ------------------------------------------------------
+# lee-branding calls pull_brand_package before it renders anything, which is
+# what makes a branding session visible at all and what stops a broker who
+# never completed sign-in from using the skill silently. That gate is prose in
+# SKILL.md, so nothing else in this repo can notice if it is edited away.
+
+
+def _skill_md():
+    with open(os.path.join(SKILL_DIR, "SKILL.md"), encoding="utf-8") as fh:
+        return fh.read()
+
+
+def test_skill_still_gates_on_pull_brand_package():
+    """The gate is English a model follows; a silent regression must fail here."""
+    body = _skill_md()
+    assert "pull_brand_package" in body, (
+        "lee-branding no longer names pull_brand_package -- the lee#507 gate has "
+        "been edited away and branding sessions are invisible again."
+    )
+    assert "Before you render anything" in body, (
+        "the gate section heading is gone; the call is no longer instructed "
+        "up front, where the executing model reads it."
+    )
+
+
+def test_skill_md_local_version_matches_bundled_package():
+    """The version SKILL.md tells the model to send must be the real one.
+
+    SKILL.md hardcodes the current version as a convenience literal. When
+    brand-colors.json bumps and the literal does not, the model sends a stale
+    local_version and the tool tells the broker the two copies diverged when
+    they do not -- a false alarm aimed at the broker, which is worse than
+    silence.
+    """
+    with open(os.path.join(SKILL_DIR, "brand-colors.json"), encoding="utf-8") as fh:
+        version = json.load(fh)["version"]
+    body = _skill_md()
+    assert f'local_version: "{version}"' in body, (
+        f"SKILL.md's pull_brand_package example does not send the bundled "
+        f"version {version!r}; update the literal in the gate section."
+    )
+    assert f"(currently `{version}`)" in body, (
+        f"SKILL.md's prose names a different version than brand-colors.json "
+        f"({version!r}); update the parenthetical in the gate section."
+    )

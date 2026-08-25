@@ -18,7 +18,7 @@ CANON="$PLUGIN/shared/connector-auth.md"
 BEGIN='<!-- BEGIN CONNECTOR-AUTH BLOCK (canonical: shared/connector-auth.md — edit there, then scripts/sync-connector-auth.sh) -->'
 END='<!-- END CONNECTOR-AUTH BLOCK -->'
 
-NO_CONNECTOR_SKILLS=("lee-branding" "process-mapping")
+NO_CONNECTOR_SKILLS=("process-mapping")
 
 BLOCK="$(awk -v b="$BEGIN" -v e="$END" '
   $0 == b {found=1}

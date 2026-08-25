@@ -7,6 +7,44 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.39.0] - 2026-08-25
+
+### Changed
+- **`lee-branding` now calls the connector before it renders, and stops when it cannot (lee#507):**
+  the skill ships Lee's brand package on disk (the Cowork sandbox has no outbound HTTPS), so it could
+  produce a fully Lee-branded deliverable without ever touching `lee-raleigh`. Every branding session
+  was therefore absent from the activity record, and a broker who had the plugin installed but never
+  completed sign-in could use it with nothing anywhere to say so. It now calls `pull_brand_package`
+  (lee-raleigh-mcp 0.52.0) first, passing the bundled `brand-colors.json` version, and renders from
+  what comes back -- colors, tints, gradient, font stacks, tagline, logo rules, and the `usage_rules`
+  that govern which colors may carry small text. The tool also answers the one question the skill
+  cannot answer locally: whether the bundled package is still current.
+- **The assets stay bundled; the values are confirmed per run.** Fonts and the logo are still read from
+  disk, because the sandbox has no network for file reads at render time. `brand-colors.json` is now
+  the version stamp the skill sends, not the authority it renders from.
+- **`lee-branding` gains the canonical connector-auth block** and is REMOVED from the
+  `NO_CONNECTOR_SKILLS` exclusion in `scripts/sync-connector-auth.sh` and its drift test.
+  `process-mapping` remains excluded:
+  it is a guided interview with no MCP tools, and gating it is a separate decision.
+
+- **The Claude Design org-setup path is gated too**, not just the per-deliverable render. A stale
+  palette uploaded as the org-wide design system propagates to every Lee design indefinitely, so that
+  path pulls the package first and uploads the values the tool returns.
+- **The failure copy branches by failure type.** A missing `pull_brand_package` with the other
+  lee-raleigh tools present is a stale connector tools list, not a broken sign-in, and gets a
+  refresh-the-tools-list line rather than the sign-in walkthrough -- the case every pilot broker hits
+  in the rollout window. A first auth error still gets the connector-auth ladder's retry offer, and a
+  timeout gets "try again in a few minutes", never the sign-in copy.
+- **Two lint checks pin the gate** (`tests/test_lee_branding_assets.py`): SKILL.md must still name
+  `pull_brand_package`, and the version literal it tells the model to send must match
+  `brand-colors.json`. The gate is prose, so nothing else in the repo would notice it being edited away.
+
+### Note
+- **This is a deliberate capability trade.** A broker with the plugin but no working connector used to
+  get a branded deliverable; they now get a stop with the standard sign-in guidance. That is the point:
+  a capability that works unauthenticated is invisible to us, and a visible failure is the only thing
+  that surfaces a broker who was never fully set up.
+
 ## [1.38.0] - 2026-08-25
 
 ### Added

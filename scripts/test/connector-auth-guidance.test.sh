@@ -30,13 +30,19 @@ BEGIN='<!-- BEGIN CONNECTOR-AUTH BLOCK (canonical: shared/connector-auth.md — 
 END='<!-- END CONNECTOR-AUTH BLOCK -->'
 
 # Skills that make NO lee-raleigh connector calls (verified at gi-plugins#117
-# pickup, 2026-07-20): lee-branding ships brand assets bundled on disk;
+# pickup, 2026-07-20): lee-branding shipped brand assets bundled on disk;
 # process-mapping is a guided interview with no MCP tools.
+#
+# lee-branding LEFT this list on 2026-08-25 (lee#507). It now calls
+# pull_brand_package before it renders anything, so it rides the connector
+# like every other skill and needs the canonical auth block. Its assets are
+# still bundled on disk -- the sandbox has no network for file reads -- but
+# the brand VALUES are confirmed per-run over the connector.
 # NB: scripts/sync-connector-auth.sh carries the same list. Drift between the
 # two lists in EITHER direction fails this test (sync skips a skill this test
 # covers → "block missing"; this test excludes a skill sync stamps → "listed
 # as no-connector but carries the block"), so the duplication is self-checking.
-NO_CONNECTOR_SKILLS=("lee-branding" "process-mapping")
+NO_CONNECTOR_SKILLS=("process-mapping")
 
 fail=0
 report() { printf 'FAIL  %s\n' "$1" >&2; fail=1; }
