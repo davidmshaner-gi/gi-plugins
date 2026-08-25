@@ -48,7 +48,11 @@ Which failure you have decides what you say. Work through these in order:
   not a refusal. Only a second failure in a row, or the lee-raleigh tools being missing
   entirely, is a real sign-in problem.
 - **The call failed some other way** (a timeout, a server error). Never give it the
-  sign-in copy. Say the brand service didn't answer, and to try again in a few minutes, because that is not an auth problem.
+  sign-in copy: that is not an auth problem. Say the service didn't answer, try again in a few minutes.
+- **There are no lee-raleigh tools in this session at all.** This is the case this gate
+  exists for: the plugin is installed but the connector was never connected, or sign-in
+  was never finished. Give them the connector-auth ladder's rule-4 sign-in walkthrough,
+  and do not build the deliverable from the bundled files while they sort it out.
 
 ## Primary use: brand a deliverable you're building right now
 
@@ -178,7 +182,10 @@ response wins and you say so. If the call cannot be completed, stop here too.
 Then walk them through the bundled `claude-design-setup.md` and stage these files for
 upload into Claude Design's design-system onboarding: `lee-associates-brand-guidelines.md`,
 `lee_logo.svg` (+ `lee_logo.png` backup), `brand-colors.json`, and the bundled WOFFs in
-`fonts/` (five Avenir Next + eight Minion Pro). That's a one-time org setup; the primary
+`fonts/` (five Avenir Next + eight Minion Pro). **If the tool reported a divergence, do
+NOT upload `brand-colors.json` — paste the tool's values when Claude Design asks for the
+palette.** Handing it the stale file is the one outcome gating this path was meant to
+stop. That's a one-time org setup; the primary
 path above is what you reach for on an individual deliverable.
 
 ## Files
