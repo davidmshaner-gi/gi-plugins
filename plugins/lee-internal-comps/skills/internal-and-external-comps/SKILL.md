@@ -51,9 +51,18 @@ external = load_sibling("external-comps")
 4. **Run BOTH queries in parallel:**
    - Internal: build SQL with `internal.build_sql(validated)`, run MCP `read_query`. Response
      is `{"rows": [...], "query_id": "...", "freshness": "..."}`.
-   - External: build params with `external.build_mcp_params(validated)` → `(tool_name, params)`;
-     invoke MCP `search_external_sale_comps` or `search_external_lease_comps`. Response is
-     `{"rows": [...], "freshness": "..."}`.
+   - External: build params with `external.build_mcp_params(validated)` →
+     `{"tool_name", "params_list", ...}`; invoke MCP `search_external_sale_comps` or
+     `search_external_lease_comps` once per entry in `params_list` (one per county for a
+     `counties` ask and for the RDU default, one per city for `cities`) and union the rows with
+     `external.merge_rows(*pages)`. Response is `{"rows": [...], "freshness": "..."}`.
+   - **When an external call carries `truncated`** (Worker 0.53.0, gi-plugins#158) it stopped at
+     the 200-row cap with more rows behind it — the rows are the NEWEST only. Page it exactly as
+     the `external-comps` skill does (Process step 6 there): `external.next_page_params(params,
+     response)` until it returns `None` or `external.MAX_PAGES` (5) pages, then put
+     `external.truncation_note(retrieved, total_available, pages)` in the note / Methodology so
+     the broker knows how much of the matching book they are looking at. Never present a clipped
+     external leg as the complete external picture.
    - **County asks flow through both legs automatically (lee#496).** A `geography={"counties": [...]}` request needs no handling here: `internal.build_sql` emits a `county_normalized` predicate against the safe views and `external.build_mcp_params` emits one call per county carrying the typed `county` param. Pass the broker's spelling verbatim to both — each side normalizes, and the two comp books store opposite spellings ("Brunswick County" internal, "Brunswick" external).
    - **Surface BOTH freshness lines verbatim as the first two lines of your reply.** They are
      not optional and must never be omitted or rephrased — one for Dealius, one for the external platform

@@ -42,10 +42,11 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 
    Then proceed.
 
-5. Call `build_mcp_params(validated)` → `(tool_name, params_dict)`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly.
-6. Invoke the MCP tool with the params dict. The response shape is `{"rows": [...], "freshness": "..."}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed external columns plus `external_id` and `raw_fields_json`. **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ External sale comps: ingested 2026-05-16 17:12 UTC (10 days ago)`). The freshness line tells the broker how current the external snapshot is — it is not optional, never omit or rephrase it.
+5. Call `build_mcp_params(validated)` → `{"tool_name", "params_list", "post_filter_counties"}`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. `params_list` holds one params dict per MCP call: one per county for a `counties` ask **and for `named_market: "RDU MSA"` (its 7 counties)**, one per city for `cities`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly, once per entry, and unions the rows with `merge_rows(*pages)`.
+6. Invoke the MCP tool with each params dict. The response shape is `{"rows": [...], "freshness": "..."}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed external columns plus `external_id` and `raw_fields_json`. **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ External sale comps: ingested 2026-05-16 17:12 UTC (10 days ago)`). The freshness line tells the broker how current the external snapshot is — it is not optional, never omit or rephrase it.
    **If `rows` is empty, the response also carries `empty_result`** — read it before you reply (see "Empty result — name the binding filter" below). Never answer a zero-row search with a bare "no comps found".
-7. **Handle the county filter strategy.** On a `counties` geography this is a no-op: the filtering already happened server-side and `post_filter_counties` is `None`, so call `apply_post_filters(rows, validated, None)` anyway — it returns `(rows, [])` unchanged, which keeps `filtered_rows` and `applied_filters` bound for steps 8-11. Skip the dialog below in that case. Otherwise (the `named_market` path): call `null_county_rate(rows)` → `(null_count, total_count, share)`. If `share > NULL_COUNTY_DIALOG_THRESHOLD` (0.20) AND `post_filter_counties` is non-None, surface the 3-strategy dialog (see "Null-county strategy dialog" in the Geography registry section). Wait for the broker's choice. Below threshold, default to strategy 1 (silent city-map enrichment). Then call `apply_post_filters(rows, validated, post_filter_counties, city_to_county=<map or None>)` → `(filtered_rows, applied_filters)`. `applied_filters` is a list of human-readable strings describing what was filtered/inferred, surfaced in the email body and Methodology sheet.
+   **If the response carries `truncated`, the search stopped at the 200-row cap with more rows behind it** (`returned`, `total_available`, `limit`, `ordered_by`, `oldest_returned`, `note`). The rows are the NEWEST ones only — never present them as the answer. Page: `nxt = next_page_params(params, response)`; call the tool again with `nxt`; repeat until `next_page_params` returns `None` or you have fetched `MAX_PAGES` (5) pages for that params dict. Union every page and every per-county call with `merge_rows(*pages)` (drops the rows that repeat at each page seam). Whenever any call was truncated, add `truncation_note(retrieved, total_available, pages)` to `applied_filters` so the email and the Methodology sheet say how much of the matching book the broker is looking at. If the last page is still truncated after `MAX_PAGES`, say so plainly and offer to narrow (Behavioral rule 5) — never hand over a partial list as if it were complete. Before Worker 0.53.0 the key never appears and the cap bound silently; 16 real broker searches came back clipped that way.
+7. **County handling is a no-op on every current geography.** `counties` and `named_market: "RDU MSA"` are filtered server-side (`post_filter_counties` is `None`) and `cities` has no county filter. Call `apply_post_filters(rows, validated, None)` anyway — it returns `(rows, [])` unchanged, which keeps `filtered_rows` and `applied_filters` bound for steps 8-11 (append the `truncation_note` from step 6 to `applied_filters` here). `applied_filters` is the list of human-readable strings surfaced in the email body and Methodology sheet.
 8. Call `rank_comps(filtered_rows, validated)` → returns `(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed)`. `top` is the ranked sweet-spot list (typically 7-10).
 9. Call `format_excel(filtered_rows, validated, xlsx_path, applied_defaults, warnings, applied_filters, last_sync)` → writes a 3-sheet workbook to the sandbox. The full filtered set goes into the Excel, not just the top N — brokers want the working file with everything. **The filename is forced to a tiny constant stub (`c.xlsx`, enumerating `c1.xlsx`/`c2.xlsx` on repeat) by the helper regardless of what you pass as `xlsx_path`; `format_excel` returns the name actually written — use it when you reference the file to the broker, and tell them they can rename it. This is load-bearing for Windows brokers; see the "Excel filename rule" in Output below.**
 10. Call `markdown_table(top, tagged_under_contract, tagged_sublet, tagged_rent_undisclosed, validated)` → returns a Markdown string for the chat reply.
@@ -169,7 +170,7 @@ These are the live tools on `leeraleigh.groundedintelligence.io`. The skill call
 | `min_cap_rate` / `max_cap_rate` | float | `0.075` = 7.5%. |
 | `limit` | int | default 50, max 200. |
 
-Response: `{"rows": [...], "freshness": "..."}` with all typed sale columns plus `external_id`, `raw_fields_json`; `empty_result` when `rows` is empty (see "Empty result" above).
+Response: `{"rows": [...], "freshness": "..."}` with all typed sale columns plus `external_id`, `raw_fields_json`; `empty_result` when `rows` is empty (see "Empty result" above); `truncated` when the search stopped at the cap with more rows behind it (`returned`, `total_available`, `limit`, `ordered_by` = `sale_date DESC`, `oldest_returned`, `note`) — page with `next_page_params` (Process step 6). Rows are newest-first.
 
 ### `search_external_lease_comps`
 
@@ -185,7 +186,7 @@ Response: `{"rows": [...], "freshness": "..."}` with all typed sale columns plus
 | `tenant_industry` | str | exact match. |
 | `limit` | int | default 50, max 200. |
 
-Response: `{"rows": [...], "freshness": "..."}` with all typed lease columns plus `external_id`, `raw_fields_json`; `empty_result` when `rows` is empty (same shape as sale; the units are `sf`, `usd` for rent, `days`, `months`).
+Response: `{"rows": [...], "freshness": "..."}` with all typed lease columns plus `external_id`, `raw_fields_json`; `empty_result` when `rows` is empty (same shape as sale; the units are `sf`, `usd` for rent, `days`, `months`); `truncated` as on sale, with `ordered_by` = `lease_start_date DESC` and the cursor applied to `max_lease_start_date`.
 
 ### `get_external_comp_detail`
 
@@ -198,7 +199,7 @@ Response: `{"row": {...}}` with all typed columns AND `raw_fields` (parsed JSON 
 
 ## Geography registry (V1)
 
-`"RDU MSA"` (and aliases `"RDU"`, `"Triangle"`, `"Raleigh-Durham"`) resolves to a county whitelist applied **post-fetch** by `apply_post_filters`: `{Wake, Durham, Orange, Chatham, Johnston, Franklin, Granville}`. The MCP call passes `state="NC"` and no `city`.
+`"RDU MSA"` (and aliases `"RDU"`, `"Triangle"`, `"Raleigh-Durham"`) resolves to its seven counties — `{Wake, Durham, Orange, Chatham, Johnston, Franklin, Granville}` — and is fetched exactly like a county ask: `build_mcp_params` emits **one MCP call per county** carrying the typed `county` param (`state="NC"`, no `city`), the Worker filters server-side, and there is nothing to post-filter. Until 1.38.1 this was ONE statewide call at `limit: 200` (newest first) post-filtered to the whitelist in Python, so the cap bound on the whole NC book before the county filter ran and 22-58% of RDU comps (by type) never reached the broker — silently, because a 200-row list looks complete (gi-plugins#158). RDU is also the applied default when a broker names no geography, so this was the common path.
 
 For `{"cities": [...]}`, the skill calls the MCP once per city (each MCP query expects a single exact-match `city`) and unions the results. Pass the cities verbatim — the external platform stores them as title case (e.g. `"Raleigh"`, `"Garner"`, `"Cary"`).
 
@@ -212,43 +213,11 @@ Pass the broker's spelling **verbatim**. The two comp books spell counties oppos
 
 Why this exists: on 2026-08-25 a broker asking for retail leases around Brunswick County got four separate zero-results because the skill had no county shape — it enumerated the four southwest beach towns, which genuinely hold no retail leases, while every Brunswick retail lease we hold sits in Leland, Shallotte or Southport. Each individual zero was correct; the county-level answer was wrong.
 
-`post_filter_counties` is `None` on this path — there is nothing to post-filter, so the null-county dialog below does **not** apply. Rows with no county at all are excluded server-side by construction (13 of 1,529 external lease rows and 254 of 4,512 sale rows carry no county). If the broker asks about coverage, say so plainly rather than guessing.
+`post_filter_counties` is `None` on this path and on the RDU path — there is nothing to post-filter.
 
-### Null-county fallback (city → county map)
+### Rows with no county
 
-The external weekly snapshot occasionally lands with `county` null on some or all rows (depends on which export shape Will pulls — the "Everything" export populates it; leaner exports don't). When `apply_post_filters` runs the RDU county whitelist on rows with null county, it can optionally fall back to a `property_city → county` lookup. The fallback map ships with the skill as `helpers.RDU_CITY_TO_COUNTY` and is mirrored here so brokers can override per-deal:
-
-| County | Cities |
-|---|---|
-| Wake | Raleigh, Cary, Garner, Apex, Wake Forest, Holly Springs, Morrisville, Knightdale, Rolesville, Wendell, Zebulon, Fuquay-Varina |
-| Durham | Durham |
-| Orange | Chapel Hill, Carrboro, Hillsborough |
-| Chatham | Pittsboro, Siler City |
-| Johnston | Smithfield, Clayton, Selma, Benson, Four Oaks |
-| Franklin | Louisburg, Youngsville, Bunn |
-| Granville | Creedmoor, Oxford, Butner |
-
-If a broker says "treat Chapel Hill as Durham" or names a city not in the map, override by passing a modified dict to `apply_post_filters` for that request. The map is just a default — the broker drives.
-
-### Null-county strategy dialog
-
-When `null_county_rate(rows)` returns a `share` greater than `NULL_COUNTY_DIALOG_THRESHOLD` (default 20%) AND a county filter is requested, the model pauses before calling `apply_post_filters` and surfaces this dialog to the broker:
-
-> Snapshot has {N} of {M} rows with null county ({pct}%). Three options for the RDU filter:
-> 1. **Infer county from city** using the RDU map (default — Raleigh→Wake, Durham→Durham, etc.)
-> 2. **Skip the county filter** and return all NC rows in your size/date range
-> 3. **Drop the null-county rows** (strictest — only keep rows with populated county in the whitelist)
->
-> Which?
-
-The broker's choice maps to:
-- (1) → `apply_post_filters(rows, validated, post_filter_counties, city_to_county=RDU_CITY_TO_COUNTY)`
-- (2) → `apply_post_filters(rows, validated, post_filter_counties=None)`
-- (3) → `apply_post_filters(rows, validated, post_filter_counties, city_to_county=None)` (no enrichment — null counties fall out of whitelist)
-
-The chosen strategy is logged in `applied_filters` so the email body and Methodology sheet are auditable. **Remember the choice for the rest of the conversation, scoped to the current geography context.** Don't re-ask on follow-up queries that keep the same `named_market` (e.g. "widen the size range"). A new `named_market`, an explicit `cities` override, or a fresh transaction_type resets the choice — re-evaluate the threshold and ask again if needed.
-
-Below threshold, default to silent enrichment (strategy 1) — don't pause for trivial null counts.
+A `county` filter cannot match a row whose county is blank, by construction. The external platform occasionally ships rows that way (an early industrial/flex sale export carried no county column at all — 250 rows, 249 of them in RDU cities). The Worker filled those in from `property_city` with the ingest's own city → county map (migration 0048, Worker 0.53.0; ambiguous cities such as Rocky Mount are never guessed and stay blank), so what remains is a handful of unmapped rows that no county or RDU ask can reach. If a broker asks about coverage, say that plainly rather than guessing. The old three-way "null-county strategy" dialog (infer / skip the filter / drop) is gone with the post-filter it belonged to; do not re-ask it.
 
 ## Source-platform terminology check-in
 

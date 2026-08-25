@@ -63,7 +63,8 @@ def safe_xlsx_name(path: str = "") -> str:
 LEE_BRAND_MAROON = "98002E"  # official Lee Red, PMS 202 (lee-and-associates#28 / Brand Guidelines)
 LEE_LOGO_FILENAME = "lee_logo.png"
 
-# RDU MSA county whitelist — applied post-fetch when geography.named_market resolves to RDU.
+# RDU MSA county whitelist — one server-side `county` call each when
+# geography.named_market resolves to RDU (gi-plugins#158; was a post-fetch filter).
 RDU_MSA_COUNTIES = {"Wake", "Durham", "Orange", "Chatham", "Johnston", "Franklin", "Granville"}
 
 # Aliases for the RDU named market — case-insensitive match in validate_request.
@@ -317,7 +318,12 @@ def build_mcp_params(validated: dict) -> dict:
         if "tenant_industry" in validated:
             base["tenant_industry"] = validated["tenant_industry"]
 
-    base["limit"] = 200  # always pull the max; rank trims to the sweet spot
+    # Always ask for the Worker's max. The rank step trims to the sweet spot, and
+    # the cap effectively never binds on a city or county call. It DID bind on
+    # the old statewide RDU fetch (gi-plugins#158) -- that path is per-county
+    # now, and a call that still hits the cap comes back with `truncated`, which
+    # the skill pages through (next_page_params) instead of ignoring.
+    base["limit"] = 200
 
     # --- Geography → params_list + post-filter set ---
     geo = validated["geography"]
@@ -336,11 +342,20 @@ def build_mcp_params(validated: dict) -> dict:
             p = dict(base)
             p["county"] = county
             params_list.append(p)
+    elif "named_market" in geo and geo["named_market"] == "RDU MSA":
+        # gi-plugins#158: the RDU market is its 7 counties, fetched the same way
+        # a county ask is -- one server-side `county` call each. Before this it
+        # was ONE statewide call at limit 200 (newest first) post-filtered to the
+        # whitelist in Python, so the cap bound on the whole NC book before the
+        # county filter ran and 22-58% of RDU comps (by type) never reached the
+        # broker. Nothing is left to post-filter.
+        for county in sorted(RDU_MSA_COUNTIES):
+            p = dict(base)
+            p["county"] = county
+            params_list.append(p)
     elif "named_market" in geo:
-        # Named market → one call, no city, post-filter by county whitelist.
+        # An unregistered named market: no geography predicate we can express.
         params_list.append(dict(base))
-        if geo["named_market"] == "RDU MSA":
-            post_filter_counties = set(RDU_MSA_COUNTIES)
     elif "cities" in geo and geo["cities"]:
         # Cities → one call per city, no county filter post-fetch.
         for city in geo["cities"]:
@@ -369,6 +384,83 @@ def resolve_counties(geography: Optional[dict]) -> list[str]:
     if not geography:
         return []
     return [str(c).strip() for c in (geography.get("counties") or []) if str(c).strip()]
+
+
+# gi-plugins#158: a capped search pages by date cursor. Five pages of 200 is a
+# 1,000-row survey -- past that the broker is asked to narrow, not handed more.
+MAX_PAGES = 5
+
+_DATE_BOUND_FOR_ORDER = {
+    "sale_date": "max_sale_date",
+    "lease_start_date": "max_lease_start_date",
+}
+
+
+def next_page_params(params: dict, response: dict) -> Optional[dict]:
+    """The params for the NEXT page of a capped search, or None when there is none.
+
+    Worker 0.53.0 puts `truncated` on a response that stopped at `limit` with
+    rows behind it (returned, total_available, limit, ordered_by,
+    oldest_returned, note). Results are newest-first, so the next page is the
+    same search with the max date moved down to the oldest date already seen
+    (keyset paging on the ordering column; no schema change, so nothing sits
+    behind the connector's cached tools list). Rows dated exactly
+    `oldest_returned` can repeat across the seam -- merge_rows drops them.
+
+    None when the response carries no `truncated` (complete), when the Worker
+    gave no cursor, or when the cursor equals the current bound (a page that
+    would re-fetch itself forever).
+    """
+    t = (response or {}).get("truncated")
+    if not t:
+        return None
+    oldest = t.get("oldest_returned")
+    if not oldest:
+        return None
+    order_col = str(t.get("ordered_by") or "").split()[0] if t.get("ordered_by") else ""
+    bound = _DATE_BOUND_FOR_ORDER.get(order_col)
+    if bound is None:
+        bound = (
+            "max_lease_start_date"
+            if "min_lease_start_date" in params or "max_lease_start_date" in params
+            else "max_sale_date"
+        )
+    if params.get(bound) == oldest:
+        return None
+    nxt = dict(params)
+    nxt[bound] = oldest
+    return nxt
+
+
+def merge_rows(*pages: list[dict]) -> list[dict]:
+    """Union pages / per-county calls into one row list, first occurrence wins.
+    Keyed on `external_id`; a row with no id is kept as-is."""
+    seen: set = set()
+    out: list[dict] = []
+    for page in pages:
+        for r in page or []:
+            key = r.get("external_id")
+            if key is None:
+                out.append(r)
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(r)
+    return out
+
+
+def truncation_note(retrieved: int, total_available: int, pages: int) -> str:
+    """One plain sentence for applied_filters / the email / the Methodology sheet
+    saying how much of the matching book the broker is looking at."""
+    pg = f"{pages} page{'s' if pages != 1 else ''}"
+    if retrieved >= total_available:
+        return f"Retrieved all {total_available:,} matching comps ({pg} of 200)."
+    missing = total_available - retrieved
+    return (
+        f"Retrieved the newest {retrieved:,} of {total_available:,} matching comps ({pg} of 200); "
+        f"the {missing:,} oldest are not included -- narrow the date window or the filters to reach them."
+    )
 
 
 def null_county_rate(rows: list[dict]) -> tuple[int, int, float]:
