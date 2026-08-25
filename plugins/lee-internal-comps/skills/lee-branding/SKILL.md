@@ -185,8 +185,8 @@ upload into Claude Design's design-system onboarding: `lee-associates-brand-guid
 `fonts/` (five Avenir Next + eight Minion Pro). **If the tool reported a divergence, do
 NOT upload `brand-colors.json` — paste the tool's values when Claude Design asks for the
 palette.** Handing it the stale file is the one outcome gating this path was meant to
-stop. That's a one-time org setup; the primary
-path above is what you reach for on an individual deliverable.
+stop. That's a one-time org setup; the primary path above is what you reach for on an
+individual deliverable.
 
 ## Files
 
