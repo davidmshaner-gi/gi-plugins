@@ -8,8 +8,8 @@ Install via the GI marketplace — see [parent README](../../README.md).
 
 ## What you get
 
-- **Skill:** `internal-comps` — orchestrates a comp search against the firm's internal Dealius mirror, builds the Excel deliverable, and renders a Lee-branded PDF (broker chooses Excel / PDF / Both per request).
-- **Skill:** `external-comps` — orchestrates a comp search against the external weekly snapshot, produces a Markdown table in chat plus an Excel deliverable, and drafts a tour-ready email. PDF deferred to v1.1.
+- **Skill:** `internal-comps` — orchestrates a comp search against the firm's internal Dealius mirror (by city, by county, or across the RDU market), builds the Excel deliverable, and renders a Lee-branded PDF (broker chooses Excel / PDF / Both per request).
+- **Skill:** `external-comps` — orchestrates a comp search against the external weekly snapshot (by city, by county, or across the RDU market), produces a Markdown table in chat plus an Excel deliverable, and drafts a tour-ready email. PDF deferred to v1.1.
 - **Skill:** `internal-and-external-comps` — the **default** "all comps" skill: an unqualified comps request (broker didn't say internal or external) pulls **both** internal Dealius and external in parallel and returns one combined chat table, one Excel (All Comps sheet + per-source detail sheets), and one Lee-branded **unified PDF** with every row tagged by Source. No dedup; sale and lease. Explicit "internal comps" / "external comps" still route to the single-source skills.
 - **Skill:** `demographic-summary` — one-page-per-ring demographic infographic for any NC address, 1/3/5-mile by default or the broker's own radii (e.g. 3/5/7), with a GI blended growth rate per ring (JSON + Lee-branded PDF with a 1-hour signed link).
 - **Skill:** `demographic-detail` — multi-page Demographic and Income Profile with inline SVG charts, race/income breakdowns, 2020/2025/2030 projections (gi_permit_adjusted + Census BPS add-back), Family HHs + Owner HUs trend bars, and four Esri-analog indices.
@@ -30,7 +30,7 @@ Install via the GI marketplace — see [parent README](../../README.md).
 
 ## External comps
 
-The `external-comps` skill wraps three typed MCP tools (`search_external_sale_comps`, `search_external_lease_comps`, `get_external_comp_detail`) on the same `lee-raleigh` connector. The data lands weekly from Will's Excel export via the `external-comps-db` ingest pipeline. v1 produces Markdown + Excel; a Lee-branded PDF path is planned for v1.1.
+The `external-comps` skill wraps three typed MCP tools (`search_external_sale_comps`, `search_external_lease_comps`, `get_external_comp_detail`) on the same `lee-raleigh` connector. Both searches take a `county` filter (lee#496); the two comp books store counties with opposite spellings, so the Worker normalizes both sides and either form matches either book. The data lands weekly from Will's Excel export via the `external-comps-db` ingest pipeline. v1 produces Markdown + Excel; a Lee-branded PDF path is planned for v1.1.
 
 ## Sign-in
 
