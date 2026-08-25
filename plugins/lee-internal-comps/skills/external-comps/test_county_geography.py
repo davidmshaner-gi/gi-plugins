@@ -67,3 +67,37 @@ def test_cities_path_is_unchanged():
 def test_counties_reach_the_sheet_title_and_email_geography():
     v = _validated(geography={"counties": ["Brunswick"]})
     assert "Brunswick" in helpers._sheet_title(v)
+
+
+def test_blank_county_list_does_not_silently_widen_to_the_whole_state():
+    """lee#496 review: a counties key holding only blanks is NOT a county ask.
+    Dropping every geography predicate would hand a broker who asked about one
+    county the entire statewide book -- a silent widening, worse than the zero
+    it replaced."""
+    out = helpers.validate_request(
+        {
+            "transaction_type": "lease",
+            "asset_type": "retail",
+            "geography": {"counties": ["   "]},
+            "date_window": {"lookback_months": 24},
+        }
+    )
+    geo = out["validated"]["geography"]
+    assert geo == {"named_market": "RDU MSA"}
+    params = helpers.build_mcp_params(out["validated"])
+    assert all("county" not in p for p in params["params_list"])
+    assert params["post_filter_counties"] == set(helpers.RDU_MSA_COUNTIES)
+
+
+def test_counties_take_precedence_over_named_market_like_the_internal_skill():
+    out = helpers.build_mcp_params(
+        _validated(geography={"named_market": "RDU MSA", "counties": ["Brunswick"]})
+    )
+    assert [p["county"] for p in out["params_list"]] == ["Brunswick"]
+    assert out["post_filter_counties"] is None
+
+
+def test_counties_reach_the_draft_email_geography_string():
+    v = _validated(geography={"counties": ["Brunswick County"]})
+    email = helpers.draft_email([], [], v, "c.xlsx", [], [], [])
+    assert "Brunswick County" in email["subject"] or "Brunswick County" in email["body"]

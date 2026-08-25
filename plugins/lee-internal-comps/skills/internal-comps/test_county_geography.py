@@ -67,3 +67,22 @@ def test_default_rdu_geography_is_unchanged():
     sql = _sql(_validated(geography={}))
     assert "county_normalized" not in sql
     assert "city IN (" in sql
+
+
+def test_county_reaches_the_geography_label_for_excel_and_email():
+    """lee#496 review: a blank label shipped 'Retail Comps' as the sheet name and
+    'for .' in the email body -- a visibly broken broker artifact on the new path."""
+    assert helpers._geography_label({"counties": ["Brunswick County"]}) == "Brunswick County"
+    assert helpers._geography_label({"counties": ["A", "B", "C", "D"]}) == "A +3 more"
+
+
+def test_blank_county_list_does_not_silently_widen_to_the_whole_book():
+    sql = _sql(_validated(geography={"counties": ["   "]}))
+    assert "county_normalized" not in sql
+    assert "city IN (" in sql  # falls back to the normal geography, never no filter
+
+
+def test_counties_take_precedence_over_named_market():
+    sql = _sql(_validated(geography={"named_market": "RDU MSA", "counties": ["Brunswick"]}))
+    assert "county_normalized IN ('brunswick')" in sql
+    assert "city IN (" not in sql

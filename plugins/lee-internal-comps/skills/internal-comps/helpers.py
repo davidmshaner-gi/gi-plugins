@@ -661,12 +661,16 @@ def _resolve_counties(geography: dict) -> list[str]:
 def _resolve_cities(geography: dict) -> list[str]:
     """Geography dict → concrete city list. Falls back to RDU MSA on unknowns.
 
-    Returns [] for a county-shaped geography -- counties filter on
-    `county_normalized` instead, and layering a city list on top would
-    re-introduce the lee#496 bug from the other direction."""
+    Returns [] ONLY for a geography that resolved to real counties -- counties
+    filter on `county_normalized` instead, and layering a city list on top would
+    re-introduce the lee#496 bug from the other direction. A `counties` key that
+    normalizes to nothing (blank strings) is NOT a county ask: it falls through
+    to the normal city resolution, because dropping both predicates would return
+    the whole book statewide to a broker who asked about one county -- a silent
+    widening, which is worse than the zero this card replaced."""
     if not geography:
         return list(RDU_MSA_CITIES)
-    if geography.get("counties"):
+    if _resolve_counties(geography):
         return []
     if "cities" in geography:
         return list(geography["cities"])
@@ -773,6 +777,14 @@ def _asset_title(asset_type: str) -> str:
 def _geography_label(geography: dict) -> str:
     if not geography:
         return ""
+    # lee#496: counties first, matching _resolve_cities' precedence -- the label
+    # must describe the geography actually queried, never a different one.
+    counties = _resolve_counties(geography)
+    if counties:
+        raw = [str(c).strip() for c in geography.get("counties") or [] if str(c).strip()]
+        if len(raw) <= 3:
+            return ", ".join(raw)
+        return f"{raw[0]} +{len(raw) - 1} more"
     if "named_market" in geography:
         return geography["named_market"]
     if "anchor" in geography:

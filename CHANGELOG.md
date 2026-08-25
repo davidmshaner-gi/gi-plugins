@@ -27,7 +27,21 @@ carry the same version as of 1.4.0.
 ### Changed
 - `internal-comps` / `external-comps` frontmatter descriptions now name county as a supported
   geography, so a county-shaped ask routes to them.
+- A `counties` geography now takes precedence over `named_market` in BOTH skills (they previously
+  disagreed), and a `counties` list that holds only blanks is treated as "not a county ask" and
+  falls back to the normal geography default rather than dropping every geography predicate --
+  silently returning the whole statewide book to a broker who asked about one county would be
+  worse than the zero this release replaces.
 - Requires Worker **0.51.0** for the external `county` param and the `county_normalized` view column.
+
+### Fixed
+- **County-shaped internal pulls no longer ship a blank geography label.** `_geography_label` had
+  no `counties` branch, so the Excel sheet name read "Retail Comps" instead of
+  "Retail Brunswick County Comps" and the email body ended "for ." Found in review before release.
+- **The marketplace card now matches the plugin manifest.** `marketplace.json` -- the description a
+  broker actually reads when syncing -- had drifted from `plugin.json`. New guard
+  `scripts/test/manifest-parity.sh` asserts both `version` and `description` agree for every listed
+  plugin, so the convention is enforced instead of remembered.
 
 ## [1.37.0] - 2026-08-25
 

@@ -194,6 +194,15 @@ def validate_request(parsed: dict) -> dict:
         applied.append("geography → RDU MSA")
     else:
         geo = validated["geography"]
+        # lee#496: a `counties` key that holds only blanks is not a county ask.
+        # Drop it so the normal default applies -- leaving it would resolve to
+        # "no geography at all" and hand the broker the whole state.
+        if "counties" in geo and not resolve_counties(geo):
+            geo.pop("counties")
+            if not geo:
+                validated["geography"] = {"named_market": "RDU MSA"}
+                applied.append("geography → RDU MSA (blank county list ignored)")
+                geo = validated["geography"]
         if "named_market" in geo and geo["named_market"].strip().lower() in RDU_MARKET_ALIASES:
             geo["named_market"] = "RDU MSA"  # normalize
 
@@ -315,12 +324,7 @@ def build_mcp_params(validated: dict) -> dict:
     params_list: list[dict] = []
     post_filter_counties: Optional[set[str]] = None
 
-    if "named_market" in geo:
-        # Named market → one call, no city, post-filter by county whitelist.
-        params_list.append(dict(base))
-        if geo["named_market"] == "RDU MSA":
-            post_filter_counties = set(RDU_MSA_COUNTIES)
-    elif "counties" in geo and geo["counties"]:
+    if resolve_counties(geo):
         # lee#496: county is a first-class SERVER-side filter now. One call per
         # county (each query takes a single exact county), passing the broker's
         # spelling VERBATIM -- the Worker normalizes, so "Brunswick" and
@@ -328,10 +332,15 @@ def build_mcp_params(validated: dict) -> dict:
         # Before this the skill had no county shape at all, so a county ask was
         # enumerated city-by-city and a broker lost four on-point Brunswick
         # retail leases (audit_log 4153-4159, 2026-08-25).
-        for county in geo["counties"]:
+        for county in resolve_counties(geo):
             p = dict(base)
             p["county"] = county
             params_list.append(p)
+    elif "named_market" in geo:
+        # Named market → one call, no city, post-filter by county whitelist.
+        params_list.append(dict(base))
+        if geo["named_market"] == "RDU MSA":
+            post_filter_counties = set(RDU_MSA_COUNTIES)
     elif "cities" in geo and geo["cities"]:
         # Cities → one call per city, no county filter post-fetch.
         for city in geo["cities"]:
@@ -347,6 +356,19 @@ def build_mcp_params(validated: dict) -> dict:
         "params_list": params_list,
         "post_filter_counties": post_filter_counties,
     }
+
+
+def resolve_counties(geography: Optional[dict]) -> list[str]:
+    """The counties a geography actually asks for, blanks dropped (lee#496).
+
+    Values are returned VERBATIM (not normalized) -- the Worker owns the
+    normalization rule and matches either spelling. This exists so "is this a
+    county ask?" is decided in exactly ONE place: a `counties` key holding only
+    blank strings is NOT a county ask, and must not be allowed to silently drop
+    every geography predicate and return the whole book."""
+    if not geography:
+        return []
+    return [str(c).strip() for c in (geography.get("counties") or []) if str(c).strip()]
 
 
 def null_county_rate(rows: list[dict]) -> tuple[int, int, float]:
@@ -515,8 +537,8 @@ def _sheet_title(validated: dict) -> str:
     geo = validated["geography"]
     if "named_market" in geo:
         geo_str = geo["named_market"]
-    elif geo.get("counties"):
-        geo_str = ", ".join(geo["counties"])
+    elif resolve_counties(geo):
+        geo_str = ", ".join(resolve_counties(geo))
     elif "cities" in geo:
         geo_str = ", ".join(geo["cities"])
     else:
@@ -764,7 +786,7 @@ def draft_email(
     geo = validated["geography"]
     geo_str = (
         geo.get("named_market")
-        or ", ".join(geo.get("counties") or [])
+        or ", ".join(resolve_counties(geo))
         or ", ".join(geo.get("cities", []) or ["NC"])
     )
     target = validated.get("target_count", DEFAULT_TARGET_COUNT)
