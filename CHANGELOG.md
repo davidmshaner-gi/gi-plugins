@@ -7,6 +7,17 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.37.0] - 2026-08-25
+
+### Changed
+- **demographic-summary: growth presentation follows the Worker's 0.50.0 blend (lee#497).**
+  The skill now reads the blended rate's `source` for the county window (ACS 1-year for
+  the 44 NC counties the Census publishes it for, ACS 5-year for the other 56) and for the
+  "state rate substituted" note that appears when a ring's own change is inside the
+  survey's margin of error. A `null` blended rate is reported as "GI blended growth rate
+  unavailable: <notes>" -- never as an MOE suppression, never with a pointer to
+  county-level Census estimates (the lee#487 Cowork pass misattributed the gap that way).
+
 ## [1.36.0] - 2026-08-24
 
 ### Added
