@@ -22,9 +22,22 @@ carry the same version as of 1.4.0.
 - **The assets stay bundled; the values are confirmed per run.** Fonts and the logo are still read from
   disk, because the sandbox has no network for file reads at render time. `brand-colors.json` is now
   the version stamp the skill sends, not the authority it renders from.
-- **`lee-branding` gains the canonical connector-auth block** and leaves the `NO_CONNECTOR_SKILLS`
-  exclusion in `scripts/sync-connector-auth.sh` and its drift test. `process-mapping` remains excluded:
+- **`lee-branding` gains the canonical connector-auth block** and is REMOVED from the
+  `NO_CONNECTOR_SKILLS` exclusion in `scripts/sync-connector-auth.sh` and its drift test.
+  `process-mapping` remains excluded:
   it is a guided interview with no MCP tools, and gating it is a separate decision.
+
+- **The Claude Design org-setup path is gated too**, not just the per-deliverable render. A stale
+  palette uploaded as the org-wide design system propagates to every Lee design indefinitely, so that
+  path pulls the package first and uploads the values the tool returns.
+- **The failure copy branches by failure type.** A missing `pull_brand_package` with the other
+  lee-raleigh tools present is a stale connector tools list, not a broken sign-in, and gets a
+  refresh-the-tools-list line rather than the sign-in walkthrough -- the case every pilot broker hits
+  in the rollout window. A first auth error still gets the connector-auth ladder's retry offer, and a
+  timeout gets "try again in a few minutes", never the sign-in copy.
+- **Two lint checks pin the gate** (`tests/test_lee_branding_assets.py`): SKILL.md must still name
+  `pull_brand_package`, and the version literal it tells the model to send must match
+  `brand-colors.json`. The gate is prose, so nothing else in the repo would notice it being edited away.
 
 ### Note
 - **This is a deliberate capability trade.** A broker with the plugin but no working connector used to

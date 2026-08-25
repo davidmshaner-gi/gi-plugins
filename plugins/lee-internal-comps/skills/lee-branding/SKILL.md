@@ -32,8 +32,23 @@ two copies have diverged.
 **If the call cannot be completed, stop and say so. Do not fall back to the
 bundled files.** The fonts and the logo on disk are still there, but a deliverable
 built without this call is unverified against Lee's current brand, and going ahead
-anyway hides a broker whose plugin was never fully set up. Follow the connector-auth
-ladder at the end of this file to work out what to tell them.
+anyway hides a broker whose plugin was never fully set up.
+
+Which failure you have decides what you say. Work through these in order:
+
+- **`pull_brand_package` is not in your available tools, but the other lee-raleigh
+  tools are.** This is a stale tools list, not a broken connection — the tool is new
+  and the connector caches its list. Do NOT send them to sign in. Tell them warmly:
+  *"One quick thing — open the Lee Raleigh connector, choose Refresh tools list from
+  its menu, then ask me again. The brand tool is new and your connector hasn't picked
+  it up yet."* Then retry once they confirm.
+- **The call returned an authorization error.** Follow the connector-auth ladder at the
+  end of this file, and follow it as written — a FIRST auth failure with the lee-raleigh
+  tools loaded is usually a Claude glitch, so rule 3's retry offer is the right reply,
+  not a refusal. Only a second failure in a row, or the lee-raleigh tools being missing
+  entirely, is a real sign-in problem.
+- **The call failed some other way** (a timeout, a server error). Never give it the
+  sign-in copy. Say the brand service didn't answer, and to try again in a few minutes, because that is not an auth problem.
 
 ## Primary use: brand a deliverable you're building right now
 
@@ -105,7 +120,9 @@ pull-quote accent.
 
 ### Color — Lee Red is an accent, not a wash
 
-Pull exact values from the bundled `brand-colors.json`. The load-bearing rules:
+Pull exact values from the `colors` in the `pull_brand_package` response (the bundled
+`brand-colors.json` is the version you sent it, not the source you render from). The
+load-bearing rules, which also come back as `usage_rules`:
 
 - **Red `#98002E`** (PMS 202) is the signature accent — rules, a header bar, a key
   figure, the logo lockup. It is **never the background wash of the whole document**.
@@ -152,20 +169,28 @@ invent a brand rule that isn't in the guidelines.**
 Separate, less-common path — this is marketing-team-shaped work, not the day-to-day
 broker riff. When the **marketing team** wants the Lee brand set up **once** in Claude
 Design so every design across the org inherits it automatically, or a broker explicitly
-asks to "set up the shared Lee design system," walk them through the bundled
-`claude-design-setup.md` and stage these files for upload into Claude Design's
-design-system onboarding: `lee-associates-brand-guidelines.md`, `lee_logo.svg` (+
-`lee_logo.png` backup), `brand-colors.json`, and the five WOFFs in `fonts/`. That's a
-one-time org setup; the primary path above is what you reach for on an individual
-deliverable.
+asks to "set up the shared Lee design system," **call `pull_brand_package` first, the
+same as any render** — this path matters MORE, not less, because a stale palette
+uploaded as the org-wide design system propagates to every Lee design indefinitely.
+Upload the values the tool returns; if they differ from the bundled file, the tool's
+response wins and you say so. If the call cannot be completed, stop here too.
+
+Then walk them through the bundled `claude-design-setup.md` and stage these files for
+upload into Claude Design's design-system onboarding: `lee-associates-brand-guidelines.md`,
+`lee_logo.svg` (+ `lee_logo.png` backup), `brand-colors.json`, and the bundled WOFFs in
+`fonts/` (five Avenir Next + eight Minion Pro). That's a one-time org setup; the primary
+path above is what you reach for on an individual deliverable.
 
 ## Files
 
 - `SKILL.md` — this file. Calls the `pull_brand_package` MCP tool on `lee-raleigh`
   before rendering anything.
 - `brand-colors.json` — machine-readable color tokens (HEX / PMS / CMYK / RGB, tints, the
-  icon gradient). Pull exact values from here at render time.
-- `fonts/` — the five Avenir Next WOFFs + a README; the real Lee primary typeface.
+  icon gradient). Its `version` is what you send as `local_version`; render from the
+  tool's response, not from this file. Print-only values (PMS / CMYK / RGB) live here
+  and are not served, so read them here when a print spec needs them.
+- `fonts/` — the five Avenir Next WOFFs and eight Minion Pro WOFFs + a README; the real
+  Lee primary typeface and its accent serif.
 - `lee_logo.svg` — the logo as a vector (sharpest; preferred).
 - `lee_logo.png` — the logo as an image (240×73 RGBA; use when a tool won't take SVG).
 - `lee-associates-brand-guidelines.md` — Lee's full brand standards (logo, colors, fonts,
