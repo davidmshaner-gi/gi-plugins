@@ -1,6 +1,6 @@
 ---
 name: internal-comps
-description: Pull internal sale or lease comps from the Dealius mirror for Lee & Associates brokers. Broker pastes a free-form comp request into chat; skill parses, queries sale_comps_safe or lease_comps_safe via MCP, and produces a formatted Excel and/or PDF deliverable plus a draft email reply. Confidentiality enforced server-side.
+description: Pull internal sale or lease comps from the Dealius mirror for Lee & Associates brokers, by city, by county, or across the RDU market. Broker pastes a free-form comp request into chat; skill parses, queries sale_comps_safe or lease_comps_safe via MCP, and produces a formatted Excel and/or PDF deliverable plus a draft email reply. Confidentiality enforced server-side.
 ---
 
 # Internal Comps (Lee & Associates / Dealius)
@@ -76,7 +76,7 @@ The dict you pass to `validate_request`. `asset_type` and `transaction_type` are
 | `asset_type` | yes | `"industrial"` \| `"flex"` \| `"office"` \| `"retail"` \| `"medical_office"` \| `"lab"` \| `"land"` |
 | `transaction_type` | yes | `"lease"` \| `"sale"` |
 | `output_format` | yes (set in step 4) | `"excel"` \| `"pdf"` \| `"both"` |
-| `geography` | no | `{"named_market": str}` or `{"cities": [str, ...]}` or `{"anchor": str, "radius_mi": int}` |
+| `geography` | no | `{"named_market": str}` or `{"cities": [str, ...]}` or `{"counties": [str, ...]}` or `{"anchor": str, "radius_mi": int}` |
 | `size_range` | no | `{"min_sf": int, "max_sf": int}` |
 | `date_window` | no | `{"lookback_months": int}` or `{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}` |
 | `target_count` | no | int (default 8) |
@@ -124,6 +124,10 @@ The model does not need to memorize the 365-column schema. The helpers select a 
 **Industrial outdoor storage / IOS / yard deals:** there is no clean SQL filter — confirmed by the broker. The data fields that would identify them (zoning, yard_sf, yard_type, comp name keywords, notes) are essentially unpopulated. Brokers tag these mentally. If a request mentions IOS, route as `flex` with a `min_acres` filter (broker's recommendation) and surface in the email that this is the closest proxy, not an exact match.
 
 ### Geography registry (V1)
+
+**County asks (lee#496).** A request that names counties — "retail leases in Brunswick County", "Wake and Durham only" — maps to `geography={"counties": [...]}`, NOT to a city enumeration. `build_sql` then filters on **`county_normalized`**, and drops the city predicate entirely.
+
+`county_normalized` exists because the raw `county` column on both safe views stores the **suffixed** spelling ("Brunswick County" — 100% of the non-blank rows), while the external comp book stores the bare name. A generated `WHERE county = 'Brunswick'` therefore returns 0 rows from a fully populated column, with no error — which is exactly what cost a broker four on-point comps on 2026-08-25. `county_normalized` is the trimmed, lowercased name with a trailing " county" removed, so `'brunswick'` matches whichever spelling the broker used. **Filter on `county_normalized`; select `county` for display.** `read_query`'s tool description and `describe_table`'s `conventions` block both say so — if you are ever unsure of a stored value's shape on these views, call `describe_table` and read `conventions` before writing the WHERE clause.
 
 `"RDU MSA"` (and aliases `"RDU"`, `"Triangle"`, `"Raleigh-Durham"`) resolves to a hand-curated city list inside the helpers. **Sub-regional broker shorthand is not enriched in V1** (data cleanup is deferred to a later SOW). For phrasings like "Garner / South Raleigh," parse the cities explicitly and pass `geography={"cities": ["Garner", "Raleigh"]}` — don't try to register a sub-market. Anything that doesn't match a registered named market falls back to RDU MSA with a warning.
 
