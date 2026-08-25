@@ -51,9 +51,24 @@ external = load_sibling("external-comps")
 4. **Run BOTH queries in parallel:**
    - Internal: build SQL with `internal.build_sql(validated)`, run MCP `read_query`. Response
      is `{"rows": [...], "query_id": "...", "freshness": "..."}`.
-   - External: build params with `external.build_mcp_params(validated)` → `(tool_name, params)`;
-     invoke MCP `search_external_sale_comps` or `search_external_lease_comps`. Response is
-     `{"rows": [...], "freshness": "..."}`.
+   - External: build params with `external.build_mcp_params(validated)` →
+     `{"tool_name", "params_list", ...}`; invoke MCP `search_external_sale_comps` or
+     `search_external_lease_comps` once per entry in `params_list` (one per county for a
+     `counties` ask and for the RDU default, one per city for `cities`; issue them in parallel in
+     one turn) and union the rows with `external.merge_rows(*pages)`. Response is
+     `{"rows": [...], "freshness": "..."}`. Then `external.apply_post_filters(rows, validated,
+     post_filter_counties, keep_blank_county=True)`: a no-op on `counties`/`cities`; on the RDU
+     default it is the G26 stale-connector guard — a "dropped N rows outside […]" entry means the
+     connector stripped the `county` param (tell the broker to "Refresh tools list").
+   - **When an external call carries `truncated`** (Worker 0.53.0, gi-plugins#158) it stopped at
+     the 200-row cap with more rows behind it — the rows are the NEWEST only. Page it exactly as
+     the `external-comps` skill does (Process step 6 there): `external.next_page_params(params,
+     response)` until it returns `None` or `external.MAX_PAGES` (5) pages, then put one
+     `external.truncation_note(retrieved, total_available, pages, label=<county or city>)` per
+     truncated params dict in the note / Methodology (`total_available` from that dict's FIRST
+     page; `retrieved` its de-duplicated count) so the broker knows how much of the matching book
+     they are looking at. Never present a clipped
+     external leg as the complete external picture.
    - **County asks flow through both legs automatically (lee#496).** A `geography={"counties": [...]}` request needs no handling here: `internal.build_sql` emits a `county_normalized` predicate against the safe views and `external.build_mcp_params` emits one call per county carrying the typed `county` param. Pass the broker's spelling verbatim to both — each side normalizes, and the two comp books store opposite spellings ("Brunswick County" internal, "Brunswick" external).
    - **Surface BOTH freshness lines verbatim as the first two lines of your reply.** They are
      not optional and must never be omitted or rephrased — one for Dealius, one for the external platform

@@ -51,10 +51,13 @@ def test_counties_work_for_sale_too():
     assert out["params_list"][0]["county"] == "Brunswick"
 
 
-def test_named_market_path_is_unchanged():
+def test_named_market_rdu_is_the_same_server_side_county_fan_out():
+    # gi-plugins#158: RDU MSA is its 7 counties, fetched exactly like a county ask
+    # (one server-side call each) -- no longer one statewide call post-filtered in
+    # Python, which let the 200-row cap bind before the county filter ran.
     out = helpers.build_mcp_params(_validated(geography={"named_market": "RDU MSA"}))
-    assert len(out["params_list"]) == 1
-    assert "county" not in out["params_list"][0]
+    assert [p["county"] for p in out["params_list"]] == sorted(helpers.RDU_MSA_COUNTIES)
+    # kept as the G26 stale-connector guard, not a filter (gi-plugins#158)
     assert out["post_filter_counties"] == set(helpers.RDU_MSA_COUNTIES)
 
 
@@ -85,7 +88,8 @@ def test_blank_county_list_does_not_silently_widen_to_the_whole_state():
     geo = out["validated"]["geography"]
     assert geo == {"named_market": "RDU MSA"}
     params = helpers.build_mcp_params(out["validated"])
-    assert all("county" not in p for p in params["params_list"])
+    # every call carries an RDU county: the ask never reaches the whole state
+    assert {p["county"] for p in params["params_list"]} == set(helpers.RDU_MSA_COUNTIES)
     assert params["post_filter_counties"] == set(helpers.RDU_MSA_COUNTIES)
 
 

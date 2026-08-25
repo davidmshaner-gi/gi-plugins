@@ -7,43 +7,29 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
-## [1.39.0] - 2026-08-25
+## [1.39.1] - 2026-08-25
 
-### Changed
-- **`lee-branding` now calls the connector before it renders, and stops when it cannot (lee#507):**
-  the skill ships Lee's brand package on disk (the Cowork sandbox has no outbound HTTPS), so it could
-  produce a fully Lee-branded deliverable without ever touching `lee-raleigh`. Every branding session
-  was therefore absent from the activity record, and a broker who had the plugin installed but never
-  completed sign-in could use it with nothing anywhere to say so. It now calls `pull_brand_package`
-  (lee-raleigh-mcp 0.52.0) first, passing the bundled `brand-colors.json` version, and renders from
-  what comes back -- colors, tints, gradient, font stacks, tagline, logo rules, and the `usage_rules`
-  that govern which colors may carry small text. The tool also answers the one question the skill
-  cannot answer locally: whether the bundled package is still current.
-- **The assets stay bundled; the values are confirmed per run.** Fonts and the logo are still read from
-  disk, because the sandbox has no network for file reads at render time. `brand-colors.json` is now
-  the version stamp the skill sends, not the authority it renders from.
-- **`lee-branding` gains the canonical connector-auth block** and is REMOVED from the
-  `NO_CONNECTOR_SKILLS` exclusion in `scripts/sync-connector-auth.sh` and its drift test.
-  `process-mapping` remains excluded:
-  it is a guided interview with no MCP tools, and gating it is a separate decision.
-
-- **The Claude Design org-setup path is gated too**, not just the per-deliverable render. A stale
-  palette uploaded as the org-wide design system propagates to every Lee design indefinitely, so that
-  path pulls the package first and uploads the values the tool returns.
-- **The failure copy branches by failure type.** A missing `pull_brand_package` with the other
-  lee-raleigh tools present is a stale connector tools list, not a broken sign-in, and gets a
-  refresh-the-tools-list line rather than the sign-in walkthrough -- the case every pilot broker hits
-  in the rollout window. A first auth error still gets the connector-auth ladder's retry offer, and a
-  timeout gets "try again in a few minutes", never the sign-in copy.
-- **Two lint checks pin the gate** (`tests/test_lee_branding_assets.py`): SKILL.md must still name
-  `pull_brand_package`, and the version literal it tells the model to send must match
-  `brand-colors.json`. The gate is prose, so nothing else in the repo would notice it being edited away.
-
-### Note
-- **This is a deliberate capability trade.** A broker with the plugin but no working connector used to
-  get a branded deliverable; they now get a stop with the standard sign-in guidance. That is the point:
-  a capability that works unauthenticated is invisible to us, and a visible failure is the only thing
-  that surfaces a broker who was never fully set up.
+### Fixed
+- **An RDU-market external comps ask no longer loses 22-58% of its comps (gi-plugins#158).**
+  `external-comps` resolved `named_market: "RDU MSA"` — also the applied default when a broker names
+  no geography — to ONE statewide `state="NC"` call at `limit: 200` (newest first), then
+  post-filtered the rows to the seven RDU counties in Python. The cap bound on the whole NC book
+  before the county filter ran: measured against prod on 2026-08-25 with the default windows, a
+  retail sale ask saw 67 of the 140 RDU comps that exist, office 88 of 126, land 90 of 115, and a
+  lease ask 99 of 237 — and the broker saw a plausible list with no sign anything was cut. RDU now
+  fans out like a county ask: one server-side `county` call per whitelist county (lee#496's typed
+  param). The Python whitelist stays on only as a stale-connector guard (G26): it drops nothing
+  when the Worker honoured `county`, and a "dropped N rows" note on an RDU ask is the signal to
+  refresh the connector's tools list. The null-county strategy dialog and the city → county fallback
+  map went with the post-filter they belonged to: the Worker now derives a county geometrically for
+  the 265 external rows the platform shipped without one (lee#515, Worker 0.53.0), so a county
+  filter reaches them and the skill never fabricates a county for display.
+- **A capped search is paged and named, never passed off as complete.** Worker 0.53.0 puts
+  `truncated` on any external search that stopped at the 200-row cap with rows behind it (16 real
+  broker searches came back clipped that way, 7 brokers, since 2026-06-18). The skill pages by date
+  cursor (`next_page_params`, up to `MAX_PAGES` = 5), unions with `merge_rows`, and appends one
+  labelled `truncation_note` per clipped call so the email ("Notes on what was retrieved") and the
+  Methodology sheet ("Retrieval notes") say how much of the matching book the broker is looking at.
 
 ## [1.38.0] - 2026-08-25
 
