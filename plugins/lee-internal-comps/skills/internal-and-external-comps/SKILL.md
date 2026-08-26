@@ -62,7 +62,9 @@ external = load_sibling("external-comps")
      connector stripped the `county` param (tell the broker to "Refresh tools list").
    - **When an external call carries `truncated`** (Worker 0.53.0, gi-plugins#158) it stopped at
      the 200-row cap with more rows behind it — the rows are the NEWEST only. Page it exactly as
-     the `external-comps` skill does (Process step 6 there): `external.next_page_params(params,
+     the `external-comps` skill does (its step-6 ALGORITHM — the readability self-check, the
+     15-call budget, `external.tie_break_params` on a same-date stall, and its prohibitions on
+     window-slicing all bind here too, gi-plugins#161): `external.next_page_params(params,
      response)` until it returns `None` or `external.MAX_PAGES` (5) pages, then put one
      `external.truncation_note(retrieved, total_available, pages, label=<county or city>)` per
      truncated params dict in the note / Methodology (`total_available` from that dict's FIRST

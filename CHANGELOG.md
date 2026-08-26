@@ -7,6 +7,21 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.39.2] - 2026-08-26
+
+### Fixed
+- **external-comps / internal-and-external-comps: the paging contract is now workable at the
+  broker surface (gi-plugins#161).** 1.39.1's 4a exposed that a Cowork session cannot read a
+  200-row search response — the client truncates large tool results — so the session improvised
+  a 309-call window-slicing storm on a capped statewide ask instead of paging. Two-layer fix
+  with Worker 0.53.1 (lee#528, ships together): search rows no longer carry the ~2.3KB/row
+  `raw_fields_json` blob (full record stays on `get_external_comp_detail`), and step 6 is now an
+  explicit retrieval algorithm — a readability self-check (re-issue at the limit you can
+  actually parse, floor 25, never advance a cursor past unread rows), `next_page_params` paging,
+  a new `tie_break_params` helper for the same-date-cluster stall, a hard 15-call budget with
+  the honest offer-to-narrow fallback, and named prohibitions on window-slicing / per-subtype
+  "verification" probes / presenting a partial retrieval as complete.
+
 ## [1.39.1] - 2026-08-25
 
 ### Fixed

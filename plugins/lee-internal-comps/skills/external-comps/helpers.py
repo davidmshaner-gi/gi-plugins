@@ -15,16 +15,14 @@ Design contract:
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import statistics
-import tempfile
 from datetime import date, timedelta
-from typing import Any, Iterable, Literal, Optional
+from typing import Any, Optional
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
@@ -438,6 +436,66 @@ def next_page_params(params: dict, response: dict) -> Optional[dict]:
     nxt = dict(params)
     nxt[bound] = oldest
     return nxt
+
+
+_MIN_BOUND_FOR_ORDER = {
+    "sale_date": ("min_sale_date", "max_sale_date"),
+    "lease_start_date": ("min_lease_start_date", "max_lease_start_date"),
+}
+
+
+def tie_break_params(params: dict, response: dict, rows: list) -> Optional[tuple[dict, dict]]:
+    """The sanctioned exit when the date cursor stalls on a same-date cluster.
+
+    A truncated page that is ENTIRELY one ordering date means the cluster is at
+    least as big as the page, so moving the max bound to `oldest_returned`
+    would re-fetch the same page forever (next_page_params refuses with None).
+    gi-plugins#161: the 4a session that hit this invented a 309-call slicing
+    storm instead. The correct move is two calls, not a survey:
+
+      cluster, resume = tie_break_params(params, response, rows)
+      # 1. call the tool with `cluster` -- the same search pinned to that one
+      #    date (min == max == the date) at limit 200; the largest same-date
+      #    cluster on prod is 66 rows, so the pinned fetch always completes.
+      # 2. merge_rows the cluster in, then continue the walk with `resume` --
+      #    the original search with the max bound moved one day EARLIER.
+
+    None when the response is not truncated, rows is empty, the page spans
+    more than one ordering date (the ordinary cursor advances fine), or the
+    date is not plain ISO. Never apply this to the CLUSTER response itself:
+    a pinned fetch that still truncates gets the honest truncation note, not
+    another break (the resume bounds would invert into an empty range).
+    """
+    t = (response or {}).get("truncated")
+    if not t or not rows:
+        return None
+    order_col = str(t.get("ordered_by") or "").split()[0] if t.get("ordered_by") else ""
+    bounds = _MIN_BOUND_FOR_ORDER.get(order_col)
+    if bounds is None:
+        # mirror next_page_params: infer the book from the params keys
+        bounds = (
+            ("min_lease_start_date", "max_lease_start_date")
+            if "min_lease_start_date" in params or "max_lease_start_date" in params
+            else ("min_sale_date", "max_sale_date")
+        )
+        if not order_col:
+            order_col = "lease_start_date" if bounds[0] == "min_lease_start_date" else "sale_date"
+    min_bound, max_bound = bounds
+    dates = {r.get(order_col) for r in rows}
+    if len(dates) != 1 or None in dates:
+        return None
+    the_date = dates.pop()
+    cluster = dict(params)
+    cluster[min_bound] = the_date
+    cluster[max_bound] = the_date
+    cluster["limit"] = 200
+    try:
+        day_before = (date.fromisoformat(the_date) - timedelta(days=1)).isoformat()
+    except ValueError:
+        return None  # non-ISO date: fall through to the budget / offer-to-narrow path
+    resume = dict(params)
+    resume[max_bound] = day_before
+    return (cluster, resume)
 
 
 def merge_rows(*pages: list[dict]) -> list[dict]:
