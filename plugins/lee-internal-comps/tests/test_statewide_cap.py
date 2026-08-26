@@ -236,3 +236,54 @@ def test_a_statewide_survey_pages_to_completion_across_seam_duplicates():
 
 def test_max_pages_bounds_a_runaway_survey():
     assert helpers.MAX_PAGES == 5
+
+
+# --- gi-plugins#161: the tie-cluster stall guard -----------------------------
+#
+# next_page_params correctly returns None when the cursor cannot advance — but
+# that leaves the walk STUCK when a truncated page is entirely one ordering
+# date (a same-date cluster at least as big as the page). The 4a session that
+# hit this at an improvised small limit invented a 309-call slicing storm.
+# tie_break_params is the sanctioned exit: fetch the whole cluster in one
+# pinned call, then resume the walk one day earlier.
+
+def _rows(dates, col="sale_date"):
+    return [{"external_id": f"x{i}", col: d} for i, d in enumerate(dates)]
+
+
+def test_tie_break_fetches_the_whole_cluster_then_resumes_a_day_earlier():
+    params = {"state": "NC", "property_type": "Retail",
+              "max_sale_date": "2026-08-25", "limit": 30}
+    resp = _truncated("2025-06-30")
+    rows = _rows(["2025-06-30"] * 30)
+    out = helpers.tie_break_params(params, resp, rows)
+    assert out is not None
+    cluster, resume = out
+    assert cluster["min_sale_date"] == "2025-06-30"
+    assert cluster["max_sale_date"] == "2025-06-30"
+    assert cluster["limit"] == 200            # largest prod cluster is 66 — always completes
+    assert resume["max_sale_date"] == "2025-06-29"
+    assert resume["limit"] == params["limit"]
+    assert params["max_sale_date"] == "2026-08-25"   # input untouched
+
+
+def test_tie_break_uses_the_lease_bounds_for_leases():
+    params = {"state": "NC", "max_lease_start_date": "2026-08-25", "limit": 25}
+    resp = _truncated("2026-01-31")
+    resp["truncated"]["ordered_by"] = "lease_start_date DESC"
+    rows = _rows(["2026-01-31"] * 25, col="lease_start_date")
+    cluster, resume = helpers.tie_break_params(params, resp, rows)
+    assert cluster["min_lease_start_date"] == "2026-01-31"
+    assert cluster["max_lease_start_date"] == "2026-01-31"
+    assert resume["max_lease_start_date"] == "2026-01-30"
+
+
+def test_tie_break_is_none_when_the_page_spans_dates_or_is_not_truncated():
+    params = {"state": "NC", "max_sale_date": "2026-08-25", "limit": 30}
+    # page spans two dates: the ordinary cursor advances, no tie-break needed
+    rows = _rows(["2025-06-30"] * 29 + ["2025-07-01"])
+    assert helpers.tie_break_params(params, _truncated("2025-06-30"), rows) is None
+    # complete result: nothing to break
+    assert helpers.tie_break_params(params, {"rows": []}, _rows(["2025-06-30"])) is None
+    # empty rows: nothing to inspect
+    assert helpers.tie_break_params(params, _truncated("2025-06-30"), []) is None

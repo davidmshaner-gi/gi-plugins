@@ -15,16 +15,14 @@ Design contract:
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import statistics
-import tempfile
 from datetime import date, timedelta
-from typing import Any, Iterable, Literal, Optional
+from typing import Any, Optional
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.drawing.image import Image as XLImage
@@ -438,6 +436,51 @@ def next_page_params(params: dict, response: dict) -> Optional[dict]:
     nxt = dict(params)
     nxt[bound] = oldest
     return nxt
+
+
+_MIN_BOUND_FOR_ORDER = {
+    "sale_date": ("min_sale_date", "max_sale_date"),
+    "lease_start_date": ("min_lease_start_date", "max_lease_start_date"),
+}
+
+
+def tie_break_params(params: dict, response: dict, rows: list) -> Optional[tuple]:
+    """The sanctioned exit when the date cursor stalls on a same-date cluster.
+
+    A truncated page that is ENTIRELY one ordering date means the cluster is at
+    least as big as the page, so moving the max bound to `oldest_returned`
+    would re-fetch the same page forever (next_page_params refuses with None).
+    gi-plugins#161: the 4a session that hit this invented a 309-call slicing
+    storm instead. The correct move is two calls, not a survey:
+
+      cluster, resume = tie_break_params(params, response, rows)
+      # 1. call the tool with `cluster` -- the same search pinned to that one
+      #    date (min == max == the date) at limit 200; the largest same-date
+      #    cluster on prod is 66 rows, so the pinned fetch always completes.
+      # 2. merge_rows the cluster in, then continue the walk with `resume` --
+      #    the original search with the max bound moved one day EARLIER.
+
+    None when the response is not truncated, rows is empty, or the page spans
+    more than one ordering date (the ordinary cursor advances fine).
+    """
+    t = (response or {}).get("truncated")
+    if not t or not rows:
+        return None
+    order_col = str(t.get("ordered_by") or "sale_date DESC").split()[0]
+    min_bound, max_bound = _MIN_BOUND_FOR_ORDER.get(
+        order_col, ("min_sale_date", "max_sale_date"))
+    dates = {r.get(order_col) for r in rows}
+    if len(dates) != 1 or None in dates:
+        return None
+    the_date = dates.pop()
+    cluster = dict(params)
+    cluster[min_bound] = the_date
+    cluster[max_bound] = the_date
+    cluster["limit"] = 200
+    day_before = (date.fromisoformat(the_date) - timedelta(days=1)).isoformat()
+    resume = dict(params)
+    resume[max_bound] = day_before
+    return (cluster, resume)
 
 
 def merge_rows(*pages: list[dict]) -> list[dict]:
