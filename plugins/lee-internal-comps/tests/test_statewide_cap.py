@@ -186,7 +186,8 @@ def _serve(book: list[dict], params: dict) -> dict:
     resp = {"rows": rows}
     if len(rows) >= limit:
         # an uncapped count: same predicates, no LIMIT
-        uncapped = dict(params); uncapped.pop("limit", None)
+        uncapped = dict(params)
+        uncapped.pop("limit", None)
         total = len(_uncapped(book, uncapped))
         if total > len(rows):
             resp["truncated"] = {"returned": len(rows), "total_available": total, "limit": limit,
@@ -287,3 +288,48 @@ def test_tie_break_is_none_when_the_page_spans_dates_or_is_not_truncated():
     assert helpers.tie_break_params(params, {"rows": []}, _rows(["2025-06-30"])) is None
     # empty rows: nothing to inspect
     assert helpers.tie_break_params(params, _truncated("2025-06-30"), []) is None
+
+
+def test_a_small_limit_walk_survives_a_same_date_cluster_via_tie_break():
+    """The composed step-6 loop at a client-imposed small limit: 126 comps,
+    66 of them sharing one sale date (the prod maximum shape), walked at
+    limit 30. The bare cursor stalls on the cluster page; tie_break_params
+    fetches the pinned cluster and resumes a day earlier. Nothing lost,
+    call count bounded — the regression net for the 309-call slicing storm."""
+    book = []
+    for i in range(40):
+        book.append({"external_id": f"a{i}", "property_city": "Anywhere", "county": "Any",
+                     "property_state": "NC", "property_type": "Retail",
+                     "sale_date": _iso(i), "sale_price": 1_000_000})
+    for i in range(66):
+        book.append({"external_id": f"c{i}", "property_city": "Anywhere", "county": "Any",
+                     "property_state": "NC", "property_type": "Retail",
+                     "sale_date": _iso(40), "sale_price": 1_000_000})
+    for i in range(20):
+        book.append({"external_id": f"z{i}", "property_city": "Anywhere", "county": "Any",
+                     "property_state": "NC", "property_type": "Retail",
+                     "sale_date": _iso(41 + i), "sale_price": 1_000_000})
+    params = {"state": "NC", "property_type": "Retail",
+              "min_sale_date": _iso(3 * 365), "max_sale_date": _iso(0), "limit": 30}
+    pages, calls, p = [], 0, params
+    while p is not None and calls < 15:
+        resp = _serve(book, p)
+        calls += 1
+        pages.append(resp["rows"])
+        if "truncated" not in resp:
+            break
+        nxt = helpers.next_page_params(p, resp)
+        if nxt is None:
+            broken = helpers.tie_break_params(p, resp, resp["rows"])
+            assert broken is not None, "stalled with no tie-break available"
+            cluster, resume = broken
+            cluster_resp = _serve(book, cluster)
+            calls += 1
+            assert "truncated" not in cluster_resp   # 66-row cluster fits limit 200
+            pages.append(cluster_resp["rows"])
+            nxt = resume
+        p = nxt
+    rows = helpers.merge_rows(*pages)
+    assert {r["external_id"] for r in rows} == {r["external_id"] for r in book}
+    assert len(rows) == 126
+    assert calls <= 15

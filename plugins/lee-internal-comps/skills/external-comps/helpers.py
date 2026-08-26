@@ -444,7 +444,7 @@ _MIN_BOUND_FOR_ORDER = {
 }
 
 
-def tie_break_params(params: dict, response: dict, rows: list) -> Optional[tuple]:
+def tie_break_params(params: dict, response: dict, rows: list) -> Optional[tuple[dict, dict]]:
     """The sanctioned exit when the date cursor stalls on a same-date cluster.
 
     A truncated page that is ENTIRELY one ordering date means the cluster is at
@@ -460,15 +460,27 @@ def tie_break_params(params: dict, response: dict, rows: list) -> Optional[tuple
       # 2. merge_rows the cluster in, then continue the walk with `resume` --
       #    the original search with the max bound moved one day EARLIER.
 
-    None when the response is not truncated, rows is empty, or the page spans
-    more than one ordering date (the ordinary cursor advances fine).
+    None when the response is not truncated, rows is empty, the page spans
+    more than one ordering date (the ordinary cursor advances fine), or the
+    date is not plain ISO. Never apply this to the CLUSTER response itself:
+    a pinned fetch that still truncates gets the honest truncation note, not
+    another break (the resume bounds would invert into an empty range).
     """
     t = (response or {}).get("truncated")
     if not t or not rows:
         return None
-    order_col = str(t.get("ordered_by") or "sale_date DESC").split()[0]
-    min_bound, max_bound = _MIN_BOUND_FOR_ORDER.get(
-        order_col, ("min_sale_date", "max_sale_date"))
+    order_col = str(t.get("ordered_by") or "").split()[0] if t.get("ordered_by") else ""
+    bounds = _MIN_BOUND_FOR_ORDER.get(order_col)
+    if bounds is None:
+        # mirror next_page_params: infer the book from the params keys
+        bounds = (
+            ("min_lease_start_date", "max_lease_start_date")
+            if "min_lease_start_date" in params or "max_lease_start_date" in params
+            else ("min_sale_date", "max_sale_date")
+        )
+        if not order_col:
+            order_col = "lease_start_date" if bounds[0] == "min_lease_start_date" else "sale_date"
+    min_bound, max_bound = bounds
     dates = {r.get(order_col) for r in rows}
     if len(dates) != 1 or None in dates:
         return None
@@ -477,7 +489,10 @@ def tie_break_params(params: dict, response: dict, rows: list) -> Optional[tuple
     cluster[min_bound] = the_date
     cluster[max_bound] = the_date
     cluster["limit"] = 200
-    day_before = (date.fromisoformat(the_date) - timedelta(days=1)).isoformat()
+    try:
+        day_before = (date.fromisoformat(the_date) - timedelta(days=1)).isoformat()
+    except ValueError:
+        return None  # non-ISO date: fall through to the budget / offer-to-narrow path
     resume = dict(params)
     resume[max_bound] = day_before
     return (cluster, resume)
