@@ -1,0 +1,9 @@
+{
+  "name": "grounded-intelligence",
+  "description": "Your Grounded Intelligence workbench. Ask GI a question about your own work and get an answer grounded in your process maps and your team's setup; take the AI Leadership Foundations training on your own time; start from a ready-made workflow and change it to fit how your division actually runs; and send a finished workflow back so GI adds it to your company library. Ask in plain English or use /ask-gi, /suggest-a-build, /improve-my-skill, and /save-my-skill.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Grounded Intelligence"
+  },
+  "homepage": "https://groundedintelligence.io"
+}
