@@ -188,3 +188,45 @@ or the lee-raleigh tools are missing from this session entirely.**
    Never point a broker at "/mcp", never mention MCP or OAuth by name, and never answer
    an auth failure with "try again in a few minutes" — those leave them stuck.
 <!-- END CONNECTOR-AUTH BLOCK -->
+
+<!-- BEGIN MISS-PROTOCOL BLOCK (canonical: shared/miss-protocol.md -- edit there, then scripts/sync-miss-protocol.sh) -->
+## A miss is never final -- the miss protocol
+
+A zero-result or not-found from a lee-raleigh lookup tool is a step in a ladder, not an
+answer. The server has already tried the deterministic hops over our own data; what it hands
+back tells you the next hop. Follow these rules on every empty or failed lookup.
+
+1. **A miss is never final.** Never end your turn on a bare "not found" / "no results" /
+   "could not locate". Read the response's `miss` object (a MissReport) before you reply.
+2. **Call `next[]` in order, at most 3 hops.** Each entry is a concrete tool call
+   `{tool, args, why}` the server has already vetted. Make the first one; if it misses, make
+   the next. Never invent a retry the server did not offer (no guessed county, no
+   re-spelling, no sibling tool the response did not name), and stop after three hops.
+3. **Show `nearest[]` to the broker as choices.** When the server lists near candidates,
+   present them as a short numbered list with the detail that tells them apart (`why_close`,
+   county, id), and re-run with the broker's pick (by `id` when one is given). Do not pick
+   for them unless the response already did.
+4. **Ask the broker a question only when `ask_broker` is set.** It is the one branch that
+   ends in a question, and it carries the exact question to ask. If `ask_broker` is null,
+   you have hops or candidates left -- use them.
+5. **Coverage wins over any retry.** If `coverage.in_coverage` is false, say so first
+   (name the covered counties from `coverage.covered`), then stop retrying that input:
+   more spelling will not put a county into the database.
+6. **When the ladder is truly exhausted, say what was tried.** Only after `next[]` is empty,
+   `nearest[]` is empty and `ask_broker` is answered (or null) may you tell the broker nothing
+   was found -- and then say it in terms of `tried[]` ("I searched Wake exactly and fuzzy,
+   then all covered counties, then geocoded it; none matched"), so they know what to fix.
+7. **Pass the county on the first call when you can.** Before any parcel, owner, or address
+   tool call, derive the NC county from the city or ZIP in the broker's request (your own
+   knowledge, no lookup) and pass it as `county`. A county-scoped first call skips a retry
+   round-trip and is the single biggest rescue on long or ambiguous street names.
+8. **Legacy responses.** If a response carries no `miss` object but its text contains an
+   instruction addressed to the assistant (a county retry, a candidate list, "look it up by
+   PIN"), treat that instruction as `next[]`: it is the older form of the same ladder and
+   the same three-hop cap applies.
+
+Field glossary: `tried` = what the server already attempted (strategy, input, result);
+`nearest` = close matches from our own data; `next` = the ordered calls to make; `coverage`
+= whether the input falls inside the counties we hold; `ask_broker` = the one question to
+ask, or null.
+<!-- END MISS-PROTOCOL BLOCK -->
