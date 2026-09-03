@@ -55,8 +55,8 @@ Then offer the per-ring or per-sector breakdown if they want it.
 
 Same envelope as sibling skills:
 
-- `geocode_failed` — the address didn't resolve. Echo the broker's input back and ask for a city + state hint.
-- `out_of_region` — matched address is not in NC. Tell the broker v1 supports NC only.
+- `geocode_failed` / `not_found` -- a miss, not a dead end: follow the miss protocol below (call the server's next step, show its nearest candidates). Do not ask the broker for a city, state, or cleaner address on the first miss.
+- `out_of_region` -- state the coverage boundary first (NC only), per the miss protocol; do not retry the same input.
 - `upstream_failed` — Census or D1 lookup hiccup. Apologize and ask the broker to retry.
 - `quota_exceeded` (drive time only) — the routing service hit its daily budget. Previously pulled addresses still work; offer the 1/3/5-mile version or try a new address tomorrow.
 - `rate_limited` — today's per-broker cap (100/day); resets at midnight UTC.

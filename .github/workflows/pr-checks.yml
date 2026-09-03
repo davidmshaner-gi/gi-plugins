@@ -51,6 +51,18 @@ jobs:
       - name: Connector-auth block present and un-drifted in every covered skill
         run: bash scripts/test/connector-auth-guidance.test.sh
 
+  miss-protocol-guidance:
+    name: miss-protocol-guidance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # gi-plugins#164 (program lee#530): every lee-raleigh-riding SKILL.md
+      # must carry the canonical miss-protocol block verbatim, and none may
+      # keep the retired "ask the broker for a hint" prose. Deterministic.
+      - name: Miss-protocol block present and un-drifted; retired punt prose gone
+        run: bash scripts/test/miss-protocol-guidance.test.sh
+
   source-neutrality:
     name: source-neutrality
     runs-on: ubuntu-latest

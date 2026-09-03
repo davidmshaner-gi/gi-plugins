@@ -40,8 +40,8 @@ Triggers:
 
 Same envelope as sibling skills:
 
-- `geocode_failed` — the address didn't resolve. Echo the broker's input back and ask for clarification (city + state hint helps).
-- `out_of_region` — matched address is not in NC. Tell the broker that v1 supports NC only.
+- `geocode_failed` / `not_found` -- a miss, not a dead end: follow the miss protocol below (call the server's next step, show its nearest candidates). Do not ask the broker for a city, state, or cleaner address on the first miss.
+- `out_of_region` -- state the coverage boundary first (NC only), per the miss protocol; do not retry the same input.
 - `upstream_failed` — Census or D1 lookup hiccup. Apologize and ask the broker to retry.
 - `internal` — anything else. Apologize, surface a short message, and ask David / Bonner to check.
 

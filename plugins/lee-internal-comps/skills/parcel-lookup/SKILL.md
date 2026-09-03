@@ -46,10 +46,10 @@ Triggers:
 
 The tool returns broker-legible errors; surface them as-is:
 
-- **"No parcel found for ..."** — outside the covered counties, or the address needs a city/state. Echo the input back and ask for a more specific spelling or a county hint.
+- **"No parcel found for ..."** -- outside the covered counties, or the address needs a county to disambiguate. Follow the miss protocol below: the message carries the assistant-directed next step (derive the county from the city/ZIP and re-call with `county`); do not ask the broker for a spelling or a hint on the first miss.
 - **"No exact match for ... Closest parcels on record:"** — near-miss recovery: the address didn't match exactly but close candidates exist (reordered wording, slightly different house number, abbreviation variants). Show the broker the candidate list (ranked nearest-first, each with parcel_id, county, and site address) and re-run with the exact site address shown — or use `owner-lookup` with the candidate's parcel_id (PIN). Reordered-but-identical addresses now resolve automatically with no broker action.
 - **"Multiple parcels match ..."** — same street address in more than one county; the error lists candidates. Ask which county and re-call with `county`.
-- **geocode_failed / out_of_region** — the address didn't geocode or isn't NC; ask for a cleaner address.
+- **geocode_failed / out_of_region** -- geocode_failed is a miss, not a dead end (follow the miss protocol below); out_of_region is a coverage boundary: say NC-only first and do not retry the same input.
 - Anything else — apologize, surface the short message, suggest a retry; worst case point the broker at the county GIS portal (table below).
 
 ## What's in the response

@@ -68,9 +68,8 @@ Triggers:
 Same envelope as sibling skills — relay the `message` verbatim, it is written for
 brokers:
 
-- `geocode_failed` — the address didn't resolve. Echo the input back and ask for
-  clarification (city + state hint helps).
-- `out_of_region` — matched address is not in NC. v1 supports NC only.
+- `geocode_failed` / `not_found` -- a miss, not a dead end: follow the miss protocol below (call the server's next step, show its nearest candidates). Do not ask the broker for a city, state, or cleaner address on the first miss.
+- `out_of_region` -- state the coverage boundary first (NC only), per the miss protocol; do not retry the same input.
 - `quota_exceeded` — the routing service hit its daily budget. Previously pulled
   addresses still work; new addresses are available again tomorrow.
 - `rate_limited` — you've hit today's per-broker pull cap (100/day). It resets at
