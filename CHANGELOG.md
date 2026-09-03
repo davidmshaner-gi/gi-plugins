@@ -7,6 +7,32 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.40.0] - 2026-09-02
+
+### Added
+- **One miss protocol in every skill (gi-plugins#164; program lee#530, T1).** A new canonical block,
+  `plugins/lee-internal-comps/shared/miss-protocol.md`, is synced into all 20 lee-raleigh-riding
+  SKILL.md files by `scripts/sync-miss-protocol.sh` (the `connector-auth.md` mechanism, reused
+  verbatim) and guarded by `scripts/test/miss-protocol-guidance.test.sh` in CI. The rules: a miss is
+  never final; call the server's `next[]` in order, at most three hops, never a retry the server did
+  not offer; show `nearest[]` as choices; ask the broker only when `ask_broker` is set; coverage
+  wins over any retry; when the ladder is exhausted, say what was tried. gi-plugins#139 (derive the
+  county from the city/ZIP and pass it on the FIRST call) is folded in as rule 7.
+
+### Removed
+- **The per-tool punt prose.** Twelve skills told the model to "echo the input back and ask for a
+  city + state hint" (or "a cleaner address", "a more specific spelling") on the first
+  `geocode_failed` / `not_found`. Between 2026-05 and 2026-08 that sentence was where 35 cards'
+  worth of zero-results ended: the broker got a question while the data sat in our own tables.
+  The drift test now fails the build if any of those phrasings comes back.
+
+### Notes
+- The Worker side (lee#531) ships the matching `MissReport` shape and the same protocol text as
+  its `MISS_PROTOCOL_INSTRUCTIONS`; byte parity is pinned on that side. Until the Worker's tools
+  return a `miss` object (wiring follows lee#187), rule 8 of the block applies: the existing
+  assistant-directed reason strings (county retry, candidate list, "look it up by PIN") are
+  followed as `next[]`, with the same three-hop cap.
+
 ## [1.39.2] - 2026-08-26
 
 ### Fixed
