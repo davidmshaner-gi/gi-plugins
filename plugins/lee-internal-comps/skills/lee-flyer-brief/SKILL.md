@@ -114,7 +114,7 @@ Batch 2:
 ## Phase 2 — Comp set (present → augment → select → narrate)
 
 1. **Pull** comps matched to deal type and asset class:
-   - Internal: `pull_unified_comps`
+   - Internal: `pull_unified_comps` (Worker 0.59.0: pass `limit` (default 200, max 500) and read `total`/`truncated`; `property_type` takes a family word; dated lease pulls filter on `lease_date`)
    - External: `search_external_sale_comps` / `search_external_lease_comps`
      (use `get_external_comp_detail` for rows the broker wants to inspect;
      `cache_external_rows` for rows that will be used)

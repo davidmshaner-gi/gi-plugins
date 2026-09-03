@@ -77,14 +77,16 @@ external = load_sibling("external-comps")
      snapshot.
    - If one source errors or returns 0 rows, deliver the other with a clear note (e.g.
      "External returned 0 — showing internal only"). Never silently drop a source.
-   - **When external returns 0 rows it also returns `empty_result`** (Worker 0.42.0,
-     lee-and-associates#463): `tightest` names the filter that cut the last candidates and
-     `nearest[]` holds up to 3 comps just past that bound with `miss.by` / `miss.unit`. Put
-     that in the note instead of a bare zero — "External: 0 in the 100k–200k band; the 200k
-     ceiling cut it, nearest is 3241 Pennington Dr at 213,508 sf (13,508 over). Lift it?" —
-     and let the broker decide whether to re-run wider. Never list a near miss as a match.
-     If BOTH sources return 0, the reply is that explanation plus the offer to relax; no
-     empty Excel or PDF.
+   - **`property_type` is family-aware and case-insensitive (Worker 0.59.0, lee#532).** Pass the broker's word: `retail` reaches every retail subtype incl. the parenthesized shopping-center values (Neighborhood/Strip/Community/Power Center, malls); `industrial` reaches Industrial + Flex + the internal Flex Warehouse / 100% Warehouse values; `flex` is narrower; `office` is Office only; `medical` reaches Medical, Medical Office and the source typo; `land`, `multifamily`, `specialty`, `hospitality`, `lab`. An exact stored value such as `Retail (Strip Center)` still narrows to that one. Never probe per-subtype to "check coverage" -- one family call is the whole family. Pass the same family word to the external tool; for the internal SQL leg use the
+     taxonomy table in `internal-comps` (same families, spelled out as `property_type IN (...)`).
+   - **When external returns 0 rows it also returns `empty_result` and `miss`** (Worker 0.59.0,
+     lee#532 on top of lee#463): the Worker already ran the relaxation ladder (dates x2, size
+     x1.5, subtype -> family, drop city/zip, drop county, drop dates, drop size, drop type) and
+     `miss.next[0]` is the first relaxed call that found rows, its newest 3 in `miss.nearest[]`.
+     Offer that hop first -- "External: 0 in Sanford; 23 industrial sales county-wide in Lee.
+     Want those?" -- then `empty_result.tightest` / `nearest[].miss` when `miss.next` is empty.
+     Let the broker decide whether to re-run wider. Never list a near miss as a match. If BOTH
+     sources return 0, the reply is that explanation plus the offer; no empty Excel or PDF.
 5. **Normalize + combine.**
    ```python
    internal_core = [to_core(r, SOURCE_INTERNAL, validated["transaction_type"]) for r in internal_rows]

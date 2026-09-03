@@ -7,6 +7,19 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.41.0] - 2026-09-03
+
+### Changed
+- **Comps skills teach the family vocabulary and the server-side relaxation ladder (lee#532,
+  Worker 0.59.0):** `external-comps`, `internal-and-external-comps` and `lee-flyer-brief` pass
+  the broker's family word for `property_type` (`retail` = the whole retail book incl. the
+  parenthesized shopping-center subtypes; `industrial` reaches flex/warehouse; `medical` is its
+  own family) and never probe per-subtype; on an empty result they offer `miss.next[0]` (the
+  first relaxed ask the Worker already found rows for, its rows in `miss.nearest[]`) before the
+  `empty_result` wording. `internal-comps` notes the typed tools now apply its taxonomy table
+  server-side. `pull_unified_comps` pages (`limit`/`offset`/`total`) and dated lease pulls filter
+  on `lease_date`. Merge after lee-raleigh-mcp 0.59.0 is live; refresh the connector tools list.
+
 ## [1.40.0] - 2026-09-02
 
 ### Added

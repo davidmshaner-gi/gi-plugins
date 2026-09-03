@@ -44,7 +44,8 @@ The skill orchestrates pre-baked helpers in `helpers.py`. **Do not regenerate Ex
 
 5. Call `build_mcp_params(validated)` → `{"tool_name", "params_list", "post_filter_counties"}`. `tool_name` is `"search_external_sale_comps"` or `"search_external_lease_comps"` depending on `transaction_type`. `params_list` holds one params dict per MCP call: one per county for a `counties` ask **and for `named_market: "RDU MSA"` (its 7 counties)**, one per city for `cities`. **Helpers do NOT call MCP.** The model invokes the MCP tool directly, once per entry, and unions the rows with `merge_rows(*pages)`.
 6. Invoke the MCP tool with each params dict — issue the per-county / per-city calls **in parallel in one turn** (an RDU ask is seven calls; sequential turns blow the interactive budget). The response shape is `{"rows": [...], "freshness": "..."}` (a JSON-stringified text block from the MCP server — parse it). Each row contains all typed external columns plus `external_id` (as of Worker 0.53.1, search rows do NOT carry `raw_fields_json` — the ~2.3KB/row blob made large results unreadable in the client; use `get_external_comp_detail` for a row's full record). **If `freshness` is present, emit it verbatim as the very first line of your chat reply to the broker** (it looks like `ℹ️ External sale comps: ingested 2026-05-16 17:12 UTC (10 days ago)`). The freshness line tells the broker how current the external snapshot is — it is not optional, never omit or rephrase it.
-   **If `rows` is empty, the response also carries `empty_result`** — read it before you reply (see "Empty result — name the binding filter" below). Never answer a zero-row search with a bare "no comps found".
+   **`property_type` is family-aware and case-insensitive (Worker 0.59.0, lee#532).** Pass the broker's word: `retail` reaches every retail subtype incl. the parenthesized shopping-center values (Neighborhood/Strip/Community/Power Center, malls); `industrial` reaches Industrial + Flex + the internal Flex Warehouse / 100% Warehouse values; `flex` is narrower; `office` is Office only; `medical` reaches Medical, Medical Office and the source typo; `land`, `multifamily`, `specialty`, `hospitality`, `lab`. An exact stored value such as `Retail (Strip Center)` still narrows to that one. Never probe per-subtype to "check coverage" -- one family call is the whole family.
+   **If `rows` is empty, the response also carries `empty_result` AND `miss`** — read `miss.next[0]` first (see "Empty result" below). Never answer a zero-row search with a bare "no comps found".
    **If the response carries `truncated`, the search stopped at the 200-row cap with more rows behind it** (`returned`, `total_available`, `limit`, `ordered_by`, `oldest_returned`, `note`). The rows are the NEWEST ones only — never present them as the answer. Retrieval from here is THIS algorithm and nothing else:
    1. **Readability self-check (every response, capped or not):** as of Worker 0.53.1 every search response carries a top-level `returned` count (`rows.length` as the Worker sent it — distinct from `truncated.returned`, which only appears on capped results). Count the rows you actually parsed out of the text block and compare to `returned`; a text block that ends mid-row or fails to parse as complete JSON is the same signal. If you parsed FEWER rows than `returned`, the CLIENT truncated the visible result — you did not receive those rows, and any cursor advanced past them silently loses comps. Re-issue the SAME call with `limit` set to the number of rows you successfully parsed (floor 25) and use that limit as the WORKING LIMIT for every subsequent page of this ask. Never advance a cursor past rows you did not capture. (Against a pre-0.53.1 Worker the top-level `returned` is absent — fall back to the parse-failure signal alone.)
    2. **Page with the helper, never by hand:** `nxt = next_page_params(params, response)`; call the tool again with `nxt`; repeat until it returns `None` or you have fetched `MAX_PAGES` (5) pages for that params dict. Union every page and every per-county call with `merge_rows(*pages)` (drops the rows that repeat at each page seam).
@@ -98,6 +99,17 @@ covers: it tells you **why** nothing matched, so the broker is never left with s
 - The example above is a **sale**; on a **lease** the size filter is named `min_leased_sf` /
   `max_leased_sf` (the space leased), so tell the broker "the leased size range" cut the
   candidates, never "the building size" (lee#469).
+
+**The server already ran the relaxed asks (Worker 0.59.0, lee#532).** On an empty result the
+response also carries `miss` (the MissReport): the Worker walked a fixed ladder -- dates x2,
+size x1.5, subtype -> family, drop city/zip, drop county, drop dates, drop size, drop type --
+one count per step, and stopped at the first step that found rows. `miss.tried[]` lists every
+step with its row count; `miss.nearest[]` holds up to 3 of that step's newest rows;
+`miss.next[0]` is the exact relaxed call (tool + args) that found them. **Offer `miss.next[0]`
+before anything else** ("Nothing in Sanford; there are 23 industrial sales county-wide in Lee --
+want those?"), and only fall back to the `empty_result` wording below when `miss.next` is empty.
+Never re-run the relaxed call without the broker's yes (Behavioral rule 5); never invent a
+relaxation the ladder did not offer.
 
 **How to reply (after the freshness line):**
 

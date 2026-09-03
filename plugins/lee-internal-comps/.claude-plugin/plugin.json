@@ -1,7 +1,7 @@
 {
   "name": "lee-internal-comps",
   "description": "Lee & Associates broker toolkit. Comps (Lee internal and external, lease and sale) by city, by county, or across the RDU market, as Excel + Lee-branded PDF; demographic and business-key-facts reports; owner, parcel, and mailing-list lookups; traffic counts, labor shed, drive times (reach maps + drive times to named destinations), site infrastructure, development pipeline, and tenants in the market; comp maps and area-amenities map kits; a guided flyer brief; and Lee branding for anything you build, checked against the current brand package on every run. Ask in plain English or use /comps, /internal-comps, /demographic-summary, /owner-lookup and the rest.",
-  "version": "1.40.0",
+  "version": "1.41.0",
   "author": {
     "name": "Grounded Intelligence"
   },

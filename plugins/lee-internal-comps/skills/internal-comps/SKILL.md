@@ -121,6 +121,11 @@ The model does not need to memorize the 365-column schema. The helpers select a 
 | `"lab"` | `'Lab Space'` |
 | `"land"` | `'Land'` |
 
+The typed comps tools (`search_external_*`, `pull_unified_comps`) apply this same family table
+server-side, case-insensitively, since Worker 0.59.0 (lee#532; the table is data in
+`src/tools/comps/property_type.ts`, documented as comps.md D20). For Route A SQL this table is
+still yours to spell out; `describe_table` `conventions` now carries the rule too.
+
 **Industrial outdoor storage / IOS / yard deals:** there is no clean SQL filter — confirmed by the broker. The data fields that would identify them (zoning, yard_sf, yard_type, comp name keywords, notes) are essentially unpopulated. Brokers tag these mentally. If a request mentions IOS, route as `flex` with a `min_acres` filter (broker's recommendation) and surface in the email that this is the closest proxy, not an exact match.
 
 ### Geography registry (V1)
