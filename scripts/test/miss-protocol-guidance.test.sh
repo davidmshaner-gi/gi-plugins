@@ -109,6 +109,7 @@ RETIRED=(
   "ask for a cleaner address"
   "more specific spelling"
   "ask for clarification (city"
+  "county hint"
 )
 for md in "$PLUGIN"/skills/*/SKILL.md; do
   skill="$(basename "$(dirname "$md")")"

@@ -165,8 +165,8 @@ back tells you the next hop. Follow these rules on every empty or failed lookup.
    county, id), and re-run with the broker's pick (by `id` when one is given). Do not pick
    for them unless the response already did.
 4. **Ask the broker a question only when `ask_broker` is set.** It is the one branch that
-   ends in a question, and it carries the exact question to ask. If `ask_broker` is null,
-   you have hops or candidates left -- use them.
+   ends in a question, and it carries the exact question to ask. If `ask_broker` is null
+   and `next[]` or `nearest[]` is non-empty, use them; if all three are empty, go to rule 6.
 5. **Coverage wins over any retry.** If `coverage.in_coverage` is false, say so first
    (name the covered counties from `coverage.covered`), then stop retrying that input:
    more spelling will not put a county into the database.
@@ -181,7 +181,12 @@ back tells you the next hop. Follow these rules on every empty or failed lookup.
 8. **Legacy responses.** If a response carries no `miss` object but its text contains an
    instruction addressed to the assistant (a county retry, a candidate list, "look it up by
    PIN"), treat that instruction as `next[]`: it is the older form of the same ladder and
-   the same three-hop cap applies.
+   the same three-hop cap applies. If a legacy response is a bare sentence with no
+   instruction at all (the geocode family's "couldn't locate ..." today), you may make ONE
+   hop of your own: re-call the same tool with the county from rule 7 if you did not pass
+   it, otherwise with the street name and city only. If that also misses, ask the broker
+   one question (the nearest numbered address, or the county). This is the only retry you
+   may invent, and only for a legacy response.
 
 Field glossary: `tried` = what the server already attempted (strategy, input, result);
 `nearest` = close matches from our own data; `next` = the ordered calls to make; `coverage`
