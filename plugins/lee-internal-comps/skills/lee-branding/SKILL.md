@@ -1,6 +1,6 @@
 ---
 name: lee-branding
-description: Make anything you're building for a Lee & Associates broker look on-brand — apply the Lee logo, the brand red, and the Avenir Next fonts to a flyer, one-pager, deck, chart, PDF, or email header right here in the chat. Use when a broker says "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee," "add the Lee logo," "use our brand colors," or is riffing on a deliverable and wants it polished to the Lee look. Ships Lee's official brand package on disk (logo, colors, guidelines, fonts) so you apply it without asking the broker for files, and checks that bundled package against the current one on every run so a deliverable never goes out against stale brand values. Also covers the one-time Claude Design setup for the marketing team.
+description: Make anything you're building for a Lee & Associates broker look on-brand. Starts every render with the pull_brand_package call on the lee-raleigh connector and a gate command that turns its response into the CSS the deliverable uses; then applies the Lee logo, the brand red, and the Avenir Next fonts to a flyer, one-pager, deck, chart, PDF, or email header right here in the chat. Use when a broker says "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee," "add the Lee logo," "use our brand colors," or is riffing on a deliverable and wants it polished to the Lee look. The logo and fonts are bundled on disk; the VALUES come from the tool on every run, so a deliverable never goes out against stale brand values and never goes out without the call. Also covers the one-time Claude Design setup for the marketing team.
 ---
 
 # Lee & Associates Branding
@@ -13,15 +13,37 @@ brand directly to whatever's being composed.
 
 ## Before you render anything: pull the brand package
 
-**Every branded deliverable starts with one tool call.** Call the lee-raleigh MCP
-tool `pull_brand_package`, passing the `version` value from the bundled
-`brand-colors.json` (currently `2021.02`):
+**Every branded deliverable starts with one tool call, and the render cannot start
+without its response.** Two commands, in this order, before any HTML exists. `brand.py`
+sits next to this file; run it by absolute path from wherever your working folder is
+(`python3 <this skill's folder>/brand.py ...`):
 
 ```
-pull_brand_package({ local_version: "2021.02" })
+python3 <this skill's folder>/brand.py call
 ```
 
-Render from what it returns. It carries the authoritative colors, tints, gradient,
+prints the exact call: `pull_brand_package({ local_version: "2021.02" })` on the
+lee-raleigh connector. The version comes from the bundled `brand-colors.json`
+(currently `2021.02`); the command reads it, so you never type it. Make that call and
+save the JSON it returned as `brand_package.json` in the working folder (the raw tool
+result with its `content[].text` wrapper, or the inner object; both are accepted). Then:
+
+```
+python3 <this skill's folder>/brand.py tokens brand_package.json
+```
+
+prints the CSS the deliverable is built from: the `:root` color variables, the gradient,
+the type stacks, the `@font-face` block for the bundled WOFFs, the logo path, and the
+`usage_rules` as comments. **Paste that output into the `<style>` of what you render and
+use only those variables (`--lee-red`, `--lee-charcoal`, `--lee-sans`, ...) for brand
+color and type.** The mechanism: the command checks the shape and invariants only the
+Worker's response has (its version stamp, its usage rules, a token count that equals the
+colors served) and refuses the shipped `brand-colors.json`, so a render needs a payload
+the tool produced. It is a gate against skipping the step, not a cryptographic proof;
+nothing offline could be. (gi-plugins#169: two flyers shipped from the bundled files with
+zero tool rows.)
+
+Render from what the tool returns. It carries the authoritative colors, tints, gradient,
 font stacks, tagline and logo rules, plus `usage_rules` — and those are
 constraints, not notes (they are what tells you charcoal, never slate, carries
 text under 10pt). It also answers the one question this skill cannot answer on its
@@ -30,9 +52,10 @@ own: whether the brand package bundled with this plugin is still the current one
 two copies have diverged.
 
 **If the call cannot be completed, stop and say so. Do not fall back to the
-bundled files.** The fonts and the logo on disk are still there, but a deliverable
-built without this call is unverified against Lee's current brand, and going ahead
-anyway hides a broker whose plugin was never fully set up.
+bundled files.** The fonts and the logo on disk are still there, but `brand.py tokens`
+will not run without the response, and a deliverable built without this call is
+unverified against Lee's current brand; going ahead anyway hides a broker whose plugin
+was never fully set up.
 
 Which failure you have decides what you say. Work through these in order:
 
@@ -68,55 +91,15 @@ CSS), wire in the three brand signals — **fonts, color, logo** — like this.
 
 ### Fonts — embed the real Avenir Next
 
-The five brand-font WOFFs live in this skill's `fonts/` folder. Embed them with
-`@font-face` so the render uses the real Lee typeface instead of a fallback. Two
-gotchas baked into the block below: the files are the *Cyrillic* cut whose internal
-family names are split, so each face must **declare `font-family: 'Avenir Next'` with
-an explicit weight/style** (don't rely on the embedded name); and they're `woff`
-(v1), so the `format('woff')` hint matters.
-
-```css
-@font-face { font-family:'Avenir Next'; font-weight:400; font-style:normal;
-  src:url('fonts/AvenirNextCyr-Regular.woff') format('woff'); }
-@font-face { font-family:'Avenir Next'; font-weight:400; font-style:italic;
-  src:url('fonts/AvenirNextCyr-Italic.woff') format('woff'); }
-@font-face { font-family:'Avenir Next'; font-weight:500; font-style:normal;
-  src:url('fonts/AvenirNextCyr-Medium.woff') format('woff'); }
-@font-face { font-family:'Avenir Next'; font-weight:500; font-style:italic;
-  src:url('fonts/AvenirNextCyr-MediumItalic.woff') format('woff'); }
-@font-face { font-family:'Avenir Next'; font-weight:700; font-style:normal;
-  src:url('fonts/AvenirNextCyr-Bold.woff') format('woff'); }
-
-/* Minion Pro — accent/headline serif (bundled as WOFF, converted from the licensed OTFs in fonts/minion-pro/) */
-@font-face { font-family:'Minion Pro'; font-weight:400; font-style:normal;
-  src:url('fonts/MinionPro-Regular.woff') format('woff'); }
-@font-face { font-family:'Minion Pro'; font-weight:400; font-style:italic;
-  src:url('fonts/MinionPro-It.woff') format('woff'); }
-@font-face { font-family:'Minion Pro'; font-weight:500; font-style:normal;
-  src:url('fonts/MinionPro-Medium.woff') format('woff'); }
-@font-face { font-family:'Minion Pro'; font-weight:500; font-style:italic;
-  src:url('fonts/MinionPro-MediumIt.woff') format('woff'); }
-@font-face { font-family:'Minion Pro'; font-weight:600; font-style:normal;
-  src:url('fonts/MinionPro-Semibold.woff') format('woff'); }
-@font-face { font-family:'Minion Pro'; font-weight:600; font-style:italic;
-  src:url('fonts/MinionPro-SemiboldIt.woff') format('woff'); }
-@font-face { font-family:'Minion Pro'; font-weight:700; font-style:normal;
-  src:url('fonts/MinionPro-Bold.woff') format('woff'); }
-@font-face { font-family:'Minion Pro'; font-weight:700; font-style:italic;
-  src:url('fonts/MinionPro-BoldIt.woff') format('woff'); }
-
-:root { --sans:'Avenir Next','Nunito Sans',Arial,Tahoma,sans-serif;
-        --serif:'Minion Pro',Georgia,serif; }
-body { font-family:var(--sans); }
-```
-
-The `url('fonts/...')` paths resolve when the HTML file you render sits in this skill
-folder (write your temp HTML here, or point `url()` at the absolute path to these
-files). If you're rendering somewhere the relative path won't resolve, base64-embed
-the WOFFs into the `src:` instead — the sandbox has no network, so a remote font URL
-will silently fall back. **Minion Pro is now bundled** (WOFF in `fonts/`, converted from
-the licensed Adobe OTFs in `fonts/minion-pro/`); use it for accent/headline serif.
-Georgia stays the sanctioned fallback if a weight is missing — don't invent a substitute.
+The `@font-face` block `brand.py tokens` printed already declares every bundled face
+with an absolute path into this skill's `fonts/` folder (five Avenir Next WOFFs, eight
+Minion Pro WOFFs). Two gotchas are why it is generated and not hand-written: the files
+are the Cyrillic cut whose internal family names are split, so each face is declared as
+`'Avenir Next'` with an explicit weight/style, and they are `woff` (v1), so the
+`format('woff')` hint matters. If the renderer cannot read files by path, base64-embed
+the WOFFs into the `src:` instead; the sandbox has no network, so a remote font URL
+silently falls back. Georgia stays the sanctioned fallback if a weight is missing; don't
+invent a substitute.
 
 **Type hierarchy:** Avenir Next Bold (700) for headings, Medium (500) for subheads and
 emphasis, Regular (400) for body. Optional Minion Pro / Georgia serif for a headline or
@@ -124,8 +107,9 @@ pull-quote accent.
 
 ### Color — Lee Red is an accent, not a wash
 
-Pull exact values from the `colors` in the `pull_brand_package` response (the bundled
-`brand-colors.json` is the version you sent it, not the source you render from). The
+Use the `--lee-*` variables `brand.py tokens` printed from the `pull_brand_package`
+response (the bundled `brand-colors.json` is the version you sent it, not the source you
+render from). The
 load-bearing rules, which also come back as `usage_rules`:
 
 - **Red `#98002E`** (PMS 202) is the signature accent — rules, a header bar, a key
@@ -139,8 +123,7 @@ load-bearing rules, which also come back as `usage_rules`:
   infographics, and diagrams only**, used sparingly — never a document's primary color.
   Green and Mint never appear together; a Merlot/Bright-Red pairing never combines with
   Green or Mint.
-- The **icon gradient** (`linear-gradient(145deg,#CD1442 0%,#98002E 65%,#4E131E 100%)`,
-  in `brand-colors.json`) is available for a bold signature block when a flat red isn't
+- The **icon gradient** (`--lee-gradient`, from the tool's response) is available for a bold signature block when a flat red isn't
   enough — use it deliberately, not as default chrome.
 
 ### Logo — place it, never touch it
@@ -173,18 +156,19 @@ invent a brand rule that isn't in the guidelines.**
 Separate, less-common path — this is marketing-team-shaped work, not the day-to-day
 broker riff. When the **marketing team** wants the Lee brand set up **once** in Claude
 Design so every design across the org inherits it automatically, or a broker explicitly
-asks to "set up the shared Lee design system," **call `pull_brand_package` first, the
-same as any render** — this path matters MORE, not less, because a stale palette
-uploaded as the org-wide design system propagates to every Lee design indefinitely.
-Upload the values the tool returns; if they differ from the bundled file, the tool's
-response wins and you say so. If the call cannot be completed, stop here too.
+asks to "set up the shared Lee design system," **run `python3 <this skill's folder>/brand.py call`,
+make the call, and `brand.py tokens brand_package.json`, the same as any render** — this
+path matters MORE, not less, because a stale palette uploaded as the org-wide design
+system propagates to every Lee design indefinitely. Paste the `:root` values the command
+printed when Claude Design asks for the palette; if they differ from the bundled file,
+the tool's response wins and you say so. If the call cannot be completed, stop here too.
 
 Then walk them through the bundled `claude-design-setup.md` and stage these files for
 upload into Claude Design's design-system onboarding: `lee-associates-brand-guidelines.md`,
 `lee_logo.svg` (+ `lee_logo.png` backup), `brand-colors.json`, and the bundled WOFFs in
-`fonts/` (five Avenir Next + eight Minion Pro). **If the tool reported a divergence, do
-NOT upload `brand-colors.json` — paste the tool's values when Claude Design asks for the
-palette.** Handing it the stale file is the one outcome gating this path was meant to
+`fonts/` (five Avenir Next + eight Minion Pro). **Upload `brand-colors.json` only for its print columns (PMS / CMYK / RGB);
+the screen palette is the `:root` block from `brand.py tokens`, and if the tool reported
+a divergence, do NOT upload the file at all.** Handing it the stale file is the one outcome gating this path was meant to
 stop. That's a one-time org setup; the primary path above is what you reach for on an
 individual deliverable.
 
@@ -192,6 +176,9 @@ individual deliverable.
 
 - `SKILL.md` — this file. Calls the `pull_brand_package` MCP tool on `lee-raleigh`
   before rendering anything.
+- `brand.py` — the render gate: `call` prints the tool call to make; `tokens
+  brand_package.json` validates the saved response and prints the CSS the render uses.
+  Refuses the bundled `brand-colors.json`.
 - `brand-colors.json` — machine-readable color tokens (HEX / PMS / CMYK / RGB, tints, the
   icon gradient). Its `version` is what you send as `local_version`; render from the
   tool's response, not from this file. Print-only values (PMS / CMYK / RGB) live here
