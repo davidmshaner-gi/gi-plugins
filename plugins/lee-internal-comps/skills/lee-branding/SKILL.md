@@ -1,6 +1,6 @@
 ---
 name: lee-branding
-description: Make anything you're building for a Lee & Associates broker look on-brand — apply the Lee logo, the brand red, and the Avenir Next fonts to a flyer, one-pager, deck, chart, PDF, or email header right here in the chat. Use when a broker says "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee," "add the Lee logo," "use our brand colors," or is riffing on a deliverable and wants it polished to the Lee look. Ships Lee's official brand package on disk (logo, colors, guidelines, fonts) so you apply it without asking the broker for files, and checks that bundled package against the current one on every run so a deliverable never goes out against stale brand values. Also covers the one-time Claude Design setup for the marketing team.
+description: Make anything you're building for a Lee & Associates broker look on-brand. Starts every render with the pull_brand_package call on the lee-raleigh connector and a gate command that turns its response into the CSS the deliverable uses; then applies the Lee logo, the brand red, and the Avenir Next fonts to a flyer, one-pager, deck, chart, PDF, or email header right here in the chat. Use when a broker says "make me a PDF of this and make it look good," "brand this," "make this on-brand for Lee," "add the Lee logo," "use our brand colors," or is riffing on a deliverable and wants it polished to the Lee look. The logo and fonts are bundled on disk; the VALUES come from the tool on every run, so a deliverable never goes out against stale brand values and never goes out without the call. Also covers the one-time Claude Design setup for the marketing team.
 ---
 
 # Lee & Associates Branding
@@ -13,15 +13,31 @@ brand directly to whatever's being composed.
 
 ## Before you render anything: pull the brand package
 
-**Every branded deliverable starts with one tool call.** Call the lee-raleigh MCP
-tool `pull_brand_package`, passing the `version` value from the bundled
-`brand-colors.json` (currently `2021.02`):
+**Every branded deliverable starts with one tool call, and the render cannot start
+without its response.** Two commands, in this order, before any HTML exists:
 
 ```
-pull_brand_package({ local_version: "2021.02" })
+python3 brand.py call
 ```
 
-Render from what it returns. It carries the authoritative colors, tints, gradient,
+prints the exact call: `pull_brand_package({ local_version: "2021.02" })` on the
+lee-raleigh connector (the version comes from the bundled `brand-colors.json`, currently
+`2021.02`; the command reads it, so the literal here is only a convenience). Make that
+call, save the FULL response verbatim as `brand_package.json` in the working folder, then:
+
+```
+python3 brand.py tokens brand_package.json
+```
+
+prints the CSS the deliverable is built from: the `:root` color variables, the gradient,
+the type stacks, the `@font-face` block for the bundled WOFFs, the logo path, and the
+`usage_rules` as comments. **Paste that output into the `<style>` of what you render and
+use only those variables for brand color and type.** The command accepts only a
+`pull_brand_package` response; it refuses the bundled `brand-colors.json` and anything
+else, so there is no way to compose a Lee deliverable from the files on disk alone
+(gi-plugins#169: two flyers shipped that way with zero tool rows).
+
+Render from what the tool returns. It carries the authoritative colors, tints, gradient,
 font stacks, tagline and logo rules, plus `usage_rules` — and those are
 constraints, not notes (they are what tells you charcoal, never slate, carries
 text under 10pt). It also answers the one question this skill cannot answer on its
@@ -30,9 +46,10 @@ own: whether the brand package bundled with this plugin is still the current one
 two copies have diverged.
 
 **If the call cannot be completed, stop and say so. Do not fall back to the
-bundled files.** The fonts and the logo on disk are still there, but a deliverable
-built without this call is unverified against Lee's current brand, and going ahead
-anyway hides a broker whose plugin was never fully set up.
+bundled files.** The fonts and the logo on disk are still there, but `brand.py tokens`
+will not run without the response, and a deliverable built without this call is
+unverified against Lee's current brand; going ahead anyway hides a broker whose plugin
+was never fully set up.
 
 Which failure you have decides what you say. Work through these in order:
 
@@ -124,8 +141,9 @@ pull-quote accent.
 
 ### Color — Lee Red is an accent, not a wash
 
-Pull exact values from the `colors` in the `pull_brand_package` response (the bundled
-`brand-colors.json` is the version you sent it, not the source you render from). The
+Use the `--lee-*` variables `brand.py tokens` printed from the `pull_brand_package`
+response (the bundled `brand-colors.json` is the version you sent it, not the source you
+render from). The
 load-bearing rules, which also come back as `usage_rules`:
 
 - **Red `#98002E`** (PMS 202) is the signature accent — rules, a header bar, a key
@@ -192,6 +210,9 @@ individual deliverable.
 
 - `SKILL.md` — this file. Calls the `pull_brand_package` MCP tool on `lee-raleigh`
   before rendering anything.
+- `brand.py` — the render gate: `call` prints the tool call to make; `tokens
+  brand_package.json` validates the saved response and prints the CSS the render uses.
+  Refuses the bundled `brand-colors.json`.
 - `brand-colors.json` — machine-readable color tokens (HEX / PMS / CMYK / RGB, tints, the
   icon gradient). Its `version` is what you send as `local_version`; render from the
   tool's response, not from this file. Print-only values (PMS / CMYK / RGB) live here

@@ -7,6 +7,17 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.42.0] - 2026-09-04
+
+### Changed
+- **`/lee-branding` cannot render from the bundled files alone (gi-plugins#169).** Two 1.40.0
+  runs on 2026-09-03 delivered Lee flyers with zero `pull_brand_package` rows while the connector
+  was on; the gate was a sentence. New `brand.py`: `call` prints the exact tool call to make,
+  `tokens brand_package.json` validates the saved response (brand_version, token_count matching
+  the colors, usage_rules, logo, notes) and prints the CSS the render is built from; it refuses
+  the bundled `brand-colors.json`. SKILL.md and the skill description now start every render
+  with those two commands. Seven tests pin the gate and the description order (G33).
+
 ## [1.41.2] - 2026-09-03
 
 ### Fixed
