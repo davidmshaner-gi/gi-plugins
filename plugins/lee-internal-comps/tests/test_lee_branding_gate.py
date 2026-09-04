@@ -82,7 +82,7 @@ def test_tokens_rejects_a_payload_missing_the_fields_only_the_tool_returns(tmp_p
     p.write_text(json.dumps(r))
     out = _run("tokens", str(p))
     assert out.returncode != 0
-    assert "brand_version" in json.loads(out.stdout)["error"]
+    assert "brand.py call" in json.loads(out.stdout)["error"]  # no key enumeration (review #175)
 
 
 def test_tokens_surfaces_a_stale_bundle_note_at_the_top_of_the_css(tmp_path):
@@ -111,3 +111,75 @@ def test_skill_md_drives_the_gate_command_and_names_the_tool_call_first():
     # the router contract (G12) names the tool call before it advertises the bundled assets
     assert desc.index("pull_brand_package") < desc.index("bundle")
     assert "without asking the broker for files" not in desc
+
+
+# --- review round 1 (PR #175) -------------------------------------------------
+
+def test_tokens_unwraps_the_raw_tool_result_the_session_saves_verbatim(tmp_path):
+    # the MCP client hands the session {content:[{type:"text", text:"<json>"}]}
+    wrapped = {"content": [{"type": "text", "text": json.dumps(_response())}]}
+    p = tmp_path / "brand_package.json"
+    p.write_text(json.dumps(wrapped))
+    out = _run("tokens", str(p))
+    assert out.returncode == 0, out.stdout
+    assert "--lee-red: #98002E" in out.stdout
+
+
+def test_tokens_unwraps_a_bare_json_string(tmp_path):
+    p = tmp_path / "brand_package.json"
+    p.write_text(json.dumps(json.dumps(_response())))
+    out = _run("tokens", str(p))
+    assert out.returncode == 0, out.stdout
+
+
+def test_refusal_does_not_enumerate_the_missing_keys():
+    out = _run("tokens", str(SKILL / "brand-colors.json"))
+    err = json.loads(out.stdout)["error"]
+    for key in ("token_count", "usage_rules", "brand_version"):
+        assert key not in err
+    assert "brand.py call" in err
+
+
+def test_tokens_requires_the_four_primary_colors(tmp_path):
+    r = _response()
+    r["colors"] = {"accent": {"merlot": "#4E131E"}}
+    r["token_count"] = 1
+    p = tmp_path / "brand_package.json"
+    p.write_text(json.dumps(r))
+    out = _run("tokens", str(p))
+    assert out.returncode != 0
+
+
+def test_css_names_and_type_variables(tmp_path):
+    p = tmp_path / "brand_package.json"
+    p.write_text(json.dumps(_response()))
+    css = _run("tokens", str(p)).stdout
+    assert "--lee-bright-red: #CD1442" in css
+    assert "--lee-sans:" in css and "--lee-serif:" in css
+    assert "never ." not in css
+
+
+def test_empty_prohibited_list_does_not_print_a_dangling_never(tmp_path):
+    r = _response(); r["logo"]["prohibited"] = []
+    p = tmp_path / "brand_package.json"; p.write_text(json.dumps(r))
+    css = _run("tokens", str(p)).stdout
+    assert "never ." not in css
+
+
+def test_mismatch_note_is_the_first_line(tmp_path):
+    p = tmp_path / "brand_package.json"
+    p.write_text(json.dumps(_response(local_package_current=False, local_version="2020.01",
+                                      notes=["Brand package mismatch: yours is 2020.01, ours is 2021.02."])))
+    assert "Brand package mismatch" in _run("tokens", str(p)).stdout.splitlines()[0]
+
+
+def test_tokens_without_an_argument_prints_json_and_fails():
+    out = _run("tokens")
+    assert out.returncode != 0 and "error" in json.loads(out.stdout)
+
+
+def test_skill_md_no_longer_ships_a_paste_ready_stylesheet_from_bundled_files():
+    text = (SKILL / "SKILL.md").read_text()
+    assert "src:url('fonts/AvenirNextCyr-Regular.woff')" not in text
+    assert "brand.py call" in text.split("## Edge case")[1]  # the Claude Design path uses the gate too
+    assert "this skill's folder" in text or "absolute path" in text

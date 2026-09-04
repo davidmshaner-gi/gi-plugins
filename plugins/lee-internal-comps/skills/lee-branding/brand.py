@@ -37,6 +37,14 @@ SAVE_AS = "brand_package.json"
 # brand_version / token_count / usage_rules / logo / notes), which is what lets the gate
 # tell the two apart without a shared secret.
 REQUIRED = ("brand_version", "local_package_current", "colors", "usage_rules", "logo", "token_count", "notes")
+PRIMARY_NAMES = ("red", "slate", "charcoal", "white")  # the load-bearing names usage_rules and body{} rely on
+DEFAULT_SANS = "'Avenir Next', 'Nunito Sans', Arial, Tahoma, sans-serif"
+DEFAULT_SERIF = "'Minion Pro', Georgia, serif"
+NOT_A_RESPONSE = (
+    "not a pull_brand_package response. Run `python3 " + os.path.join(HERE, "brand.py") +
+    " call`, make that call on the lee-raleigh connector, save the JSON it returned as "
+    + SAVE_AS + ", and pass that file. The bundled files cannot feed this command."
+)
 
 FONT_FACES = [
     ("Avenir Next", 400, "normal", "AvenirNextCyr-Regular.woff"),
@@ -69,63 +77,83 @@ def bundled_version() -> str:
         return json.load(fh)["version"]
 
 
+def unwrap(payload: Any) -> Any:
+    """Accept the raw MCP tool result the session saves verbatim
+    ({content:[{type:"text", text:"<json>"}]}) or a bare JSON string, as well as the
+    inner object itself (no unwrap cliff, G33)."""
+    for _ in range(3):
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+                continue
+            except ValueError:
+                return payload
+        if isinstance(payload, dict) and "content" in payload and "brand_version" not in payload:
+            items = payload.get("content") or []
+            texts = [i.get("text") for i in items if isinstance(i, dict) and i.get("type") == "text"]
+            if texts:
+                payload = texts[0]
+                continue
+        if isinstance(payload, dict) and "result" in payload and "brand_version" not in payload:
+            payload = payload["result"]
+            continue
+        break
+    return payload
+
+
 def validate_response(payload: Any) -> dict:
-    """Return the payload if it is a pull_brand_package response; raise otherwise."""
+    """Return the payload if it is a pull_brand_package response; raise otherwise.
+    The check is shape and invariants (the fields only the Worker returns, and a
+    token_count that equals the colors served); it refuses the shipped file and
+    anything hand-assembled from it, which is the failure mode being closed. It is
+    not a cryptographic proof; nothing offline could be without a shared secret."""
     if not isinstance(payload, dict):
-        raise NotAToolResponse("the file is not a JSON object")
-    missing = [k for k in REQUIRED if k not in payload]
-    if "version" in payload and "brand_version" not in payload:
-        raise NotAToolResponse(
-            "this is the bundled brand-colors.json (it has `version`, not `brand_version`), "
-            "not a pull_brand_package response. Call the tool first (python3 brand.py call), "
-            f"save its response as {SAVE_AS}, and pass that file."
-        )
-    if missing:
-        raise NotAToolResponse(
-            "not a pull_brand_package response: missing " + ", ".join(missing) +
-            ". Only the tool's response carries these; the bundled files cannot feed this command. "
-            "Call the tool first (python3 brand.py call)."
-        )
+        raise NotAToolResponse(NOT_A_RESPONSE)
+    if any(k not in payload for k in REQUIRED):
+        raise NotAToolResponse(NOT_A_RESPONSE)
     colors = payload["colors"]
     if not isinstance(colors, dict) or not colors:
-        raise NotAToolResponse("colors must be a non-empty object of color groups")
+        raise NotAToolResponse(NOT_A_RESPONSE)
     n = 0
     for group, entries in colors.items():
         if not isinstance(entries, dict):
-            raise NotAToolResponse(f"colors.{group} must be an object of name -> hex")
+            raise NotAToolResponse(NOT_A_RESPONSE)
         for name, hexv in entries.items():
             if not (isinstance(hexv, str) and hexv.startswith("#") and len(hexv) in (4, 7)):
-                raise NotAToolResponse(
-                    f"colors.{group}.{name} is {hexv!r}, not a hex string; the bundled file's "
-                    "{hex, pms, rgb, cmyk} objects are not the tool's shape"
-                )
+                raise NotAToolResponse(NOT_A_RESPONSE)
             n += 1
+    primary = colors.get("primary") or {}
+    if any(k not in primary for k in PRIMARY_NAMES):
+        raise NotAToolResponse(NOT_A_RESPONSE)
     if payload["token_count"] != n:
         raise NotAToolResponse(
             f"token_count {payload['token_count']} does not match the {n} colors in the payload; "
             "this is not the response the Worker sent"
         )
     if not isinstance(payload["usage_rules"], dict) or not payload["usage_rules"]:
-        raise NotAToolResponse("usage_rules is empty; not the tool's response")
+        raise NotAToolResponse(NOT_A_RESPONSE)
     if not isinstance(payload["notes"], list):
-        raise NotAToolResponse("notes must be a list")
+        raise NotAToolResponse(NOT_A_RESPONSE)
     return payload
 
 
 def render_css(payload: dict) -> str:
     out: list[str] = []
-    if payload.get("local_package_current") is False or payload.get("notes"):
-        for note in payload.get("notes") or ["Brand package mismatch: render from these values and tell your GI contact."]:
-            out.append(f"/* NOTE FROM pull_brand_package: {note} */")
+    notes = list(payload.get("notes") or [])
+    if payload.get("local_package_current") is False and not notes:
+        notes = ["Brand package mismatch: render from these values and tell your Grounded Intelligence contact the two copies have diverged."]
+    for note in notes:
+        out.append(f"/* NOTE FROM pull_brand_package: {note} */")
     out.append(f"/* Lee & Associates brand, served by pull_brand_package (brand_version {payload['brand_version']}). */")
     out.append("/* Render from THESE values. usage_rules (constraints, not notes): */")
     for k, v in payload["usage_rules"].items():
         out.append(f"/*   {k}: {v} */")
     logo = payload.get("logo") or {}
+    prohibited = ", ".join(logo.get("prohibited") or [])
     out.append(
         f"/* logo: lee_logo.svg (or lee_logo.png); min width {logo.get('min_width_in', 1.125)} in; "
-        f"clear space {logo.get('clear_space', 'equal to the height of the icon on all sides')}; "
-        f"never {', '.join(logo.get('prohibited', []))}. Must appear at least once. */"
+        f"clear space {logo.get('clear_space', 'equal to the height of the icon on all sides')}"
+        + (f"; never {prohibited}" if prohibited else "") + ". Must appear at least once. */"
     )
     out.append("")
     for face, weight, style, fname in FONT_FACES:
@@ -142,10 +170,10 @@ def render_css(payload: dict) -> str:
     if grad:
         out.append(f"  --lee-gradient: {grad};")
     typ = payload.get("type") or {}
-    out.append(f"  --sans: {typ.get('stack_sans', chr(39) + 'Avenir Next' + chr(39) + ', ' + chr(39) + 'Nunito Sans' + chr(39) + ', Arial, Tahoma, sans-serif')};")
-    out.append(f"  --serif: {typ.get('stack_serif', chr(39) + 'Minion Pro' + chr(39) + ', Georgia, serif')};")
+    out.append(f"  --lee-sans: {typ.get('stack_sans', DEFAULT_SANS)};")
+    out.append(f"  --lee-serif: {typ.get('stack_serif', DEFAULT_SERIF)};")
     out.append("}")
-    out.append("body { font-family: var(--sans); color: var(--lee-charcoal); background: var(--lee-white); }")
+    out.append("body { font-family: var(--lee-sans); color: var(--lee-charcoal); background: var(--lee-white); }")
     out.append(f"/* logo file: {os.path.join(HERE, 'lee_logo.svg')} */")
     tagline = payload.get("tagline")
     if tagline:
@@ -175,7 +203,7 @@ def main(argv: list[str]) -> int:
     except Exception as e:
         return _fail(f"could not read {path}: {e}. Save the pull_brand_package response as {SAVE_AS} first.")
     try:
-        payload = validate_response(payload)
+        payload = validate_response(unwrap(payload))
     except NotAToolResponse as e:
         return _fail(str(e))
     sys.stdout.write(render_css(payload))

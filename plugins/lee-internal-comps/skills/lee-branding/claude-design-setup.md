@@ -50,7 +50,7 @@ and feeding it the brand files below.
    - **Brand guidelines:** upload `lee-associates-brand-guidelines.md`, the document Claude
      reads to learn the red, the fonts, the logo do's and don'ts, and the photography style.
    - **Logo:** add `lee_logo.svg` (SVG preferred; add `lee_logo.png` as a backup).
-   - **Colors:** upload `brand-colors.json`, or paste the hex codes when Claude asks for your
+   - **Colors:** paste the `:root` hex values `brand.py tokens` printed from the live `pull_brand_package` response (upload `brand-colors.json` only for the print PMS / CMYK columns), or paste the hex codes when Claude asks for your
      palette.
    - **Fonts:** add the WOFF files in the `fonts/` folder — Avenir Next (primary typeface)
      and Minion Pro (accent/headline serif) — so Claude renders the real brand type instead
