@@ -132,3 +132,66 @@ def test_skill_md_drives_the_plan_command_not_a_hand_built_call():
     assert "helpers.py plan" in text
     assert "UnknownMarket" in text or "unregistered market" in text.lower()
     assert "STALE_CONNECTOR_NOTICE" in text or "Refresh tools list" in text
+
+
+# --- review round 1 (PR #173) -------------------------------------------------
+
+def _rdu():
+    return helpers.validate_request(_req({"named_market": "Triangle"}))["validated"]
+
+
+def test_blank_county_rows_never_trip_the_hard_stop_even_when_the_kwarg_is_omitted():
+    # lee#515: blank county = the Worker matched it geometrically. A session that
+    # forgets keep_blank_county=True must not be told its connector is broken.
+    rows = [{"county": "Wake"}, {"county": ""}, {"county": None}]
+    kept, applied = helpers.apply_post_filters(rows, _rdu(), set(helpers.RDU_MSA_COUNTIES))
+    assert len(kept) == 3
+    assert helpers.STALE_CONNECTOR_NOTICE not in applied
+    assert "subject" in helpers.draft_email(kept, kept, _rdu(), "c.xlsx", [], [], applied)
+
+
+def test_a_genuine_out_of_whitelist_row_trips_the_stop_with_the_kwarg_omitted():
+    rows = [{"county": "Wake"}, {"county": "Mecklenburg"}]
+    kept, applied = helpers.apply_post_filters(rows, _rdu(), set(helpers.RDU_MSA_COUNTIES))
+    assert [r["county"] for r in kept] == ["Wake"]
+    assert helpers.STALE_CONNECTOR_NOTICE in applied
+
+
+def test_markdown_table_is_gated_too():
+    v = _rdu()
+    with pytest.raises(helpers.StaleConnectorError):
+        helpers.markdown_table([], [], [], [], v, applied_filters=[helpers.STALE_CONNECTOR_NOTICE])
+    assert isinstance(helpers.markdown_table([], [], [], [], v), str)
+
+
+@pytest.mark.parametrize("geo", [{"cities": []}, {"cities": ["", "  "]}, {"counties": [], "cities": []}])
+def test_blank_cities_default_to_rdu_like_blank_counties(geo):
+    out = helpers.validate_request(_req(geo))
+    assert out["validated"]["geography"] == {"named_market": "RDU MSA"}
+    params = helpers.build_mcp_params(out["validated"])
+    assert {p["county"] for p in params["params_list"]} == set(helpers.RDU_MSA_COUNTIES)
+
+
+@pytest.mark.parametrize("spelling", ["Perdue", "Purdue", "Verdun", "Rduville", "Golden Triangle"])
+def test_word_fragments_and_other_triangles_do_not_resolve_to_rdu(spelling):
+    out = helpers.validate_request(_req({"named_market": spelling}))
+    assert out["validated"]["geography"]["named_market"] != "RDU MSA"
+
+
+@pytest.mark.parametrize("spelling", ["Raleigh/Durham", "Raleigh–Durham", "Raleigh - Durham", "RDU-MSA"])
+def test_separator_variants_of_the_triangle_resolve_to_rdu(spelling):
+    out = helpers.validate_request(_req({"named_market": spelling}))
+    assert out["validated"]["geography"]["named_market"] == "RDU MSA"
+
+
+def test_behavioral_rule_3_no_longer_tells_the_session_to_bounce_the_triangle():
+    text = (HERE / "SKILL.md").read_text()
+    rule3 = [l for l in text.splitlines() if l.startswith("3. **If the broker uses a term")]
+    assert rule3 and "\"the Triangle,\"" not in rule3[0] and "IS recognized" in rule3[0]
+    assert "plan → confirm" in text or "plan -> confirm" in text
+
+
+def test_plan_cli_emits_json_on_malformed_input(tmp_path):
+    out = subprocess.run([sys.executable, str(HERE / "helpers.py"), "plan", "{not json"], capture_output=True, text=True)
+    assert out.returncode == 1
+    assert "error" in json.loads(out.stdout)

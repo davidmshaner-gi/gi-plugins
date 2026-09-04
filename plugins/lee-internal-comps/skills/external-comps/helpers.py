@@ -17,15 +17,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import statistics
 from datetime import date, timedelta
 from typing import Any, Optional
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
-from openpyxl.formatting.rule import ColorScaleRule
-from openpyxl.drawing.image import Image as XLImage
 
 
 # See the canonical XLSX_STUB note in internal-comps/helpers.py. Cowork's per-session
@@ -74,7 +70,7 @@ RDU_MARKET_ALIASES = {"rdu msa", "rdu", "triangle", "raleigh-durham", "raleigh d
 # ("Triangle (RDU MSA)", "the Triangle", "RDU MSA / Triangle") missing the exact
 # set and falling through to the statewide branch. Any of these tokens inside the
 # named_market string means the Triangle.
-RDU_MARKET_TOKENS = ("triangle", "rdu", "raleigh-durham", "raleigh durham")
+RDU_MARKET_TOKENS = ("triangle", "rdu", "raleigh durham")  # whole-word, after separator collapse
 
 
 class UnknownMarket(ValueError):
@@ -104,8 +100,12 @@ def _normalize_named_market(value: Any) -> Optional[str]:
     text = str(value).strip()
     if not text:
         return None
-    low = text.lower()
-    if low in RDU_MARKET_ALIASES or any(tok in low for tok in RDU_MARKET_TOKENS):
+    # collapse separators so "Raleigh/Durham", "Raleigh–Durham", "RDU-MSA" all read
+    # the same; whole-word match so "Perdue" and "Golden Triangle" do not (review #173)
+    low = re.sub(r"[\s\-\u2013\u2014/]+", " ", text.lower()).strip()
+    if re.search(r"(?<![a-z])(rdu|raleigh durham)(?![a-z])", low):
+        return "RDU MSA"
+    if re.search(r"(?<![a-z])triangle(?![a-z])", low) and "golden" not in low:
         return "RDU MSA"
     return text
 
@@ -238,10 +238,13 @@ def validate_request(parsed: dict) -> dict:
         # "no geography at all" and hand the broker the whole state.
         if "counties" in geo and not resolve_counties(geo):
             geo.pop("counties")
-            if not geo:
-                validated["geography"] = {"named_market": "RDU MSA"}
-                applied.append("geography → RDU MSA (blank county list ignored)")
-                geo = validated["geography"]
+        # review #173: a blank `cities` list is the same non-ask; scrub it the same way
+        if "cities" in geo and not [c for c in (geo.get("cities") or []) if str(c).strip()]:
+            geo.pop("cities")
+        if not geo:
+            validated["geography"] = {"named_market": "RDU MSA"}
+            applied.append("geography → RDU MSA (blank geography ignored)")
+            geo = validated["geography"]
         if "named_market" in geo:
             norm = _normalize_named_market(geo["named_market"])
             if norm is None:
@@ -422,7 +425,8 @@ def build_mcp_params(validated: dict) -> dict:
         # NC book trimmed client-side (audit 5222-5232). Ask the broker instead.
         raise UnknownMarket(
             f"named_market {geo['named_market']!r} is not a registered market "
-            f"(registered: RDU MSA and its aliases {sorted(RDU_MARKET_ALIASES)}). "
+            "(registered: RDU MSA, i.e. any spelling containing the word RDU, Triangle, "
+            "or Raleigh-Durham). "
             "Ask the broker which counties or cities they mean and pass "
             "geography={\"counties\": [...]} or {\"cities\": [...]}; never run statewide."
         )
@@ -669,11 +673,15 @@ def apply_post_filters(
                 )
 
         # --- County whitelist filter ---
+        # review #173: a blank county is NEVER the G26 signal (lee#515: the Worker
+        # matched it geometrically), whatever keep_blank_county says. Only a row
+        # that names a county outside the whitelist proves the connector stripped
+        # the param. keep_blank_county is retained for signature compatibility.
         before = len(out)
         out = [
             r for r in out
-            if (r.get("county") or "").strip() in post_filter_counties
-            or (keep_blank_county and not (r.get("county") or "").strip())
+            if not (r.get("county") or "").strip()
+            or (r.get("county") or "").strip() in post_filter_counties
         ]
         dropped = before - len(out)
         if dropped > 0:
@@ -681,8 +689,8 @@ def apply_post_filters(
                 f"dropped {dropped} row{'s' if dropped != 1 else ''} outside {sorted(post_filter_counties)}"
             )
             # gi-plugins#168: the drop is the G26 signal, and it is a STOP, not
-            # a Methodology-tab footnote. format_excel / draft_email refuse to
-            # compose while this notice is present; the session prints it.
+            # a Methodology-tab footnote. format_excel / draft_email /
+            # markdown_table refuse to compose while this notice is present.
             applied.append(STALE_CONNECTOR_NOTICE)
 
     return out, applied
@@ -814,6 +822,13 @@ def format_excel(
     frozen panes, autofilter, color scale on rate column).
     """
     _refuse_if_stale(applied_filters)
+    # review #173: openpyxl is imported here, not at module import, so the plan
+    # command (the first thing a session runs) never depends on the xlsx stack.
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from openpyxl.formatting.rule import ColorScaleRule
+    from openpyxl.drawing.image import Image as XLImage
     tx = validated["transaction_type"]
     cols = DISPLAY_COLUMNS_SALE if tx == "sale" else DISPLAY_COLUMNS_LEASE
     rate_col = "price_per_sf" if tx == "sale" else "base_rent"
@@ -965,8 +980,11 @@ def markdown_table(
     tagged_sublet: list[dict],
     tagged_rent_undisclosed: list[dict],
     validated: dict,
+    applied_filters: Optional[list[str]] = None,
 ) -> str:
-    """Build the Markdown reply: main ranked table plus tagged sub-tables plus quick read."""
+    """Build the Markdown reply: main ranked table plus tagged sub-tables plus quick read.
+    Pass `applied_filters` so a stale-connector stop also blocks the chat table."""
+    _refuse_if_stale(applied_filters or [])
     tx = validated["transaction_type"]
     target_count = validated.get("target_count", DEFAULT_TARGET_COUNT)
     top_n = top[:target_count]
@@ -1167,11 +1185,17 @@ def _main(argv: list[str]) -> int:
         print("usage: python3 helpers.py plan <request.json | '{...}'>", file=_sys.stderr)
         return 2
     arg = argv[1]
-    if os.path.exists(arg):
-        with open(arg) as fh:
-            parsed = json.load(fh)
-    else:
-        parsed = json.loads(arg)
+    try:
+        if os.path.exists(arg):
+            with open(arg) as fh:
+                parsed = json.load(fh)
+        else:
+            parsed = json.loads(arg)
+        if not isinstance(parsed, dict):
+            raise ValueError("request must be a JSON object")
+    except Exception as e:  # always hand the session a JSON object to read
+        print(json.dumps({"tool_name": None, "params_list": [], "error": f"could not read request: {e}"}))
+        return 1
     result = plan(parsed)
     print(json.dumps(result, indent=2, default=str))
     return 1 if result["error"] else 0
