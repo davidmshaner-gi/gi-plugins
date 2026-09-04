@@ -7,6 +7,14 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.41.1] - 2026-09-03
+
+### Fixed
+- **`/owner-lookup` no longer refuses Orange, Johnston and Chatham.** The skill still described
+  coverage as the original four counties (Wake, Durham, New Hanover, Lee), so a Hillsborough ask
+  was declined before the tool was called (lee#558 rig QA, 2026-09-03; gi#170). The server has covered all
+  seven since 2026-06-10; the skill text now matches `/parcel-lookup`.
+
 ## [1.41.0] - 2026-09-03
 
 ### Changed
