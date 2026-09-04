@@ -21,8 +21,8 @@ python3 brand.py call
 ```
 
 prints the exact call: `pull_brand_package({ local_version: "2021.02" })` on the
-lee-raleigh connector (the version comes from the bundled `brand-colors.json`, currently
-`2021.02`; the command reads it, so the literal here is only a convenience). Make that
+lee-raleigh connector (the version comes from the bundled `brand-colors.json`
+(currently `2021.02`); the command reads it, so the literal here is only a convenience). Make that
 call, save the FULL response verbatim as `brand_package.json` in the working folder, then:
 
 ```
