@@ -1,6 +1,6 @@
 ---
 name: owner-lookup
-description: Look up the owner of record and owner mailing address for a US property in the counties covered by the owner-graph bulk ingest (Wake, Durham, New Hanover, and Lee — NC). Accepts a street address OR a parcel ID / PIN. Returns the parcel's assessor record (owner name, mailing address, year built, lot size, building SF, assessed value, last sale, zoning, jurisdiction). When the same street address exists more than once, returns a candidate list of parcel IDs to re-run with; near-miss addresses (reordered wording, wrong house number, abbreviation variants) return a ranked did-you-mean candidate list instead of a dead not-found. Wraps the lee-raleigh-mcp owner_lookup tool.
+description: Look up the owner of record and owner mailing address for a US property in the counties covered by the owner-graph bulk ingest (Wake, Durham, New Hanover, Lee, Johnston, Orange, Chatham — NC). Accepts a street address OR a parcel ID / PIN. Returns the parcel's assessor record (owner name, mailing address, year built, lot size, building SF, assessed value, last sale, zoning, jurisdiction). When the same street address exists more than once, returns a candidate list of parcel IDs to re-run with; near-miss addresses (reordered wording, wrong house number, abbreviation variants) return a ranked did-you-mean candidate list instead of a dead not-found. Wraps the lee-raleigh-mcp owner_lookup tool.
 ---
 
 # Owner Lookup (Lee & Associates)
@@ -9,7 +9,7 @@ Resolve a US street address to the owner of record + owner mailing address plus 
 
 ## When to use
 
-Anything that asks "who owns X," "what's the mailing address for X," or "give me the assessor facts on X" for a property in the four covered NC counties.
+Anything that asks "who owns X," "what's the mailing address for X," or "give me the assessor facts on X" for a property in the seven covered NC counties.
 
 Triggers:
 
@@ -21,7 +21,7 @@ Triggers:
 
 **Don't apply this skill to:**
 
-- Addresses outside Wake, Durham, New Hanover, or Lee NC. Other counties land in v1.1.
+- Addresses outside the seven covered NC counties (Wake, Durham, New Hanover, Lee, Johnston, Orange, Chatham).
 - Phone or email for owners — those are NULL in v1 (contact enrichment is deferred).
 - Portfolio rollups ("what else does this owner own?") — the graph supports it but a portfolio tool is a separate v1.1 skill.
 - Owner history (prior deeds) — v1 returns the CURRENT owner only.
@@ -32,26 +32,26 @@ Triggers:
 
 1. Parse the broker's request to extract the address as a single free-text string. Comma-separated `street, city, state` is best; the engine normalizes (uppercases, strips punctuation, expands directionals and suffixes) and, when the same street address exists more than once, uses the city after the comma to auto-pick the right parcel — so always keep the city/state the broker gave you.
 2. **If the broker gives you a parcel ID / PIN instead of (or in addition to) an address** — a value that's all digits with optional dots/dashes, e.g. `0763592649` (Wake/Lee) or `3117-79-5148.000` (New Hanover OneMap parno) — pass it as `parcel_id`. (A bare PIN passed as `address` is also recognized, but `parcel_id` is clearer.) This is the disambiguation path: when a multi-match response lists candidate parcel IDs, re-run with the one the broker wants.
-3. If the broker explicitly mentions the county OR a multi-match response says the candidates span more than one county, pass `county` as one of: `Wake`, `Durham`, `NEW_HANOVER`, `Lee`. Do NOT pass a county to resolve a same-county collision — it can't; use `parcel_id` for that.
+3. If the broker explicitly mentions the county OR a multi-match response says the candidates span more than one county, pass `county` as one of: `Wake`, `Durham`, `NEW_HANOVER`, `Lee`, `Johnston`, `Orange`, `Chatham`. Do NOT pass a county to resolve a same-county collision — it can't; use `parcel_id` for that.
 4. Call the MCP tool `owner_lookup` with `{address: "<the extracted address>", county: "<county-or-omit>", parcel_id: "<PIN-or-omit>"}`. The tool is sub-second (indexed D1 lookup, no external APIs on the request path).
 5. The response is a JSON parcel record. Render the broker-facing essentials inline conversationally — county, parcel_id, owner_raw, owner_mail_address, assessed_value_total, year_built, lot_size_acres, building_sf, land_use, last_sale_date, last_sale_price. Format the mailing address as multi-line (it's stored with embedded `\n`).
-6. **REQUIRED — every successful response MUST end with the verification footer.** This is not optional, not dependent on broker phrasing, not skippable when the data looks "obviously fine." See "Verification footer" below for the exact rendering — choose the URL template from the table that matches the parcel's `county` field, substitute the PIN for Wake (URL-encoded), and emit the markdown link inline at the end of the response. If the parcel is in WAKE the link IS a deep-link (the broker clicks once); for DURHAM / NEW_HANOVER / LEE the link opens a search form and the response must also include the literal `search by PIN: \`<PIN>\`` text so the broker has the PIN to paste.
+6. **REQUIRED — every successful response MUST end with the verification footer.** This is not optional, not dependent on broker phrasing, not skippable when the data looks "obviously fine." See "Verification footer" below for the exact rendering — choose the URL template from the table that matches the parcel's `county` field, substitute the PIN for Wake (URL-encoded), and emit the markdown link inline at the end of the response. If the parcel is in WAKE the link IS a deep-link (the broker clicks once); for DURHAM / NEW_HANOVER / LEE the link opens a search form and the response must also include the literal `search by PIN: \`<PIN>\`` text so the broker has the PIN to paste. For JOHNSTON / ORANGE / CHATHAM there is no verified deep-link yet: name the county GIS portal in prose and include the same `search by PIN` text.
 7. If the tool returns an error, fall through to the Error Handling section below.
 
 ## Error handling
 
 The tool returns broker-legible error messages directly; surface them as-is and apologize if needed:
 
-- **"No parcel found for ..."** -- the address (or PIN) didn't match. Possible reasons: outside the covered counties (Wake, Durham, NHC, Lee NC), or the address needs a county to disambiguate. Follow the miss protocol below: the message carries the assistant-directed next step (derive the county from the city/ZIP and re-call with `county`, or look it up by PIN); do not ask the broker for a spelling or a hint on the first miss.
+- **"No parcel found for ..."** -- the address (or PIN) didn't match. Possible reasons: outside the covered counties (Wake, Durham, New Hanover, Lee, Johnston, Orange, Chatham NC), or the address needs a county to disambiguate. Follow the miss protocol below: the message carries the assistant-directed next step (derive the county from the city/ZIP and re-call with `county`, or look it up by PIN); do not ask the broker for a spelling or a hint on the first miss.
 - **"No exact match for ... Closest parcels on record:"** — the address didn't match exactly, but the tool found near-misses (reordered wording, a slightly different house number, an abbreviation like "Saint" vs "St"). Handle it EXACTLY like the multi-match list below: show the broker the candidates (each has a parcel_id, locality, county, and site address, ranked nearest-first) and **re-run `owner_lookup` with `parcel_id` set to their choice**. Note: a reordered-but-identical address (e.g. "1917 NC Highway 98 E" vs the county's "1917 E NC 98 HWY") now resolves automatically — no broker action needed, you'll just get the parcel.
 - **"Multiple parcels match ...":** the same street address exists more than once. The message lists each candidate as `parcel_id <PIN> — <locality> (<county>), <site address>`. Show the broker the list and ask which one, then **re-run `owner_lookup` with `parcel_id` set to their choice** (NOT the address again). Only when the message explicitly says the candidates span different counties does passing `county` help; for a same-county collision (e.g. two `100 Walnut St` in Wake — Cary vs Wendell) the parcel_id is the only resolver. If the broker already named the city, include it in the address (`100 Walnut St, Cary NC`) and the tool auto-picks.
-- Anything else (HTTP error, timeout, etc.) — apologize, surface the short message, suggest a retry. Worst case, point the broker to the county's municipal GIS (Wake iMaps, Durham GoMaps, NHC GIS Map, Lee NC GIS) for manual lookup.
+- Anything else (HTTP error, timeout, etc.) — apologize, surface the short message, suggest a retry. Worst case, point the broker to the county's municipal GIS (Wake iMaps, Durham GoMaps, NHC GIS Map, Lee NC GIS, Johnston County GIS, Orange County GIS, Chatham County GIS) for manual lookup.
 
 ## What's in the response
 
 For a matched parcel:
 
-- **county** — `WAKE`, `DURHAM`, `NEW_HANOVER`, or `LEE`
+- **county** — `WAKE`, `DURHAM`, `NEW_HANOVER`, `LEE`, `JOHNSTON`, `ORANGE`, or `CHATHAM`
 - **parcel_id** — the county's canonical PIN
 - **address** — the assessor's situs address (the on-file street + number)
 - **owner_raw** — owner name(s) exactly as recorded by the assessor
@@ -70,9 +70,9 @@ The footer paragraph format is:
 > Heads-up on freshness: this is from our bulk-staged copy of {COUNTY} County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[{Portal Name}]({Resolved URL})**{paste-hint}.
 
 Where:
-- `{COUNTY}` is the human-readable county name (`Wake`, `Durham`, `New Hanover`, or `Lee`).
+- `{COUNTY}` is the human-readable county name (`Wake`, `Durham`, `New Hanover`, `Lee`, `Johnston`, `Orange`, or `Chatham`).
 - `{Portal Name}` and `{Resolved URL}` come from the table below.
-- `{paste-hint}` is empty string for WAKE (the link IS a deep-link to the parcel); for DURHAM / NEW_HANOVER / LEE it is the exact literal text ` — search by PIN: \`<PIN>\`` so the broker can paste the PIN into the search form on the other side.
+- `{paste-hint}` is empty string for WAKE (the link IS a deep-link to the parcel); for DURHAM / NEW_HANOVER / LEE / JOHNSTON / ORANGE / CHATHAM it is the exact literal text ` — search by PIN: \`<PIN>\`` so the broker can paste the PIN into the search form on the other side.
 
 ### Per-county verification portals
 
@@ -84,6 +84,7 @@ These were verified via Chrome DevTools on 2026-05-23 with the sentinel PINs and
 | **DURHAM** | Durham Tax CAMA | `https://taxcama.dconc.gov/camapwa/#PIN` | Opens Durham's CAMA portal with the PIN search tab already expanded. Broker pastes the 10-digit PIN and clicks search. |
 | **NEW_HANOVER** | NHC etax | `https://etax.nhcgov.com/PT/search/commonsearch.aspx?mode=parid` | Tyler iasWorld. After accepting the disclaimer (once per session), opens the Parcel ID search form. Broker pastes the PIN and clicks Search. |
 | **LEE** | Lee County Tax Access | `https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=realprop` | Tyler iasWorld, like NHC — but Lee's working entry point is the Real Estate Property search (`mode=realprop`), **not** `mode=parid`, which throws an error page on this county's instance. Accept the disclaimer, paste the PIN, click Search. |
+| **JOHNSTON / ORANGE / CHATHAM** | county GIS | name the county GIS portal in prose | no verified deep-link yet — tell the broker to search the county GIS by PIN or address. |
 
 ### Worked examples of the verification footer (copy this format exactly)
 
@@ -99,7 +100,7 @@ These were verified via Chrome DevTools on 2026-05-23 with the sentinel PINs and
 **Lee** (parcel `9645-45-9484-00`):
 > Heads-up on freshness: this is from our bulk-staged copy of Lee County's GIS, refreshed roughly quarterly — not live. For anything time-sensitive (offer letters, deed work), verify against **[Lee County Tax Access](https://taxaccess.leecountync.gov/pt/search/commonsearch.aspx?mode=realprop)** — search by PIN: `9645-45-9484-00`.
 
-**Do NOT** ship the response without this footer, ever. **Do NOT** use a generic Wake-only link when the parcel is in Durham, NHC, or Lee.
+**Do NOT** ship the response without this footer, ever. **Do NOT** use a generic Wake-only link when the parcel is in another county; for Johnston, Orange or Chatham name the county GIS portal in prose (no verified deep-link yet).
 
 ### Known data gaps
 
@@ -138,15 +139,15 @@ Tool: returns the WAKE parcel directly. Skill renders the owner + footer.
 
 Broker: "Who owns 500 Oak Ave, Charlotte NC?"
 Skill: calls `owner_lookup({address: "500 Oak Ave, Charlotte NC"})`.
-Tool: returns "No parcel found ... outside the covered counties (Wake, Durham, New Hanover, Lee NC)."
-Skill: "I don't have Charlotte (Mecklenburg County) yet — coverage is currently Wake, Durham, New Hanover, and Lee in NC. For Charlotte, try Mecklenburg County's POLARIS GIS at https://polaris3g.mecklenburgcountync.gov/."
+Tool: returns "No parcel found ... outside the covered counties (Wake, Durham, New Hanover, Lee, Johnston, Orange, Chatham NC)."
+Skill: "I don't have Charlotte (Mecklenburg County) yet — coverage is currently Wake, Durham, New Hanover, Lee, Johnston, Orange, and Chatham in NC. For Charlotte, try Mecklenburg County's POLARIS GIS at https://polaris3g.mecklenburgcountync.gov/."
 
 ## What's deliberately NOT in v1
 
 - **Owner phone / email** — contact enrichment layer is deferred (no free public source).
 - **Portfolio rollups** ("everything owner X owns") — the owner graph supports this but a `portfolio-lookup` skill is a v1.1 deliverable.
 - **Owner history / prior deeds** — current owner only.
-- **More counties** — Johnston, Brunswick, Pender are next. Mecklenburg / Buncombe / Guilford are larger projects.
+- **More counties** — Brunswick, Pender are next. Mecklenburg / Buncombe / Guilford are larger projects.
 - **LLC resolution** (NC Secretary of State entity lookup) — v1.1.
 
 ## Files
