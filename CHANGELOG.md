@@ -7,6 +7,26 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.41.2] - 2026-09-03
+
+### Fixed
+- **A Triangle external-comps ask can no longer run statewide and get trimmed client-side.**
+  Bonner's three 1.40.0 internal-QA runs (audit_log 5222-5232, 5259-5263) sent helper-exact
+  params with no `county`, one dict paged by cursor, then a whitelist that dropped 286 rows:
+  the shape of `build_mcp_params` falling through to its silent statewide branch when the
+  `named_market` spelling missed the exact alias set (gi-plugins#168). Any spelling that
+  contains RDU, Triangle, or Raleigh-Durham now normalizes to the seven-county fan-out; an
+  unregistered market raises `UnknownMarket` (ask the broker for counties) instead of
+  running statewide; and the G26 stale-connector guard is a hard stop: `apply_post_filters`
+  appends `STALE_CONNECTOR_NOTICE` on any drop and `format_excel` / `draft_email` refuse to
+  compose (`StaleConnectorError`), so the broker gets the refresh instruction, not a file
+  built from the trimmed set.
+- **`python3 helpers.py plan request.json`** prints the exact MCP calls for a request in one
+  step; SKILL.md now drives that command instead of the import-and-call sequence. Tonight's
+  Sonnet 5 run on 1.41.1 skipped the helpers and hand-derived the calls (5 days off the
+  window, no max date, limit under the floor). `build_mcp_params` also accepts the
+  `validate_request` return value directly, the KeyError that pushed that session away.
+
 ## [1.41.1] - 2026-09-03
 
 ### Fixed
