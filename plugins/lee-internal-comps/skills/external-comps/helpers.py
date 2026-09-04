@@ -17,15 +17,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import statistics
 from datetime import date, timedelta
 from typing import Any, Optional
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
-from openpyxl.formatting.rule import ColorScaleRule
-from openpyxl.drawing.image import Image as XLImage
 
 
 # See the canonical XLSX_STUB note in internal-comps/helpers.py. Cowork's per-session
@@ -67,6 +63,51 @@ RDU_MSA_COUNTIES = {"Wake", "Durham", "Orange", "Chatham", "Johnston", "Franklin
 
 # Aliases for the RDU named market — case-insensitive match in validate_request.
 RDU_MARKET_ALIASES = {"rdu msa", "rdu", "triangle", "raleigh-durham", "raleigh durham"}
+
+# gi-plugins#168: the alias match is a CONTAINS test, not an exact one. Bonner's
+# three 1.40.0 runs sent helper-exact params with no `county`, one dict paged by
+# cursor, then a client-side whitelist -- the signature of a decorated spelling
+# ("Triangle (RDU MSA)", "the Triangle", "RDU MSA / Triangle") missing the exact
+# set and falling through to the statewide branch. Any of these tokens inside the
+# named_market string means the Triangle.
+RDU_MARKET_TOKENS = ("triangle", "rdu", "raleigh durham")  # whole-word, after separator collapse
+
+
+class UnknownMarket(ValueError):
+    """A named_market the registry does not know. Never answered statewide:
+    the session asks the broker which counties they mean (gi-plugins#168)."""
+
+
+class StaleConnectorError(RuntimeError):
+    """The RDU whitelist guard dropped rows: the connector's cached tools list
+    stripped `county` (G26). The deliverable is NOT built from the lossy set;
+    the broker is told to refresh and re-run (gi-plugins#168)."""
+
+
+STALE_CONNECTOR_NOTICE = (
+    "Your Claude connector's tool list is out of date, so this pull ran statewide "
+    "and was trimmed on my side, which can drop comps. Open the Lee Raleigh "
+    "connector, choose Refresh tools list from its menu, then ask me to run this "
+    "again. I have not delivered a file from the trimmed set."
+)
+
+
+def _normalize_named_market(value: Any) -> Optional[str]:
+    """Return "RDU MSA" for any spelling that means the Triangle, else the
+    stripped original, else None for blank."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    # collapse separators so "Raleigh/Durham", "Raleigh–Durham", "RDU-MSA" all read
+    # the same; whole-word match so "Perdue" and "Golden Triangle" do not (review #173)
+    low = re.sub(r"[\s\-\u2013\u2014/]+", " ", text.lower()).strip()
+    if re.search(r"(?<![a-z])(rdu|raleigh durham)(?![a-z])", low):
+        return "RDU MSA"
+    if re.search(r"(?<![a-z])triangle(?![a-z])", low) and "golden" not in low:
+        return "RDU MSA"
+    return text
 
 # RDU MSA city → county fallback map. Retained, unused since 1.39.1: the RDU
 # path is filtered server-side and the null-county dialog it fed is gone
@@ -197,12 +238,22 @@ def validate_request(parsed: dict) -> dict:
         # "no geography at all" and hand the broker the whole state.
         if "counties" in geo and not resolve_counties(geo):
             geo.pop("counties")
-            if not geo:
-                validated["geography"] = {"named_market": "RDU MSA"}
-                applied.append("geography → RDU MSA (blank county list ignored)")
-                geo = validated["geography"]
-        if "named_market" in geo and geo["named_market"].strip().lower() in RDU_MARKET_ALIASES:
-            geo["named_market"] = "RDU MSA"  # normalize
+        # review #173: a blank `cities` list is the same non-ask; scrub it the same way
+        if "cities" in geo and not [c for c in (geo.get("cities") or []) if str(c).strip()]:
+            geo.pop("cities")
+        if not geo:
+            validated["geography"] = {"named_market": "RDU MSA"}
+            applied.append("geography → RDU MSA (blank geography ignored)")
+            geo = validated["geography"]
+        if "named_market" in geo:
+            norm = _normalize_named_market(geo["named_market"])
+            if norm is None:
+                geo.pop("named_market")
+                if not geo:
+                    validated["geography"] = {"named_market": "RDU MSA"}
+                    applied.append("geography → RDU MSA (blank market ignored)")
+            else:
+                geo["named_market"] = norm  # "RDU MSA" for every Triangle spelling
 
     # --- Date window default ---
     if not validated.get("date_window"):
@@ -259,6 +310,17 @@ def build_mcp_params(validated: dict) -> dict:
     The model loops `params_list`, invoking the MCP tool for each entry, then unions
     the rows before calling apply_post_filters.
     """
+    # gi-plugins#168: accept the validate_request wrapper as-is. A session that
+    # wrote build_mcp_params(validate_request(parsed)) got KeyError and abandoned
+    # the helpers for hand-built calls; unwrapping here removes that cliff.
+    if "validated" in validated and "transaction_type" not in validated:
+        if validated.get("missing_required"):
+            raise ValueError(
+                "request is missing required fields: "
+                + "; ".join(validated["missing_required"])
+            )
+        validated = validated["validated"]
+
     tx = validated["transaction_type"]
     asset = validated["asset_type"]
     tool_name = (
@@ -358,10 +420,16 @@ def build_mcp_params(validated: dict) -> dict:
         # in applied_filters is the stale-cache signal (SKILL.md step 7).
         post_filter_counties = set(RDU_MSA_COUNTIES)
     elif "named_market" in geo:
-        # An unregistered named market: no geography predicate we can express,
-        # so this is a statewide call -- the one shape that reliably hits the
-        # cap; `truncated` + paging is what keeps that honest.
-        params_list.append(dict(base))
+        # gi-plugins#168: an unregistered named market is NEVER a statewide
+        # call. That silent fallback is what handed a Triangle broker the whole
+        # NC book trimmed client-side (audit 5222-5232). Ask the broker instead.
+        raise UnknownMarket(
+            f"named_market {geo['named_market']!r} is not a registered market "
+            "(registered: RDU MSA, i.e. any spelling containing the word RDU, Triangle, "
+            "or Raleigh-Durham). "
+            "Ask the broker which counties or cities they mean and pass "
+            "geography={\"counties\": [...]} or {\"cities\": [...]}; never run statewide."
+        )
     elif "cities" in geo and geo["cities"]:
         # Cities → one call per city, no county filter post-fetch.
         for city in geo["cities"]:
@@ -369,8 +437,13 @@ def build_mcp_params(validated: dict) -> dict:
             p["city"] = city
             params_list.append(p)
     else:
-        # Geography present but empty — fall through to no-geo (state-only).
-        params_list.append(dict(base))
+        # gi-plugins#168: geography present but with no usable key is the same
+        # silent-statewide trap. validate_request defaults an empty dict to RDU
+        # before we get here; anything else that lands here is a malformed ask.
+        raise UnknownMarket(
+            f"geography {geo!r} carries no counties, cities, or named_market; "
+            "ask the broker which counties or cities they mean; never run statewide."
+        )
 
     return {
         "tool_name": tool_name,
@@ -600,19 +673,32 @@ def apply_post_filters(
                 )
 
         # --- County whitelist filter ---
+        # review #173: a blank county is NEVER the G26 signal (lee#515: the Worker
+        # matched it geometrically), whatever keep_blank_county says. Only a row
+        # that names a county outside the whitelist proves the connector stripped
+        # the param. keep_blank_county is retained for signature compatibility.
         before = len(out)
         out = [
             r for r in out
-            if (r.get("county") or "").strip() in post_filter_counties
-            or (keep_blank_county and not (r.get("county") or "").strip())
+            if not (r.get("county") or "").strip()
+            or (r.get("county") or "").strip() in post_filter_counties
         ]
         dropped = before - len(out)
         if dropped > 0:
             applied.append(
                 f"dropped {dropped} row{'s' if dropped != 1 else ''} outside {sorted(post_filter_counties)}"
             )
+            # gi-plugins#168: the drop is the G26 signal, and it is a STOP, not
+            # a Methodology-tab footnote. format_excel / draft_email /
+            # markdown_table refuse to compose while this notice is present.
+            applied.append(STALE_CONNECTOR_NOTICE)
 
     return out, applied
+
+
+def _refuse_if_stale(applied_filters: list[str]) -> None:
+    if STALE_CONNECTOR_NOTICE in (applied_filters or []):
+        raise StaleConnectorError(STALE_CONNECTOR_NOTICE)
 
 
 def _months_since(date_str: Optional[str], anchor: Optional[date] = None) -> float:
@@ -735,6 +821,14 @@ def format_excel(
     header in official Lee Red with the logo + title band on the main sheet,
     frozen panes, autofilter, color scale on rate column).
     """
+    _refuse_if_stale(applied_filters)
+    # review #173: openpyxl is imported here, not at module import, so the plan
+    # command (the first thing a session runs) never depends on the xlsx stack.
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from openpyxl.formatting.rule import ColorScaleRule
+    from openpyxl.drawing.image import Image as XLImage
     tx = validated["transaction_type"]
     cols = DISPLAY_COLUMNS_SALE if tx == "sale" else DISPLAY_COLUMNS_LEASE
     rate_col = "price_per_sf" if tx == "sale" else "base_rent"
@@ -886,8 +980,11 @@ def markdown_table(
     tagged_sublet: list[dict],
     tagged_rent_undisclosed: list[dict],
     validated: dict,
+    applied_filters: Optional[list[str]] = None,
 ) -> str:
-    """Build the Markdown reply: main ranked table plus tagged sub-tables plus quick read."""
+    """Build the Markdown reply: main ranked table plus tagged sub-tables plus quick read.
+    Pass `applied_filters` so a stale-connector stop also blocks the chat table."""
+    _refuse_if_stale(applied_filters or [])
     tx = validated["transaction_type"]
     target_count = validated.get("target_count", DEFAULT_TARGET_COUNT)
     top_n = top[:target_count]
@@ -954,6 +1051,7 @@ def draft_email(
 ) -> dict:
     """Returns {subject, body}. Body surfaces total filtered count, top-N ranked count,
     stats, defaults, warnings, filters, and a widen-question if below target_count."""
+    _refuse_if_stale(applied_filters)
     tx = validated["transaction_type"]
     asset = validated["asset_type"]
     geo = validated["geography"]
@@ -1046,3 +1144,63 @@ def format_feedback(
         "fallback_filename": f"feedback-{today}.md",
         "fallback_content": body,
     }
+
+
+# ---------------------------------------------------------------------------
+# gi-plugins#168: one command the session can run and paste from. Prints the
+# exact MCP calls for a request; the session calls the tool once per entry,
+# verbatim, and never hand-derives params from the prose above.
+#   python3 helpers.py plan request.json      (or an inline JSON string)
+# ---------------------------------------------------------------------------
+def plan(parsed: dict) -> dict:
+    out = validate_request(parsed)
+    result: dict[str, Any] = {
+        "tool_name": None,
+        "params_list": [],
+        "post_filter_counties": None,
+        "validated": out["validated"],
+        "missing_required": out["missing_required"],
+        "applied_defaults": out["applied_defaults"],
+        "warnings": out["warnings"],
+        "error": None,
+    }
+    if out["missing_required"]:
+        result["error"] = "missing required fields: " + "; ".join(out["missing_required"])
+        return result
+    try:
+        built = build_mcp_params(out["validated"])
+    except UnknownMarket as e:
+        result["error"] = str(e)
+        return result
+    result["tool_name"] = built["tool_name"]
+    result["params_list"] = built["params_list"]
+    pf = built["post_filter_counties"]
+    result["post_filter_counties"] = sorted(pf) if pf else None
+    return result
+
+
+def _main(argv: list[str]) -> int:
+    import sys as _sys
+    if len(argv) < 2 or argv[0] != "plan":
+        print("usage: python3 helpers.py plan <request.json | '{...}'>", file=_sys.stderr)
+        return 2
+    arg = argv[1]
+    try:
+        if os.path.exists(arg):
+            with open(arg) as fh:
+                parsed = json.load(fh)
+        else:
+            parsed = json.loads(arg)
+        if not isinstance(parsed, dict):
+            raise ValueError("request must be a JSON object")
+    except Exception as e:  # always hand the session a JSON object to read
+        print(json.dumps({"tool_name": None, "params_list": [], "error": f"could not read request: {e}"}))
+        return 1
+    result = plan(parsed)
+    print(json.dumps(result, indent=2, default=str))
+    return 1 if result["error"] else 0
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    raise SystemExit(_main(_sys.argv[1:]))
