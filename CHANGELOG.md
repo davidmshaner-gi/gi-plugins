@@ -7,6 +7,15 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.43.1] - 2026-09-13
+
+### Fixed
+- **map-my-inbox reads the context rows as the canvas they are (gi-plugins#176).** The rows a
+  leader's `get_my_context` returns are now a verbatim export of their operations canvas
+  (lee#581 chore: SOURCES, seat measurables, the whole canvas as JSON, authored maps,
+  readiness), so Step 1 reads one kind at a time, names the JSON shape, and tells the session
+  to quote the canvas's own process labels and step titles instead of restating them.
+
 ## [1.43.0] - 2026-09-12
 
 ### Added

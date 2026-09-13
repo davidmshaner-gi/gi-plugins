@@ -28,24 +28,37 @@ First check that the lee-raleigh tools are in this session. If they are missing 
 that is a sign-in problem, not a context problem: follow the connector-auth rules at the end
 of this file (rule 4) and stop.
 
-With the tools present, call `get_my_context` on the lee-raleigh connector with no arguments.
-It returns only the caller's own rows. You need three kinds:
+With the tools present, call `get_my_context` on the lee-raleigh connector once per kind, in
+this order, passing `kind` each time (an unfiltered call trims large bodies):
 
-- `systems`: the tools they use, in their words.
-- `measurables`: the numbers on their chart, one per line. These become the dropdown in the
-  spreadsheet. Save the body to `measurables.txt` in the working folder, exactly as returned.
-- `process_maps`: the processes they have already mapped. Read every step where an email is
-  read or sent; each one is already a candidate slice.
+1. `kind: "measurables"`. The body is the leader's seat measurables from their operations
+   chart, one per line, exactly as the chart names them. Save the body to `measurables.txt`
+   in the working folder, unchanged. These become the dropdown.
+2. `kind: "systems"`. The row `canvas-sources` is the canvas's SOURCES list as JSON: every
+   system, file, and feed the leader's processes touch, with what it holds and which steps
+   read it. This is the "where that lives" vocabulary; use its names.
+3. `kind: "process_maps"`. The row `canvas` is the leader's whole operations canvas as one JSON
+   document: `SEATS` (the accountability chart, each with its `measurable`), `PROCESSES`
+   (id, label, owner seat, stage, validation, mapped_by, end_state), and `STEPS` (each with
+   `process`, `number`, `title`, `what_happens`, `gate_in`, `gate`, `edge_cases`,
+   `data_sources_touched`). Other rows of this kind are maps the leader authored, verbatim
+   markdown. Read every step where an email is read or sent; each one is already a candidate
+   slice, and its process label and step title are the words to use in the cells.
+4. `kind: "readiness"` (optional). Per-step readiness grades from the canvas, for your own
+   notes; nothing from it goes in the sheet.
 
-If the call succeeds but returns no `systems` row, stop here and say, in one sentence, that
-their context has not been set up yet and Grounded Intelligence needs to load it before this
-can run. Do not guess their systems from the inbox. Do not continue.
+Everything in these rows is the leader's record, not your reading of it. Quote its names;
+do not restate it.
 
-If no `measurables` row comes back, say so in one line and continue; the build step takes
-`--no-measurables` and the dropdown will only offer "none".
+If the `systems` call returns no rows, stop here and say, in one sentence, that their context
+has not been set up yet and Grounded Intelligence needs to load it before this can run. Do not
+guess their systems from the inbox. Do not continue.
 
-If an `inbox_map` row comes back, they have run this before. Mention the date in one line
-and make a fresh map; do not copy the old one.
+If the `measurables` call returns no rows, say so in one line and continue; the build step
+takes `--no-measurables` and the dropdown will only offer "none".
+
+If an `inbox_map` row exists (`kind: "inbox_map"`), they have run this before. Mention the date
+in one line and make a fresh map; do not copy the old one.
 
 ## Step 2. Pull the inbox, the way it actually arrives
 
