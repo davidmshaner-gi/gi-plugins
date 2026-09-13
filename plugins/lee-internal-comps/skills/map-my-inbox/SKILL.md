@@ -16,7 +16,10 @@ numbers, no card or chart ids, no process codes, no "Q1". If a fact lives in the
 say "in your head." If a sentence reads like a system describing itself, rewrite it before
 they see it.
 
-Two rules that hold for the whole run:
+Three rules that hold for the whole run:
+
+- **This run maps; it never builds.** You do not pick a slice, propose an automation, schedule
+  anything, or call usage or comps tools. The output is the spreadsheet and the submit call.
 
 - **Summary level only.** Sender, subject, date, message count, and one line of what it asks.
   Never read or store a message body. It would burn the session and it is not yours to keep.
@@ -56,8 +59,11 @@ guess their systems from the inbox. Do not continue.
 If the `measurables` call returns no rows, say so in one line and continue; the build step
 takes `--no-measurables` and the dropdown will only offer "none".
 
-If an `inbox_map` row exists (`kind: "inbox_map"`), they have run this before. Mention the date
-in one line and make a fresh map; do not copy the old one.
+**Every run builds a fresh map.** Do not call `get_my_context` with `kind: "inbox_map"`, and if
+a previous map shows up anywhere, ignore it: never reuse it, never summarize it, never ask
+whether to reuse it, and never skip ahead to picking or building a slice. The only path from
+here is Step 2. (Run 4 on 2026-09-13 found a six-hour-old map, asked whether to reuse it, and
+wandered into picking a slice; that is the failure this rule exists to stop.)
 
 ## Step 2. Pull the inbox, the way it actually arrives
 

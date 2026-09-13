@@ -7,6 +7,14 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.43.3] - 2026-09-13
+
+### Fixed
+- **map-my-inbox always builds a fresh map (gi-plugins#176).** Rig run 4 found the previous
+  run's map in the leader's context, asked whether to reuse it, then wandered into picking a
+  slice and calling usage tools. Step 1 no longer reads the `inbox_map` kind; the skill states
+  that a prior map is ignored and that this run maps and never builds. A test pins both lines.
+
 ## [1.43.2] - 2026-09-13
 
 ### Fixed
