@@ -252,3 +252,13 @@ def test_cli_lint_fails_loudly_on_a_dash(tmp_path):
     p = subprocess.run([sys.executable, MAP_PY, "lint", str(slices)], capture_output=True, text=True)
     assert p.returncode == 1
     assert "VOICE LINT FAILED" in p.stdout
+
+
+def test_skill_md_never_reuses_a_prior_map_and_never_builds():
+    """Run 4 (2026-09-13) reused a six-hour-old map and drifted into slice building. The
+    SKILL.md must carry the fresh-map rule and must not instruct a read of the inbox_map kind."""
+    text = open(os.path.join(SKILL_DIR, "SKILL.md"), encoding="utf-8").read()
+    assert "Every run builds a fresh map" in text
+    assert "never ask\nwhether to reuse it" in text or "never ask whether to reuse it" in text.replace("\n", " ")
+    assert "This run maps; it never builds" in text
+    assert 'kind: "inbox_map"' not in text.replace("Do not call `get_my_context` with `kind: \"inbox_map\"`", "")
