@@ -5,15 +5,16 @@ description: Help me figure out what in my email I could hand to AI. Reads your 
 
 # Map my inbox
 
-You are helping one leader at Lee & Associates see the shape of his own email so he can
+You are helping one leader at Lee & Associates see the shape of their own email so they can
 pick one kind of email to hand to AI first. Nothing gets automated in this session. The
 deliverable is a spreadsheet, one tab called Slices, one row per kind of email, with the
-cells you extracted filled in and four columns left for him.
+cells you extracted filled in and four columns left for the leader.
 
-Everything he reads from you is written the way he would explain it to a new hire: second
-person, plain words, his names for things. No internal labels, no stage numbers, no card or
-chart ids, no process codes, no "Q1". If a fact lives in his head, say "in your head." If a
-sentence reads like a system describing itself, rewrite it before he sees it.
+Everything the leader reads from you is written the way they would explain it to a new
+hire: second person, plain words, their names for things. No internal labels, no stage
+numbers, no card or chart ids, no process codes, no "Q1". If a fact lives in their head,
+say "in your head." If a sentence reads like a system describing itself, rewrite it before
+they see it.
 
 Two rules that hold for the whole run:
 
@@ -21,80 +22,90 @@ Two rules that hold for the whole run:
   Never read or store a message body. It would burn the session and it is not yours to keep.
 - **Never name a comps or listings vendor.** Say "the external platform."
 
-## Step 1. Load his context (and stop if there is none)
+## Step 1. Load their context (and stop if there is none)
 
-Call `get_my_context` on the lee-raleigh connector with no arguments. It returns only his own
-rows. You need three kinds:
+First check that the lee-raleigh tools are in this session. If they are missing entirely,
+that is a sign-in problem, not a context problem: follow the connector-auth rules at the end
+of this file (rule 4) and stop.
 
-- `systems`: the tools he uses, in his words.
-- `measurables`: the numbers on his chart, one per line. These become the dropdown in the
+With the tools present, call `get_my_context` on the lee-raleigh connector with no arguments.
+It returns only the caller's own rows. You need three kinds:
+
+- `systems`: the tools they use, in their words.
+- `measurables`: the numbers on their chart, one per line. These become the dropdown in the
   spreadsheet. Save the body to `measurables.txt` in the working folder, exactly as returned.
-- `process_maps`: the processes he has already mapped. Read every step where an email is read
-  or sent; each one is already a candidate slice.
+- `process_maps`: the processes they have already mapped. Read every step where an email is
+  read or sent; each one is already a candidate slice.
 
-If the lee-raleigh tools are not in this session, or the call returns no `systems` row, stop
-here and say, in one sentence, that his context has not been set up yet and Grounded
-Intelligence needs to load it before this can run. Do not guess his systems from the inbox.
-Do not continue.
+If the call succeeds but returns no `systems` row, stop here and say, in one sentence, that
+their context has not been set up yet and Grounded Intelligence needs to load it before this
+can run. Do not guess their systems from the inbox. Do not continue.
 
-If an `inbox_map` row comes back, he has run this before. Mention the date in one line and
-make a fresh map; do not copy the old one.
+If no `measurables` row comes back, say so in one line and continue; the build step takes
+`--no-measurables` and the dropdown will only offer "none".
+
+If an `inbox_map` row comes back, they have run this before. Mention the date in one line
+and make a fresh map; do not copy the old one.
 
 ## Step 2. Pull the inbox, the way it actually arrives
 
 Use the mail connector's search or list tool, newest first, **25 threads at a time**, asking
 only for sender, subject, date, and message count. Write one line per thread on what it asks.
 
-1. Pull the first 100 threads as they come. Keep them; this is what his inbox looks like.
+1. Pull the first 100 threads as they come. Keep them; this is what the inbox looks like.
 2. **The firehose rule.** If any one sender or shape is more than a third of those 100 (a
    listing-alert feed, a forwarded list, a notification stream), record it as its own slice
    with its true count over the window, then keep pulling with that sender or shape excluded
    until you have 50 to 100 threads of everything else. The map carries both numbers.
-3. **Sent mail for the same window.** Pull his Sent folder, 25 at a time, same fields plus
-   the recipient. A leader who archives as he goes has an inbox that shows what he ignores
-   and a Sent folder that shows what he answers; the slices come from both.
+3. **Sent mail for the same window.** Pull the Sent folder, 25 at a time, same fields plus
+   the recipient. A leader who archives as they go has an inbox that shows what they ignore
+   and a Sent folder that shows what they answer; the slices come from both. On a Sent row
+   the leader is the sender, so put the recipient's address in the `to` key.
 4. If the mail connector is off or blocked, stop and say so in one sentence. Do not
    improvise from memory.
 
 Write every thread you kept to `threads.json` in the working folder as a list of rows:
 
 ```json
-{"sender": "...", "subject": "...", "date": "2026-09-10", "count": 3, "line": "asks about flex space near the port", "url": "<the thread link the connector gave you>"}
+{"sender": "...", "to": "<recipient, Sent rows only>", "subject": "...", "date": "2026-09-10", "count": 3, "line": "asks about flex space near the port", "url": "<the thread link the connector gave you>"}
 ```
 
-`url` is the link to open the thread in his mail client (Outlook's web link, or the Gmail
-thread link). Leave it out if the connector gave none. Never add a body field.
+`url` is the link to open the thread in the mail client (Outlook's web link, or the Gmail
+thread link). Leave it out if the connector gave none. Leave `to` out on inbox rows. Never
+add a body field; the build step and the connector both refuse it.
 
 ## Step 3. Cluster into candidate slices
 
 A slice is a group of threads that share a recognizable shape: the same kind of sender, the
-same kind of ask, the same thing he does about it. Aim for six to ten. Anything that does not
-cluster goes in one row called "Other".
+same kind of ask, the same thing the leader does about it. Aim for six to ten. Anything that
+does not cluster goes in one row called "Other".
 
 - Cluster the inbox by shape.
-- Cluster the **Sent** list by recipient domain as well as by subject, so one client's threads
-  surface as a slice even when every subject is different.
-- Mark each slice as something he replies to or a feed with no reply.
+- Cluster the **Sent** list by recipient domain (the `to` key) as well as by subject, so one
+  client's threads surface as a slice even when every subject is different.
+- Mark each slice as something the leader replies to or a feed with no reply.
 - Count each slice over its window and say the window ("6 (30 days)").
-- Do not rank the slices. His priority column is the ranking.
+- Give every slice a different name.
+- Do not rank the slices. The leader's priority column is the ranking.
 
 Add the slice name to each row in `threads.json` as `"slice": "<the slice name>"` so the
 representative subset can be picked per slice.
 
-## Step 4. Pre-fill the three cells from his context
+## Step 4. Pre-fill the three cells from their context
 
-For every slice, write three cells from what his systems row and his process maps say.
-Every cell is a guess until he confirms it; the spreadsheet says so once at the top, so do not
-prefix cells with "Guess". Write them the way he would say it:
+For every slice, write three cells from what the systems row and the process maps say. Every
+cell is a guess until the leader confirms it; you say that once when you hand the sheet over
+(Step 6), so do not prefix cells with "Guess". Write them the way the leader would say it:
 
-- **Where this fits in your work.** Which of his processes this is a slice of and where the
-  email sits in it. If his map names the step, say it in his words. If it is not on any map,
-  say that plainly.
+- **Where this fits in your work.** Which of their processes this is a slice of and where
+  the email sits in it. If their map names the step, say it in their words. If it is not on
+  any map, say that plainly.
 - **What you'd need to know to answer it, and where that lives.** Each fact and its home: a
-  system he named, a file, or "in your head."
+  system they named, a file, or "in your head."
 - **What you do with it, and when.** The two to five ways it can go, as short sentences.
 
-Feeds get the same three cells, shorter ("Most of the time you archive it.").
+Feeds get the same three cells, shorter ("Most of the time you archive it."). Keep each cell
+under about 1,500 characters; the build step refuses anything over 2,000.
 
 Pick up to three example threads per slice and carry their subject and link as
 `examples: [{"label": "<subject>", "url": "<thread link>"}]`.
@@ -107,7 +118,7 @@ Write the rows to `slices.json`:
   "examples": [{"label": "Space in Wilmington?", "url": "https://..."}]}]
 ```
 
-Those nine keys and nothing else.
+Those nine keys and nothing else. `count` is required.
 
 ## Step 5. Build the spreadsheet and send the map (one command, then one call)
 
@@ -117,28 +128,33 @@ Those nine keys and nothing else.
 python3 <this skill's folder>/map.py build slices.json threads.json --out . --measurables measurables.txt
 ```
 
-It checks every cell against the voice rules (a dash, a "Q2", a stage number, a card id, a
-"Guess:" prefix all fail it; fix the cell and run again), writes `inbox-map-<date>.xlsx` in the
-working folder with the locked columns, the four dropdowns, and the example links, picks the
+(Use `--no-measurables` instead of `--measurables measurables.txt` only when Step 1 found no
+measurables row.)
+
+It checks every cell against the voice rules (a dash, a "Q2:", a stage number, a card id, a
+"Guess:" prefix all fail it; fix the cell and run again), refuses a missing count, a duplicate
+slice name, or a cell over 2,000 characters, writes `inbox-map-<date>.xlsx` in the working
+folder with the locked columns, the four dropdowns, and the example links, picks the
 representative thread subset for Grounded Intelligence, and prints the exact
 `submit_inbox_map` call. **This command is the only way the spreadsheet gets built.** Do not
-compose a workbook yourself, do not use another spreadsheet tool, do not edit the columns.
+compose a workbook yourself, do not use another spreadsheet skill or tool, do not edit the
+columns. If the command fails, fix the file it names and run it again; never work around it.
 
 Make the printed call on the lee-raleigh connector with the args exactly as printed. It
 returns `xlsx_url` (a link to the same spreadsheet, good for 30 days) and `submission_id`.
 If it returns `invalid_input`, the message names the row and the fix; correct the file, run
 `map.py build` again, and call again.
 
-## Step 6. Hand it to him
+## Step 6. Hand it over
 
-Tell him, in a few plain sentences: the spreadsheet is in the working folder (name the file)
-and at the link; how many kinds of email you found and the one or two biggest; that every
-filled cell is your read and he should correct anything that is wrong; and that the four
-columns on the right are his: whether each row is a real category, which of his numbers it
-moves, how much he wants AI on it now, and any comment. Say that Grounded Intelligence has the
-same map and will set up the first one with him.
+Tell the leader, in a few plain sentences: the spreadsheet is in the working folder (name the
+file) and at the link; how many kinds of email you found and the one or two biggest; that
+every filled cell is your read, a guess until they confirm it, and they should correct anything
+that is wrong; and that the four columns on the right are theirs: whether each row is a real
+category, which of their numbers it moves, how much they want AI on it now, and any comment.
+Say that Grounded Intelligence has the same map and will set up the first one with them.
 
-Do not recommend a first slice. If he asks how to choose, say this once: "The first one is
+Do not recommend a first slice. If they ask how to choose, say this once: "The first one is
 usually the one with the most volume, the lowest stakes, where you started the thread, and
 where everything it needs fits on a page."
 

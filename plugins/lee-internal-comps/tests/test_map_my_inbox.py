@@ -70,12 +70,17 @@ def test_columns_match_the_worker_literal_when_the_lee_repo_is_present():
     """The Worker carries the same literal; the lee repo's check:parity pins it
     against gi-plugins main. When the sibling checkout is present locally, pin
     it here too so the drift is caught before a push."""
-    worker = os.path.join(
-        HERE, "..", "..", "..", "..", "30_clients", "lee_and_associates",
-        "sow_1_analyst_pilot", "mcp-server", "src", "tools", "leader_context", "inbox_map.ts",
-    )
-    if not os.path.exists(worker):
-        pytest.skip("lee repo not checked out beside gi-plugins")
+    worker = os.environ.get("GI_LEE_WORKER_INBOX_MAP")
+    if not worker:
+        # The GI parent repo root is the parent of the gi-plugins checkout, worktree or not.
+        try:
+            top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=HERE, capture_output=True, text=True).stdout.strip()
+            gi_root = os.path.dirname(top) if os.path.basename(top) == "gi-plugins" else os.path.dirname(os.path.dirname(os.path.dirname(top)))
+        except Exception:
+            gi_root = ""
+        worker = os.path.join(gi_root, "30_clients", "lee_and_associates", "sow_1_analyst_pilot", "mcp-server", "src", "tools", "leader_context", "inbox_map.ts")
+    if not worker or not os.path.exists(worker):
+        pytest.skip("lee repo not checked out beside gi-plugins (set GI_LEE_WORKER_INBOX_MAP)")
     src = open(worker, encoding="utf-8").read()
     start = src.index("export const SLICE_COLUMNS")
     end = src.index("];", start)
@@ -89,10 +94,11 @@ def test_columns_match_the_worker_literal_when_the_lee_repo_is_present():
         ("fits", "Front door — of deal flow", "dash"),
         ("does", "call – or email", "dash"),
         ("needs", "Q2: the criteria", "Q1/Q2/Q3"),
+        ("fits", "See card #482 for it", "card"),
         ("fits", "This is stage 3 of the funnel", "stage number"),
         ("looks_like", "See card #482", "card"),
         ("fits", "Tracked as lee#581", "repo card"),
-        ("fits", "Part of L2 broker support", "chart process id"),
+        ("fits", "Part of L2: broker support", "chart process id"),
         ("fits", "Guess: the front door", "Guess"),
     ],
 )
@@ -118,6 +124,59 @@ def test_validate_slices_rejects_unknown_key_and_missing_name_and_cap():
         m.validate_slices([_row(n=i) for i in range(41)])
     with pytest.raises(m.MapError):
         m.validate_slices([_row(examples=[{"label": "x", "url": "https://x"}] * 4)])
+
+
+def test_validate_slices_mirrors_the_worker_caps_and_rejects_duplicate_names():
+    m = _load()
+    with pytest.raises(m.MapError):
+        m.validate_slices([_row(count="")])
+    with pytest.raises(m.MapError):
+        m.validate_slices([_row(fits="x" * 2001)])
+    with pytest.raises(m.MapError):
+        m.validate_slices([_row(n=1, slice="Same"), _row(n=2, slice="same ")])
+    # 40 rows is the cap, not over it
+    assert len(m.validate_slices([_row(n=i, slice=f"Slice {i}") for i in range(40)])) == 40
+
+
+def test_control_characters_and_markup_never_break_the_workbook(tmp_path):
+    m = _load()
+    rows = m.validate_slices([_row(
+        slice="Tenants & owners <asking> \"now\"",
+        examples=[{"label": "Re: rent roll\x0b & terms <Q3>", "url": "https://mail.example/?a=1&b=2"}],
+    )])
+    out = m.build_xlsx(rows, ["none"], str(tmp_path / "x.xlsx"))
+    import zipfile as _z
+    import xml.etree.ElementTree as ET
+    with _z.ZipFile(out) as z:
+        for name in z.namelist():
+            if name.endswith(".xml") or name.endswith(".rels"):
+                ET.fromstring(z.read(name))
+    wb = load_workbook(out)
+    ws = wb["Slices"]
+    assert ws["B2"].value == 'Tenants & owners <asking> "now"'
+    assert ws["I2"].value == "Re: rent roll & terms <Q3>"
+    assert ws["I2"].hyperlink.target == "https://mail.example/?a=1&b=2"
+
+
+def test_missing_measurables_file_is_loud_unless_waived(tmp_path):
+    m = _load()
+    with pytest.raises(m.MapError):
+        m.read_measurables(str(tmp_path / "nope.txt"))
+    with pytest.raises(m.MapError):
+        m.read_measurables(None)
+    assert m.read_measurables(None, allow_missing=True) == ["none"]
+
+
+def test_sent_rows_carry_the_recipient_in_to():
+    m = _load()
+    out = m.validate_threads([dict(THREAD, to="amy@york.example"), THREAD])
+    assert out[0]["to"] == "amy@york.example"
+    assert "to" not in out[1]
+
+
+def test_voice_lint_tolerates_ordinary_cre_text():
+    m = _load()
+    assert m.lint_slices([_row(fits="Q3 rent roll requests for Suite 200 come in by email.")]) == []
 
 
 def test_validate_threads_rejects_bodies_and_caps_the_line():

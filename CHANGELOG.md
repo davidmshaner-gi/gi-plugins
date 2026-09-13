@@ -12,7 +12,7 @@ carry the same version as of 1.4.0.
 ### Added
 - **`map-my-inbox` skill (gi-plugins#176).** "Help me figure out what in my email I could hand
   to AI." Loads the leader's own context from the lee-raleigh connector (`get_my_context`: his
-  systems, his measurables, his process maps; only his rows come back, and the skill stops when
+  systems, their measurables, their process maps; only their rows come back, and the skill stops when
   there are none), reads the inbox and Sent at the subject-line level in batches of 25 with the
   firehose rule (a sender over a third of the first hundred becomes its own slice and is
   excluded from the rest of the pull), clusters by shape and by recipient domain, and pre-fills

@@ -80,11 +80,13 @@ PRIORITY_OPTIONS = ["high", "medium", "low"]
 MAX_SLICES = 40
 MAX_THREADS = 200
 MAX_LINE_CHARS = 240
+MAX_CELL_CHARS = 2000
+MAX_SHORT_CHARS = 300
 THREADS_PER_SLICE = 10
 
 SLICE_KEYS = {"n", "slice", "looks_like", "count", "reply_or_feed", "fits", "needs", "does", "examples"}
 SLICE_TEXT_KEYS = ["slice", "looks_like", "count", "reply_or_feed", "fits", "needs", "does"]
-THREAD_KEYS = {"sender", "subject", "date", "count", "line", "slice", "url"}
+THREAD_KEYS = {"sender", "to", "subject", "date", "count", "line", "slice", "url"}
 
 # Column widths, in Excel character units, one per SLICE_COLUMNS entry.
 WIDTHS = [5, 30, 44, 12, 18, 48, 52, 48, 28, 28, 28, 18, 34, 18, 40, 20, 12, 10, 12, 16, 28, 36]
@@ -95,6 +97,26 @@ class MapError(Exception):
     pass
 
 
+def _ulen(s: str) -> int:
+    """Length in UTF-16 units, the way the Worker's JS `.length` counts, so a
+    cap that passes here never fails there on an emoji-heavy subject."""
+    return len(s.encode("utf-16-le")) // 2
+
+
+def _ucut(s: str, n: int) -> str:
+    while _ulen(s) > n:
+        s = s[: max(0, len(s) - max(1, (_ulen(s) - n)))]
+    return s
+
+
+_XML_ILLEGAL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+
+
+def _clean(s: str) -> str:
+    """Drop characters XML 1.0 forbids (a subject line can carry a \x0b)."""
+    return _XML_ILLEGAL.sub("", s)
+
+
 # ---------------------------------------------------------------------------
 # Voice lint: what the leader reads is written the way he would explain it to
 # a new hire. Nothing internal. (David, 2026-09-12; deviation log row 7.)
@@ -102,12 +124,12 @@ class MapError(Exception):
 
 VOICE_RULES = [
     (re.compile("[–—]"), "an em dash or en dash (use a comma, a period, or parentheses)"),
-    (re.compile(r"\bQ[1-3]\b"), "a Q1/Q2/Q3 label (the questions are headers, not cell text)"),
+    (re.compile(r"\bQ[1-3]\s*[:.]"), "a Q1/Q2/Q3 label (the questions are headers, not cell text)"),
     (re.compile(r"\bstage\s*\d\b", re.I), "a stage number (name the thing, not the stage)"),
     (re.compile(r"(?<![\w/])#\d+\b"), "a card or issue number"),
     (re.compile(r"\b(lee|gi|gi-plugins)#\d*", re.I), "a repo card reference"),
     (re.compile(r"\bSOP\b"), "the word SOP (say what the process is)"),
-    (re.compile(r"\b[LSPG]\d{1,2}\b"), "a chart process id (name the process in his words)"),
+    (re.compile(r"\b[LSPG]\d{1,2}\b(?=\s*[:.(,])"), "a chart process id (name the process in the leader's words)"),
     (re.compile(r"\b(guess|GUESS):", re.I), "a 'Guess:' prefix (every cell is a guess; the sheet says so once)"),
 ]
 
@@ -147,6 +169,7 @@ def validate_slices(rows) -> list[dict]:
     if len(rows) > MAX_SLICES:
         raise MapError(f"slices has {len(rows)} rows; the cap is {MAX_SLICES}")
     out = []
+    seen_names: set[str] = set()
     for i, raw in enumerate(rows, 1):
         if not isinstance(raw, dict):
             raise MapError(f"slice {i}: not an object")
@@ -160,9 +183,17 @@ def validate_slices(rows) -> list[dict]:
                 v = ""
             if not isinstance(v, str):
                 raise MapError(f"slice {i}: {k} must be a string")
-            row[k] = v
+            if _ulen(v) > MAX_CELL_CHARS:
+                raise MapError(f"slice {i}: {k} is longer than {MAX_CELL_CHARS} characters; shorten it")
+            row[k] = _clean(v)
         if not row["slice"].strip():
             raise MapError(f"slice {i}: slice name is required")
+        if not row["count"].strip():
+            raise MapError(f"slice {i}: count is required (for example \"6 (30 days)\" or \"seasonal\")")
+        key = row["slice"].strip().casefold()
+        if key in seen_names:
+            raise MapError(f"slice {i}: the name {row['slice']!r} is used twice; merge the rows or rename one")
+        seen_names.add(key)
         n = raw.get("n")
         row["n"] = n if isinstance(n, int) else i
         ex = raw.get("examples") or []
@@ -175,7 +206,7 @@ def validate_slices(rows) -> list[dict]:
             url = str(e.get("url", "") or "")
             if url and not url.startswith(("http://", "https://")):
                 raise MapError(f"slice {i}: example url must start with http")
-            examples.append({"label": str(e["label"])[:200], "url": url})
+            examples.append({"label": _clean(_ucut(str(e["label"]), 200)), "url": _clean(url)})
         row["examples"] = examples
         out.append(row)
     return out
@@ -194,14 +225,17 @@ def validate_threads(rows) -> list[dict]:
         if extra:
             raise MapError(
                 f"thread {i}: unknown key(s) {sorted(extra)}; summary rows only "
-                "(sender, subject, date, count, line, slice, url), never a body"
+                "(sender, to, subject, date, count, line, slice, url), never a body"
             )
         row = {}
-        for k in ("sender", "subject", "date", "line"):
+        for k in ("sender", "to", "subject", "date", "line"):
             v = raw.get(k, "") or ""
             if not isinstance(v, str):
                 raise MapError(f"thread {i}: {k} must be a string")
-            row[k] = v[:MAX_LINE_CHARS] if k == "line" else v[:300]
+            v = _clean(v)
+            row[k] = _ucut(v, MAX_LINE_CHARS) if k == "line" else _ucut(v, MAX_SHORT_CHARS)
+        if not row["to"]:
+            del row["to"]
         c = raw.get("count", 1)
         row["count"] = max(0, int(c)) if isinstance(c, (int, float)) else 1
         if raw.get("slice") is not None:
@@ -222,23 +256,32 @@ def select_threads(threads: list[dict], slices: list[dict]) -> list[dict]:
     by_slice: dict[str, list[dict]] = {}
     loose: list[dict] = []
     for t in threads:
-        s = t.get("slice")
+        s = (t.get("slice") or "").strip().casefold()
         if s:
             by_slice.setdefault(s, []).append(t)
         else:
             loose.append(t)
     picked: list[dict] = []
     for sl in slices:
-        picked.extend(by_slice.pop(sl["slice"], [])[:THREADS_PER_SLICE])
+        picked.extend(by_slice.pop(sl["slice"].strip().casefold(), [])[:THREADS_PER_SLICE])
     for rest in by_slice.values():
         picked.extend(rest[:THREADS_PER_SLICE])
     picked.extend(loose)
     return picked[:MAX_THREADS]
 
 
-def read_measurables(path: str | None) -> list[str]:
+def read_measurables(path: str | None, allow_missing: bool = False) -> list[str]:
+    """The leader's measurables, one per line. The file comes from
+    get_my_context (kind measurables); a missing file is an error unless the
+    caller says so, because a dropdown of just 'none' is a silently broken sheet."""
     seen, out = set(), []
-    if path and os.path.exists(path):
+    if path and not os.path.exists(path):
+        if not allow_missing:
+            raise MapError(f"measurables file not found: {path} (save the measurables body from get_my_context there, or pass --no-measurables if there truly are none)")
+        path = None
+    if path is None and not allow_missing:
+        raise MapError("--measurables is required (or --no-measurables when the leader has none on file)")
+    if path:
         with open(path, encoding="utf-8") as fh:
             for line in fh:
                 t = line.strip()
@@ -269,7 +312,7 @@ def _c(ref: str, value, style: int = 0) -> str:
         return f'<c r="{ref}" s="{style}"/>'
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return f'<c r="{ref}" s="{style}"><v>{value}</v></c>'
-    txt = escape(str(value))
+    txt = escape(_clean(str(value)))
     return f'<c r="{ref}" s="{style}" t="inlineStr"><is><t xml:space="preserve">{txt}</t></is></c>'
 
 
@@ -465,7 +508,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("slices")
     p.add_argument("threads")
     p.add_argument("--out", default=".")
-    p.add_argument("--measurables", default=None, help="text file, one measurable per line (from get_my_context kind=measurables)")
+    p.add_argument("--measurables", default=None, help="text file, one measurable per line (the body of get_my_context kind=measurables)")
+    p.add_argument("--no-measurables", action="store_true", help="the leader has no measurables on file; the dropdown offers only 'none'")
     p.add_argument("--note", default=None)
     p.add_argument("--date", default=None)
     p = sub.add_parser("call")
@@ -473,6 +517,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("threads")
     p.add_argument("--note", default=None)
     a = ap.parse_args(argv)
+    # A Windows console or a locale-less shell may not be UTF-8; a subject
+    # line with an emoji must never crash the one command the flow depends on.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
     try:
         if a.cmd == "lint":
@@ -495,7 +545,7 @@ def main(argv: list[str] | None = None) -> int:
         threads = select_threads(validate_threads(_load(a.threads)), slices)
         if a.cmd == "build":
             out = os.path.join(a.out, _out_name(a.date))
-            build_xlsx(slices, read_measurables(a.measurables), out)
+            build_xlsx(slices, read_measurables(a.measurables, allow_missing=a.no_measurables), out)
             print(f"WROTE {os.path.abspath(out)}  ({len(slices)} slices, {len(threads)} thread summaries selected for GI)")
         print("Now make exactly this call on the lee-raleigh connector (copy the args as they are):")
         print(json.dumps(submit_call(slices, threads, a.note), indent=1, ensure_ascii=False))
