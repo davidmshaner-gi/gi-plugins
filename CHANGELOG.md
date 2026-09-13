@@ -7,6 +7,23 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.43.0] - 2026-09-12
+
+### Added
+- **`map-my-inbox` skill (gi-plugins#176).** "Help me figure out what in my email I could hand
+  to AI." Loads the leader's own context from the lee-raleigh connector (`get_my_context`: his
+  systems, his measurables, his process maps; only his rows come back, and the skill stops when
+  there are none), reads the inbox and Sent at the subject-line level in batches of 25 with the
+  firehose rule (a sender over a third of the first hundred becomes its own slice and is
+  excluded from the rest of the pull), clusters by shape and by recipient domain, and pre-fills
+  the three cells per slice in plain words. `map.py build` is the only path to the deliverable:
+  it lints every cell against the voice rules (no dashes, no Q1, no stage numbers, no card ids,
+  no "Guess:" prefix), writes the one-tab Slices workbook with the four dropdowns and example
+  links (stdlib only; no network), picks the summary-only thread subset, and prints the exact
+  `submit_inbox_map` call that sends the map to Grounded Intelligence. Needs lee-raleigh-mcp
+  0.61.0 (lee#581, lee#582). Column parity with the Worker is pinned by the lee repo's
+  `check:parity` and by a local test when both repos are checked out.
+
 ## [1.42.0] - 2026-09-04
 
 ### Changed
