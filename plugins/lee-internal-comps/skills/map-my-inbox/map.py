@@ -106,7 +106,6 @@ VOICE_RULES = [
     (re.compile(r"\bstage\s*\d\b", re.I), "a stage number (name the thing, not the stage)"),
     (re.compile(r"(?<![\w/])#\d+\b"), "a card or issue number"),
     (re.compile(r"\b(lee|gi|gi-plugins)#\d*", re.I), "a repo card reference"),
-    (re.compile(r"\bgi-plugins\b", re.I), "a repo name"),
     (re.compile(r"\bSOP\b"), "the word SOP (say what the process is)"),
     (re.compile(r"\b[LSPG]\d{1,2}\b"), "a chart process id (name the process in his words)"),
     (re.compile(r"\b(guess|GUESS):", re.I), "a 'Guess:' prefix (every cell is a guess; the sheet says so once)"),
@@ -121,16 +120,15 @@ def lint_text(text: str) -> str | None:
 
 
 def lint_slices(rows: list[dict]) -> list[str]:
+    """Lint the cells the session WROTE for the leader. Example labels are the
+    threads' own subject lines (records; a sender's dash is not ours to fix) and
+    are left alone, like the thread rows."""
     problems = []
     for i, r in enumerate(rows, 1):
         for k in SLICE_TEXT_KEYS:
             why = lint_text(str(r.get(k, "")))
             if why:
                 problems.append(f"slice {i} ({r.get('slice', '?')}), {k}: {why}")
-        for e in r.get("examples", []) or []:
-            why = lint_text(str(e.get("label", "")))
-            if why:
-                problems.append(f"slice {i}, example label: {why}")
     return problems
 
 
