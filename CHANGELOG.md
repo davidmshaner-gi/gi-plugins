@@ -7,6 +7,13 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.43.2] - 2026-09-13
+
+### Fixed
+- **map-my-inbox reads three context kinds, not four (gi-plugins#176).** Readiness is not
+  audited and is no longer seeded; Step 1 reads measurables, the enumerated systems list, and
+  the process canvas, and names the trimmed JSON shape (lee#581 seeds chore).
+
 ## [1.43.1] - 2026-09-13
 
 ### Fixed

@@ -28,24 +28,23 @@ First check that the lee-raleigh tools are in this session. If they are missing 
 that is a sign-in problem, not a context problem: follow the connector-auth rules at the end
 of this file (rule 4) and stop.
 
-With the tools present, call `get_my_context` on the lee-raleigh connector once per kind, in
-this order, passing `kind` each time (an unfiltered call trims large bodies):
+With the tools present, call `get_my_context` on the lee-raleigh connector three times, once
+per kind, passing `kind` each time (a call with no kind trims large bodies):
 
 1. `kind: "measurables"`. The body is the leader's seat measurables from their operations
    chart, one per line, exactly as the chart names them. Save the body to `measurables.txt`
    in the working folder, unchanged. These become the dropdown.
-2. `kind: "systems"`. The row `canvas-sources` is the canvas's SOURCES list as JSON: every
-   system, file, and feed the leader's processes touch, with what it holds and which steps
-   read it. This is the "where that lives" vocabulary; use its names.
-3. `kind: "process_maps"`. The row `canvas` is the leader's whole operations canvas as one JSON
+2. `kind: "systems"`. The row `canvas-sources` is an enumeration of the systems, files, and
+   feeds the leader's processes touch, as JSON: `id`, `name`, `category`, `what_lives_there`,
+   and `parent_system`. This is the "where that lives" vocabulary; use its names.
+3. `kind: "process_maps"`. The row `canvas` is the leader's process canvas as one JSON
    document: `SEATS` (the accountability chart, each with its `measurable`), `PROCESSES`
-   (id, label, owner seat, stage, validation, mapped_by, end_state), and `STEPS` (each with
-   `process`, `number`, `title`, `what_happens`, `gate_in`, `gate`, `edge_cases`,
-   `data_sources_touched`). Other rows of this kind are maps the leader authored, verbatim
-   markdown. Read every step where an email is read or sent; each one is already a candidate
-   slice, and its process label and step title are the words to use in the cells.
-4. `kind: "readiness"` (optional). Per-step readiness grades from the canvas, for your own
-   notes; nothing from it goes in the sheet.
+   (`id`, `label`, `seat`, `stage`, `validation`, `mapped_by`, `trigger`, `end_state`), and
+   `STEPS` (each with `process`, `number`, `title`, `owner_seat`, `what_happens`, `gate_in`,
+   `gate`, `dependencies`, `edge_cases`, `data_sources_touched`). Other rows of this kind are
+   maps the leader authored, verbatim markdown. Read every step where an email is read or
+   sent; each one is already a candidate slice, and its process label and step title are the
+   words to use in the cells.
 
 Everything in these rows is the leader's record, not your reading of it. Quote its names;
 do not restate it.
