@@ -84,7 +84,7 @@ def test_columns_match_the_worker_literal_when_the_lee_repo_is_present():
     src = open(worker, encoding="utf-8").read()
     start = src.index("export const SLICE_COLUMNS")
     end = src.index("];", start)
-    theirs = [json.loads(x) for x in __import__("re").findall(r'"((?:[^"\\]|\\.)*)"', src[start:end])]
+    theirs = [json.loads('"' + x + '"') for x in __import__("re").findall(r'"((?:[^"\\]|\\.)*)"', src[start:end])]
     assert theirs == _load().SLICE_COLUMNS
 
 
