@@ -12,7 +12,7 @@ carry the same version as of 1.4.0.
 ### Fixed
 - **vpd-lookup reports the count at the site, with its NCDOT station ID (lee-and-associates#603).**
   Area mode now describes each row as the station nearest the site on that road; road mode lists
-  every station on the named road, nearest first. The skill presents `value` exactly as returned
+  every station on the named road, nearest first (and says "nearest N of M" when the tool's 10-row cap bites). The skill presents `value` exactly as returned
   (no rounding) and shows the station ID on each row so a broker can check it against NCDOT's map.
   Ships with lee-raleigh-mcp 0.61.1. Reported by Susan Fulton, 2026-09-24.
 
