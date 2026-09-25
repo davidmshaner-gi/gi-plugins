@@ -1,15 +1,15 @@
 ---
 name: vpd-lookup
-description: Traffic counts (vehicles per day / AADT) near any NC address — either the busiest roads nearby, or the count for ONE specific roadway the broker names. Returns ranked road segments (each with its annual average daily traffic, count year, and distance) plus a ready-to-place flyer card. Answers "how much traffic passes this site", "VPD on the nearby roads", "traffic counts near [address]", and "traffic on [Road] near [address]" / "VPD on [Six Forks Rd / US-1]" for a retail / QSR / flex listing. Wraps the lee-raleigh-mcp pull_vpd_lookup tool.
+description: Traffic counts (vehicles per day / AADT) near any NC address — either the main roads nearby with the count at the site on each, or every count station on ONE specific roadway the broker names. Returns ranked road segments (each with its annual average daily traffic, count year, distance, and NCDOT station ID) plus a ready-to-place flyer card. Answers "how much traffic passes this site", "VPD on the nearby roads", "traffic counts near [address]", and "traffic on [Road] near [address]" / "VPD on [Six Forks Rd / US-1]" for a retail / QSR / flex listing. Wraps the lee-raleigh-mcp pull_vpd_lookup tool.
 ---
 
 # VPD Lookup (Lee & Associates)
 
-Show traffic counts near a site, for any NC address — the top-5 **busiest roads nearby**, or, when the broker names a **specific roadway**, the count for **that road**. AADT = annual average daily traffic (a.k.a. vehicles per day / VPD), each with the count year and distance from the site, plus a ready-to-place flyer card.
+Show traffic counts near a site, for any NC address — the top-5 **roads nearby**, each with the count from the NCDOT station **nearest the site** on that road, or, when the broker names a **specific roadway**, every count station on **that road**. AADT = annual average daily traffic (a.k.a. vehicles per day / VPD), each with the count year, distance from the site, and NCDOT station ID, plus a ready-to-place flyer card.
 
 Two modes, decided by whether the broker named a road:
-- **Area mode** (no road named) — top-5 nearby roads by class then volume. "Traffic near this corner."
-- **Road mode** (a road IS named) — only the stations on that roadway. "Traffic *on Glenwood Ave*." This is the right answer when a broker asks about a particular street — returning the busiest *other* road nearby (e.g. an interstate a block away) is the failure brokers complained about.
+- **Area mode** (no road named) — top-5 nearby roads by class then volume, one row per road: the station nearest the site on it. "Traffic near this corner."
+- **Road mode** (a road IS named) — every station on that roadway within 1.5 mi, nearest first. "Traffic *on Glenwood Ave*." This is the right answer when a broker asks about a particular street — returning the busiest *other* road nearby (e.g. an interstate a block away) is the failure brokers complained about.
 
 ## When to use
 
@@ -44,11 +44,11 @@ Triggers:
 2. **Decide the mode — did the broker name a specific roadway?** If the ask is about a *particular* road ("traffic **on** Glenwood Ave", "VPD on Six Forks Rd", "how busy is US-1 / Capital Blvd / Highway 70"), extract that road name. If the ask is just about the area ("traffic near [address]", "VPD around here"), there's no road.
    - **The address that's also a street is NOT automatically the road.** "Traffic near 4325 Glenwood Ave" is *area* mode (the address happens to be on Glenwood). Only go to road mode when the broker is clearly asking about a road *as the subject* — usually signalled by "on [Road]", "[Road] traffic", or naming a road different from (or in addition to) the site address. When genuinely ambiguous, default to **area** mode (omit `road`).
 3. Call the MCP tool `pull_vpd_lookup`:
-   - **Area mode:** `{address: "<the extracted address>"}` — busiest roads nearby (the default).
-   - **Road mode:** `{address: "<address>", road: "<the named road>"}` — pass the road exactly as the broker said it (e.g. `"Glenwood Ave"`, `"Six Forks Rd"`, `"US-1"`, `"Highway 70"`). The tool name-matches it against the NCDOT route id and local alias (tolerant of Rd/Road, Ave/Avenue, US 1/US-1 forms) and returns **only stations on that road**.
-4. The response is structured JSON: `subject` (geocoded address + 1.5-mi radius), `segments` (ranked road segments — each with `route`, `rte_cls_label`, `value` / `value_rounded` AADT, `year`, `distance_miles`, and a `display.callout`), `meta` (provenance; in road mode also `meta.road_filter = {requested, matched}`), `pdf_url` (a signed link to the rendered flyer card, or `null`), `fragment_html` (the same card as a composable HTML fragment), and — road mode only — an optional top-level `message`.
-   - **Area mode:** lead with the busiest road, then offer the full top-5.
-   - **Road mode, match found** (`segments` non-empty): lead with that road's count — this is the road the broker asked about.
+   - **Area mode:** `{address: "<the extracted address>"}` — main roads nearby, the count at the site on each (the default).
+   - **Road mode:** `{address: "<address>", road: "<the named road>"}` — pass the road exactly as the broker said it (e.g. `"Glenwood Ave"`, `"Six Forks Rd"`, `"US-1"`, `"Highway 70"`). The tool name-matches it against the NCDOT route id and local alias (tolerant of Rd/Road, Ave/Avenue, US 1/US-1 forms) and returns **every station on that road** within 1.5 mi, nearest first.
+4. The response is structured JSON: `subject` (geocoded address + 1.5-mi radius), `segments` (ranked road segments — each with `route`, `rte_cls_label`, `value` AADT (NCDOT's published count; `value_rounded` is the same number), `year`, `distance_miles`, `display.callout`, and `display.station_id`, the NCDOT station ID), `meta` (provenance; in road mode also `meta.road_filter = {requested, matched}`), `pdf_url` (a signed link to the rendered flyer card, or `null`), `fragment_html` (the same card as a composable HTML fragment), and — road mode only — an optional top-level `message`.
+   - **Area mode:** lead with the top road, then offer the full top-5.
+   - **Road mode, match found** (`segments` non-empty): lead with the nearest station's count on that road, then any others further along it. The tool returns up to 10; if `meta.road_filter.matched` is larger than the number of segments, say you are showing the nearest [segments] of [matched] stations on that road.
    - **Road mode, NO match** — you passed `road` and `segments` is empty (the tool will also set `message` and `meta.road_filter.matched: 0`): **relay the `message` verbatim** — it explains there's no NCDOT count station on that road within 1.5 mi and points to nearby cross-streets / `trafficmap.ncdot.gov`. **Do NOT silently fall back to the busiest nearby road** — returning an unrelated road as if it were the requested one is the exact bug this mode fixes. You may *offer* to re-run in area mode ("want the busiest roads near there instead?"), but don't auto-substitute.
 5. If `pdf_url` is a non-null string, surface it as a "📄 Open PDF" link with a 1-hour expiry note: *"Link expires in ~1 hour, download or share it now."* — that is the polished Lee-branded traffic-counts card a broker drops into a flyer / OM / BOV. If `pdf_url` is `null`, deliver the inline segments and note the card couldn't render this time (suggest a re-run). `fragment_html` is the same card as a raw HTML fragment for the lee-listing-flyer composition path — mention it only if the broker is assembling a flyer programmatically.
 
@@ -56,15 +56,15 @@ Triggers:
 
 **Area mode** — lead with the headline road, not the table:
 
-> Within 1.5 miles of [site], the busiest road is **[road_name]** at **[value_rounded] VPD** ([year] count), about **[distance] mi** away. The next-busiest are [#2], [#3]… (top 5 by road class then volume).
+> Within 1.5 miles of [site], the top road is **[road_name]** at **[value] VPD** ([year] count, NCDOT station [station_id]), about **[distance] mi** away. Next are [#2], [#3]… (top 5 by road class then volume; each is the count nearest the site on that road).
 
-Then offer the full ranked list or the flyer card if they want it. Each row reads `[AADT] VPD on [road] — [year] count, [distance] mi`.
+Then offer the full ranked list or the flyer card if they want it. Each row reads `[AADT] VPD on [road] — [year] count, [distance] mi, NCDOT [station_id]`. Give the count exactly as returned; never round it. The station ID lets a broker check any row against NCDOT's traffic map.
 
 Area ranking is by road class first (Interstate > US > NC highway > secondary), then AADT descending, then proximity — so an Interstate a mile out leads a busier-feeling secondary road right at the door, which matches how brokers talk about a site's road network. Say so if a broker asks why a closer road ranks lower.
 
 **Road mode (match)** — lead with the named road's count, not the area:
 
-> **[Road]** near [site] carries **[value_rounded] VPD** ([year] count){, plus a second station at [value_rounded] VPD if more than one}. ([Note when the road is a US/NC route, e.g. "Glenwood Ave here is US-70."])
+> **[Road]** at [site] carries **[value] VPD** ([year] count, NCDOT station [station_id], [distance] mi){; further along it, [value] VPD at [distance] mi (station [station_id]) for each additional station}. ([Note when the road is a US/NC route, e.g. "Glenwood Ave here is US-70."])
 
 **Road mode (no match)** — relay the tool's `message`; don't substitute another road:
 
