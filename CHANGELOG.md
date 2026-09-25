@@ -7,6 +7,14 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.45.0] - 2026-09-25
+
+### Added
+- **vpd-lookup shows NCDOT's segment estimate under a station count (lee-and-associates#602).** When
+  the tool returns `display.segment_line` (NCDOT's estimate for the road's stretch nearest the site,
+  the number NCDOT's map labels show), the skill prints it under that row; the station count stays
+  first. Counts now come from NCDOT's 2025 release. Ships with lee-raleigh-mcp 0.63.0.
+
 ## [1.44.0] - 2026-09-25
 
 ### Changed
