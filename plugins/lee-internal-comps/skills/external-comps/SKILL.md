@@ -24,7 +24,7 @@ Pattern: the request names some combination of asset type, geography, size, date
 **Don't apply this skill to:**
 
 - Questions about the mirror, the schema, or how the skill itself works.
-- **Internal** (Dealius) comp requests — that's the `internal-comps` skill. Internal is the firm's own data; external is the weekly external-comps snapshot.
+- **Internal** (Dealius) comp requests — that's the `internal-comps` skill. Internal is the firm's own data; external is every comp ingested from the weekly external exports.
 - **Unqualified** comp requests (broker didn't say internal or external) — that's the default `internal-and-external-comps` skill, which pulls both. Use this skill only when the broker explicitly asks for external.
 - Pure analysis on comps the broker has already pasted into chat (no DB lookup needed).
 - Requests for a Lee-branded PDF — surface the deferral message (see Process step 4).
@@ -283,7 +283,7 @@ Search rows do NOT include `raw_fields_json` (dropped in Worker 0.53.1 — the ~
 
 All external-comps queries are scoped server-side by `client_id` (Lee Raleigh's client_id, injected from the broker's authenticated session). The broker only sees rows their firm has ingested. If a broker references a specific comp by `external_id` or address that doesn't appear in results, reply verbatim:
 
-> That comp isn't in the Lee Raleigh external-comps snapshot. It may not have been included in Will's most recent export, or the firm hasn't ingested that asset type yet. Want me to flag it for the next snapshot?
+> That comp isn't in the external comps we hold for Lee Raleigh. No weekly export has covered it yet, or we haven't loaded that asset type. Want me to flag it so we can check?
 
 Do not speculate further.
 

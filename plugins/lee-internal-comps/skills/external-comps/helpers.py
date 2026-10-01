@@ -941,7 +941,7 @@ def format_excel(
         ("Warnings", "; ".join(warnings) or "—"),
         ("Retrieval notes", "; ".join(applied_filters) or "—"),
         ("Last snapshot sync", last_sync or "unknown"),
-        ("Caveat", "External comps data ingested weekly. Latest snapshot only."),
+        ("Caveat", "External comps are ingested weekly and accumulate: every comp from every weekly export is searchable, not only the latest one."),
     ]
     for i, (k, v) in enumerate(pairs, start=1):
         meth.cell(row=i, column=1, value=k).font = Font(bold=True)

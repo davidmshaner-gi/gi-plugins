@@ -7,6 +7,14 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.45.1] - 2026-09-30
+
+### Fixed
+- **External comps no longer claim to cover only the latest weekly export (lee-and-associates#598).**
+  The Excel Methodology caveat and the "comp not found" reply said results came from the latest
+  snapshot or the most recent export. External comps accumulate across every weekly export, and as
+  of lee-raleigh-mcp 0.63.1 the combined internal-and-external search reads them that way too.
+
 ## [1.45.0] - 2026-09-25
 
 ### Added
