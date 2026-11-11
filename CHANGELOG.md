@@ -7,6 +7,18 @@ Brokers pick up releases by syncing the marketplace in Cowork (auto-sync toggle 
 via `/plugin update`. `marketplace.json` and `plugins/lee-internal-comps/.claude-plugin/plugin.json`
 carry the same version as of 1.4.0.
 
+## [1.46.0] - 2026-11-11
+
+### Added
+- **The default comps ask now includes the contributed comps GI has loaded
+  (lee-and-associates#636).** `internal-and-external-comps` runs a third leg next to internal and
+  external: the comp sets brokers forwarded to GI, tagged **Contributed** in the chat table, the
+  Excel (a new Contributed sheet carrying the supplying brokerage) and the PDF. A lease size range
+  reaches them by the space leased. Before this a broker asking for "industrial lease comps,
+  20,000-200,000 SF, last 24 months" did not see comps GI had already loaded. Needs
+  lee-raleigh-mcp 0.64.0; a client still holding the old tools list needs "Refresh tools list"
+  on the lee-raleigh connector. `internal-comps` and `external-comps` are unchanged.
+
 ## [1.45.1] - 2026-09-30
 
 ### Fixed

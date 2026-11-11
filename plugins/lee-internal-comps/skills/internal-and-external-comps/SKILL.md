@@ -1,11 +1,11 @@
 ---
 name: internal-and-external-comps
-description: The DEFAULT comps skill for Lee & Associates — pull a unified "all comps" set covering BOTH internal Dealius AND external in one deliverable. Use whenever a broker asks for comps WITHOUT specifying internal or external (e.g. "pull industrial sale comps in Garner, 2yr", "any retail comps in Raleigh past year"). Runs both queries in parallel, normalizes both sources into one table tagged by Source (Internal — Dealius / External), and produces one combined chat table, one Excel (an "All Comps" sheet plus per-source detail sheets), and one Lee-branded combined PDF. Keeps both rows when a property appears in both sources (no dedup). Handles sale and lease. Only defer to the separate internal-comps / external-comps skills when the broker explicitly asks for internal-only or external-only.
+description: The DEFAULT comps skill for Lee & Associates — pull a unified "all comps" set covering internal Dealius, external, AND the contributed comps GI has loaded from broker comp sets, in one deliverable. Use whenever a broker asks for comps WITHOUT specifying internal or external (e.g. "pull industrial sale comps in Garner, 2yr", "industrial lease comps 20-200k SF, last 24 months"). Runs the three queries in parallel, normalizes them into one table tagged by Source (Internal — Dealius / External / Contributed), and produces one combined chat table, one Excel (an "All Comps" sheet plus per-source detail sheets), and one Lee-branded combined PDF. Keeps every row when a property appears in more than one source (no dedup). Handles sale and lease. Only defer to the separate internal-comps / external-comps skills when the broker explicitly asks for internal-only or external-only.
 ---
 
 # Internal-and-External Comps (Lee & Associates) — the unified "all comps" default
 
-Pull a combined internal (Dealius) + external comp set and produce ONE deliverable:
+Pull a combined internal (Dealius) + external + contributed comp set and produce ONE deliverable:
 a combined chat table, a combined Excel, and a Lee-branded combined PDF. This is what a
 broker gets by default when they ask for "comps" without qualifying the source — they want
 the best picture, not two separate runs.
@@ -28,15 +28,31 @@ phrasing is open — what matters is the intent.
 ## Architecture
 
 This skill is a thin orchestrator. It reuses the sibling skills' parse/validate/query logic
-via `load_sibling()` and adds only the combine + unified-output layer. Both source queries
-run in parallel; there is no server-side merge. Helpers run in the Cowork sandbox and have
-NO MCP access — the model invokes every MCP tool directly.
+via `load_sibling()` and adds the contributed leg and the combine + unified-output layer. The
+three source queries run in parallel; there is no server-side merge. Helpers run in the Cowork
+sandbox and have NO MCP access — the model invokes every MCP tool directly.
+
+**The three sources:**
+- **Internal — Dealius:** Lee's own closed deals (`read_query` on the safe views).
+- **External:** the external platform's comps (`search_external_*`).
+- **Contributed:** comps GI loaded from comp sets brokers forwarded (`pull_unified_comps` with
+  `sources: ["broker_added"]`). GI is the only one who adds them; a broker who wants comps
+  added sends them to GI. Never skip this leg on a default ask: these are often the comps the
+  broker already knows exist.
 
 ```python
-from helpers import load_sibling, to_core, combine, unified_markdown_table, format_unified_excel, SOURCE_INTERNAL, SOURCE_EXTERNAL
+from helpers import (load_sibling, to_core, combine, unified_markdown_table, format_unified_excel,
+                     contributed_params, filter_contributed, source_counts,
+                     SOURCE_INTERNAL, SOURCE_EXTERNAL, SOURCE_CONTRIBUTED)
 internal = load_sibling("internal-comps")
 external = load_sibling("external-comps")
 ```
+
+**Get every call from the helper, never by hand.** Write the parsed request to a file and run
+`python3 helpers.py plan request.json` from this skill's folder (or pass helpers.py by its
+full path). It prints `internal` (the SQL), `external` (the
+`params_list`) and `contributed` (the one `pull_unified_comps` call). Make exactly those calls. If it prints an `error` (an unknown market, a
+missing field), make none of them: ask the broker what the error asks.
 
 ## Process
 
@@ -48,7 +64,7 @@ external = load_sibling("external-comps")
 3. **Pick the deliverable format.** Reuse the internal-comps Excel / PDF / Both dialog. If
    the request names a format ("PDF", "BPO", "Excel", "both"), set it and skip the prompt.
    Otherwise ask once, then wait for the broker's choice.
-4. **Run BOTH queries in parallel:**
+4. **Run all three queries in parallel:**
    - Internal: build SQL with `internal.build_sql(validated)`, run MCP `read_query`. Response
      is `{"rows": [...], "query_id": "...", "freshness": "..."}`.
    - External: build params with `external.build_mcp_params(validated)` →
@@ -71,12 +87,24 @@ external = load_sibling("external-comps")
      page; `retrieved` its de-duplicated count) so the broker knows how much of the matching book
      they are looking at. Never present a clipped
      external leg as the complete external picture.
-   - **County asks flow through both legs automatically (lee#496).** A `geography={"counties": [...]}` request needs no handling here: `internal.build_sql` emits a `county_normalized` predicate against the safe views and `external.build_mcp_params` emits one call per county carrying the typed `county` param. Pass the broker's spelling verbatim to both — each side normalizes, and the two comp books store opposite spellings ("Brunswick County" internal, "Brunswick" external).
+   - **County asks flow through both legs automatically (lee#496).** A `geography={"counties": [...]}` request needs no handling here: `internal.build_sql` emits a `county_normalized` predicate against the safe views and `external.build_mcp_params` emits one call per county carrying the typed `county` param. Pass the broker's spelling verbatim to both — each side normalizes, and the two comp books store opposite spellings ("Brunswick County" internal, "Brunswick" external).  The contributed leg has no county column: `filter_contributed` places each comp by its city.
+   - Contributed: invoke MCP `pull_unified_comps` with `contributed_params(validated)["params"]`
+     (from the plan). On a lease ask it carries the broker's size range as
+     `leased_sf_min/max`: contributed lease comps record the space leased, not the building, so a
+     building-size band would find none of them. The tool has no location filter, so run
+     `kept, contributed_note = filter_contributed(rows, validated)` and use `kept`; put
+     `contributed_note` in the reply under the per-source counts (it says how many were outside the
+     area or had no city on file). If the call fails with a schema error naming `leased_sf_min`, the
+     connector's tools list is stale (G26): tell the broker to "Refresh tools list" on the
+     lee-raleigh connector, and never re-run it with `building_sf_*` instead.
    - **Surface BOTH freshness lines verbatim as the first two lines of your reply.** They are
      not optional and must never be omitted or rephrased — one for Dealius, one for the external platform
      snapshot.
-   - If one source errors or returns 0 rows, deliver the other with a clear note (e.g.
-     "External returned 0 — showing internal only"). Never silently drop a source.
+   - If one source errors or returns 0 rows, deliver the others with a clear note (e.g.
+     "External returned 0 — showing internal and contributed"). Never silently drop a source.
+     A contributed leg with 0 rows is normal (the contributed book is small); say "Contributed: 0"
+     in the per-source counts, nothing more. Do not run the miss protocol on the contributed leg
+     alone when the other legs found rows.
    - **`property_type` is family-aware and case-insensitive (Worker 0.59.0, lee#532).** Pass the broker's word: `retail` reaches every retail subtype incl. the parenthesized shopping-center values (Neighborhood/Strip/Community/Power Center, malls); `industrial` reaches Industrial + Flex + the internal Flex Warehouse / 100% Warehouse values; `flex` is narrower; `office` is Office only; `medical` reaches Medical, Medical Office and the source typo; `land`, `multifamily`, `specialty`, `hospitality`, `lab`. An exact stored value such as `Retail (Strip Center)` still narrows to that one. Never probe per-subtype to "check coverage" -- one family call is the whole family. Pass the same family word to the external tool; for the internal SQL leg use the
      taxonomy table in `internal-comps` (same families, spelled out as `property_type IN (...)`).
    - **When external returns 0 rows it also returns `empty_result` and `miss`** (Worker 0.59.0,
@@ -85,19 +113,23 @@ external = load_sibling("external-comps")
      `miss.next[0]` is the first relaxed call that found rows, its newest 3 in `miss.nearest[]`.
      Offer that hop first -- "External: 0 in Sanford; 23 industrial sales county-wide in Lee.
      Want those?" -- then `empty_result.tightest` / `nearest[].miss` when `miss.next` is empty.
-     Let the broker decide whether to re-run wider. Never list a near miss as a match. If BOTH
-     sources return 0, the reply is that explanation plus the offer; no empty Excel or PDF.
+     Let the broker decide whether to re-run wider. Never list a near miss as a match. If ALL
+     THREE sources return 0, the reply is that explanation plus the offer; no empty Excel or PDF.
 5. **Normalize + combine.**
    ```python
-   internal_core = [to_core(r, SOURCE_INTERNAL, validated["transaction_type"]) for r in internal_rows]
-   external_core = [to_core(r, SOURCE_EXTERNAL, validated["transaction_type"]) for r in external_rows]
-   core_rows = combine(internal_core, external_core, validated["transaction_type"])
+   tx = validated["transaction_type"]
+   internal_core = [to_core(r, SOURCE_INTERNAL, tx) for r in internal_rows]
+   external_core = [to_core(r, SOURCE_EXTERNAL, tx) for r in external_rows]
+   contributed_core = [to_core(r, SOURCE_CONTRIBUTED, tx) for r in kept]
+   core_rows = combine(internal_core, external_core, tx, contributed_core=contributed_core)
+   counts = source_counts(core_rows)   # per-source counts for the reply
    ```
-   `combine` concatenates and sorts most-recent-Date first. There is **no dedup** — a property
-   in both sources stays as two rows, each tagged by Source.
+   `combine` concatenates and sorts most-recent-Date first (a contributed date like "2025Q2"
+   sorts as the quarter's midpoint and is shown as stored). There is **no dedup** — a property
+   in more than one source stays as one row per source, each tagged by Source.
 6. **Render the deliverable(s):**
    - **Excel** (if chosen): `format_unified_excel(core_rows, internal_native=internal_rows,
-     external_native=external_rows, validated=validated, xlsx_path=...)`. **The filename is forced
+     external_native=external_rows, contributed_native=kept, validated=validated, xlsx_path=...)`. **The filename is forced
      to a tiny constant stub (`c.xlsx`, enumerating `c1.xlsx`/`c2.xlsx` on repeat) by
      the shared `safe_xlsx_name` helper regardless of what you pass as `xlsx_path`; the call returns
      the name actually written — use it when you reference the file to the broker, and tell them
@@ -112,13 +144,13 @@ external = load_sibling("external-comps")
        reads it to compute sale-vs-lease summary stats. Returns a signed `pdf_url` (≈1-hour
        expiry) or a `bytes` fallback (write to `/tmp` and treat as the deliverable).
 7. **Draft the email reply + feedback capture.** Reuse the external-comps email/feedback
-   scaffolding; note BOTH sources and the per-source counts in the body.
+   scaffolding; note all three sources and the per-source counts in the body.
 
 ## Behavioral rules
 
 1. **Ask only for what's missing.** Never re-ask anything the broker already provided.
 2. **Confirm the resolved query before querying.** State the asset type, transaction type,
-   geography, size, and date window, plus "pulling both internal and external," and wait for go.
+   geography, size, and date window, plus "pulling internal, external and contributed," and wait for go.
 3. **One transaction type per request.** If the broker mixes sale and lease, ask them to split
    into two runs (same rule as the single-source skills).
 4. **Source tagging is non-negotiable.** Every row, in every output, shows its Source.
@@ -127,12 +159,15 @@ external = load_sibling("external-comps")
    it. `building_sf` is the building footprint and is never shown as Leased SF (gi-plugins#105);
    a row without `leased_sf` renders blank. Internal (Dealius) lease rows keep `space_sf`.
    When the external pull takes a size range for a lease, send it as `min/max_leased_sf`.
+   Contributed lease rows likewise show their `leased_sf`; the contributed call sends a lease
+   size range as `leased_sf_min/max` (the plan does this).
 
 ## Output
 
 - One combined chat table (Source column first).
-- One Excel: an **All Comps** sheet (core columns, Source first) plus **Internal (Dealius)** and
-  **External** detail sheets preserving each source's native columns.
+- One Excel: an **All Comps** sheet (core columns, Source first) plus **Internal (Dealius)**,
+  **External** and **Contributed** detail sheets preserving each source's native columns (the
+  Contributed sheet carries `original_source`, the brokerage that supplied the comp).
 - One Lee-branded combined PDF rendered via the `unified` template.
 - A draft email reply and a feedback capture.
 
@@ -141,6 +176,7 @@ external = load_sibling("external-comps")
 - Don't dedup or collapse rows across sources.
 - Don't re-rank across sources in v1 (sort is most-recent-Date first).
 - Don't omit either freshness line.
+- Don't fold contributed rows into Internal or External, and don't skip the contributed leg.
 - Don't apply this skill when the broker explicitly asked for internal-only or external-only.
 
 <!-- BEGIN CONNECTOR-AUTH BLOCK (canonical: shared/connector-auth.md — edit there, then scripts/sync-connector-auth.sh) -->
