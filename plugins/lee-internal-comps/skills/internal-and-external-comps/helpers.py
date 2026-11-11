@@ -304,9 +304,11 @@ def _parse_date(value) -> "date | None":
     # Trim a time component if one rode along (e.g. "2026-01-15 00:00:00").
     s = s.split("T")[0].split(" ")[0]
     # "2025Q2": how the first contributed import stores its lease dates (lee#636).
+    # Sorted at the quarter's midpoint, the 15th of its middle month (the Worker's
+    # and lee#637's rule).
     q = re.fullmatch(r"(\d{4})-?Q([1-4])", s, flags=re.IGNORECASE)
     if q:
-        return date(int(q.group(1)), 3 * int(q.group(2)) - 2, 1)
+        return date(int(q.group(1)), 3 * int(q.group(2)) - 1, 15)
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y"):
         try:
             return datetime.strptime(s, fmt).date()
@@ -457,6 +459,7 @@ def plan(parsed: dict) -> dict:
     # Triangle comps from two legs while the third refused.
     if out["external"].get("error"):
         out["error"] = "external leg refused the ask: " + out["external"]["error"]
+        out["internal"] = out["contributed"] = None  # nothing to call on a refused ask
     return out
 
 

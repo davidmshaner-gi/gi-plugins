@@ -182,7 +182,8 @@ def test_c7_plan_fails_when_the_external_leg_refuses_the_market():
     out = subprocess.run([sys.executable, HELPERS, "plan", json.dumps(ask)],
                          capture_output=True, text=True)
     assert out.returncode != 0
-    assert json.loads(out.stdout)["error"]
+    plan = json.loads(out.stdout)
+    assert plan["error"] and plan["internal"] is None and plan["contributed"] is None
 
 
 def test_c8_contributed_sheet_leaves_out_bookkeeping_columns(tmp_path, monkeypatch):

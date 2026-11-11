@@ -125,7 +125,7 @@ missing field), make none of them: ask the broker what the error asks.
    counts = source_counts(core_rows)   # per-source counts for the reply
    ```
    `combine` concatenates and sorts most-recent-Date first (a contributed date like "2025Q2"
-   sorts as the quarter's first day and is shown as stored). There is **no dedup** — a property
+   sorts as the quarter's midpoint and is shown as stored). There is **no dedup** — a property
    in more than one source stays as one row per source, each tagged by Source.
 6. **Render the deliverable(s):**
    - **Excel** (if chosen): `format_unified_excel(core_rows, internal_native=internal_rows,
