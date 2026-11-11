@@ -1,12 +1,18 @@
 """Helpers for the internal-and-external-comps skill — the unified "all comps" default.
 
 This skill is a thin orchestrator: it reuses the parse/validate/query logic of the
-sibling `internal-comps` and `external-comps` skills (via load_sibling) and adds only
-the combine layer (to_core, combine, format_unified_excel, unified_markdown_table).
+sibling `internal-comps` and `external-comps` skills (via load_sibling) and adds the
+contributed leg (contributed_params, filter_contributed, lee-and-associates#636) and the
+combine layer (to_core, combine, format_unified_excel, unified_markdown_table).
+
+`python3 helpers.py plan '<request json>'` prints the exact call for all three legs.
 """
 import importlib.util
+import json
+import os
+import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 
@@ -35,6 +41,10 @@ def load_sibling(skill_name: str):
 
 SOURCE_INTERNAL = "Internal — Dealius"
 SOURCE_EXTERNAL = "External"
+# lee-and-associates#636: comps GI loaded from broker-forwarded comp sets
+# (`source = broker_added` in the unified view). Their own label, never folded
+# into Internal or External.
+SOURCE_CONTRIBUTED = "Contributed"
 
 
 def _first(row: dict, *keys):
@@ -55,6 +65,8 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
     asking_rate_per_sf/space_sf). Internal rows already use those snake_case names; external
     rows are mapped onto them here so stats work regardless of source.
     """
+    if source == SOURCE_CONTRIBUTED:
+        return _contributed_core(row, tx_type)
     is_internal = source.startswith("Internal")
     if is_internal:
         comp_id = row.get("comps_id")
@@ -138,6 +150,139 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
     }
 
 
+# =====================================================================
+# Contributed leg (lee-and-associates#636)
+# =====================================================================
+
+# The unified tool's property_type is family-aware (Worker 0.59.0); a few skill
+# asset words are spelled differently there.
+_UNIFIED_TYPE_WORD = {"health_care": "medical"}
+CONTRIBUTED_LIMIT = 500
+
+
+def _iso_window(date_window: dict) -> tuple:
+    """(from_iso, to_iso) for a validated date_window: explicit from/to, or a
+    lookback of N months counted as N x 30 days (the internal leg's rule)."""
+    w = date_window or {}
+    today = date.today()
+    if w.get("from"):
+        return str(w["from"]), str(w.get("to") or today.isoformat())
+    months = int(w.get("lookback_months", 12))
+    return (today - timedelta(days=months * 30)).isoformat(), today.isoformat()
+
+
+def contributed_params(validated: dict) -> dict:
+    """The one pull_unified_comps call for the contributed leg.
+
+    Lease asks size the space leased (`leased_sf_*`): contributed lease rows carry
+    no building SF, so a building band reaches none of them. Sale asks size the
+    building. The unified tool has no location filter; run filter_contributed on
+    the rows it returns.
+    """
+    if "validated" in validated and "transaction_type" not in validated:
+        validated = validated["validated"]
+    tx = validated["transaction_type"]
+    asset = str(validated.get("asset_type") or "")
+    params = {"transaction_type": tx, "sources": ["broker_added"],
+              "limit": CONTRIBUTED_LIMIT}
+    if asset:
+        params["property_type"] = _UNIFIED_TYPE_WORD.get(asset, asset)
+    params["date_from"], params["date_to"] = _iso_window(validated.get("date_window"))
+    sr = validated.get("size_range") or {}
+    key = "leased_sf" if tx == "lease" else "building_sf"
+    if sr.get("min_sf") is not None:
+        params[f"{key}_min"] = int(sr["min_sf"])
+    if sr.get("max_sf") is not None:
+        params[f"{key}_max"] = int(sr["max_sf"])
+    return {"tool_name": "pull_unified_comps", "params": params}
+
+
+def filter_contributed(rows: list, validated: dict) -> tuple:
+    """Apply the ask's geography to contributed rows. Returns (kept, note).
+
+    Cities and named markets match `property_city` case-insensitively (a named
+    market resolves to its city list, the internal leg's rule). County asks map
+    the city to its county with the RDU city table. A row with no city is kept
+    and counted in the note (where it is cannot be checked); a row whose city
+    is known and outside the ask is dropped and counted. For a county outside
+    the Triangle the table cannot place cities, so rows there are kept and
+    counted as unchecked.
+    """
+    if "validated" in validated and "transaction_type" not in validated:
+        validated = validated["validated"]
+    internal = load_sibling("internal-comps")
+    external = load_sibling("external-comps")
+    geo = validated.get("geography") or {}
+    city_to_county = {c.lower(): k.lower() for c, k in external.RDU_CITY_TO_COUNTY.items()}
+    rdu_counties = {c.lower() for c in external.RDU_MSA_COUNTIES}
+    counties = set(internal._resolve_counties(geo))
+    cities = {c.lower() for c in internal._resolve_cities(geo)} if not counties else set()
+
+    kept, dropped, cityless, unchecked = [], 0, 0, 0
+    for r in rows:
+        city = str(r.get("property_city") or "").strip().lower()
+        if not city:
+            kept.append(r)
+            cityless += 1
+            continue
+        if counties:
+            county = city_to_county.get(city)
+            if county in counties:
+                kept.append(r)
+            elif county is None and counties - rdu_counties:
+                kept.append(r)
+                unchecked += 1
+            else:
+                dropped += 1
+        elif city in cities:
+            kept.append(r)
+        else:
+            dropped += 1
+
+    parts = [f"Contributed: {len(kept)} comps"]
+    if dropped:
+        parts.append(f"{dropped} outside the requested area left out")
+    if cityless:
+        parts.append(f"{cityless} with no city on file kept (location not checked)")
+    if unchecked:
+        parts.append(f"{unchecked} whose county could not be checked kept")
+    return kept, "; ".join(parts) + "."
+
+
+def _contributed_core(row: dict, tx_type: str) -> dict:
+    """Map one pull_unified_comps row (source broker_added) to the core schema."""
+    base = {
+        "Source": SOURCE_CONTRIBUTED,
+        "Comp ID": row.get("comp_id"),
+        "Address": row.get("property_address"),
+        "City": row.get("property_city"),
+        "County": None,
+        "Asset Type": row.get("property_type"),
+        "Source URL": "",
+    }
+    if tx_type == "sale":
+        size = row.get("building_sf")
+        return {**base, "Size (SF)": size, "Sale Price": row.get("sale_price"),
+                "$/SF": row.get("sale_price_per_sf"), "Cap Rate": None,
+                "Date": row.get("sale_date"),
+                "sale_price": row.get("sale_price"),
+                "price_per_sf": row.get("sale_price_per_sf"), "square_feet_sold": size}
+    # The leased premises only, never the building (gi-plugins#105); 0 is unknown.
+    leased = row.get("leased_sf") or None
+    rent = row.get("base_rent")
+    return {**base, "Leased SF": leased, "Rent": rent, "Date": row.get("lease_date"),
+            "Lease Type": row.get("rent_type"),
+            "effective_rate": rent, "asking_rate_per_sf": None, "space_sf": leased}
+
+
+def source_counts(core_rows: list) -> dict:
+    """Rows per Source label, for the reply's per-source counts."""
+    out: dict = {}
+    for r in core_rows:
+        out[r.get("Source")] = out.get(r.get("Source"), 0) + 1
+    return out
+
+
 def _parse_date(value) -> "date | None":
     """Parse a core-row Date into a real date for chronological sorting (gi-plugins#62).
 
@@ -153,6 +298,10 @@ def _parse_date(value) -> "date | None":
         return None
     # Trim a time component if one rode along (e.g. "2026-01-15 00:00:00").
     s = s.split("T")[0].split(" ")[0]
+    # "2025Q2": how the first contributed import stores its lease dates (lee#636).
+    q = re.fullmatch(r"(\d{4})-?Q([1-4])", s, flags=re.IGNORECASE)
+    if q:
+        return date(int(q.group(1)), 3 * int(q.group(2)) - 2, 1)
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y"):
         try:
             return datetime.strptime(s, fmt).date()
@@ -161,15 +310,17 @@ def _parse_date(value) -> "date | None":
     return None
 
 
-def combine(internal_core: list, external_core: list, tx_type: str) -> list:
-    """Concatenate internal + external core rows, sort most-recent-Date first. NO dedup —
-    a property present in both sources stays as two rows, each tagged by Source.
+def combine(internal_core: list, external_core: list, tx_type: str,
+            contributed_core: list = ()) -> list:
+    """Concatenate internal + external + contributed core rows, sort most-recent-Date
+    first. NO dedup — a property present in several sources stays as one row per
+    source, each tagged by Source.
 
     Dates are parsed to real dates before sorting (gi-plugins#62) because internal
     (MM/DD/YYYY) and external (ISO) formats can't be compared as raw strings. Rows with
     a missing/blank/unparseable Date sort last.
     """
-    rows = list(internal_core) + list(external_core)
+    rows = list(internal_core) + list(external_core) + list(contributed_core)
 
     def _key(r):
         # (has_date, date) so real dates sort most-recent-first and blanks fall to the
@@ -222,9 +373,11 @@ def unified_markdown_table(core_rows: list, validated: dict) -> str:
 
 
 def format_unified_excel(core_rows: list, internal_native: list, external_native: list,
-                         validated: dict, xlsx_path: str) -> str:
-    """Write a 3-sheet workbook: 'All Comps' (core rows, Source first) + native detail
-    sheets for each source. Returns xlsx_path. Lee-maroon header row on every sheet."""
+                         validated: dict, xlsx_path: str,
+                         contributed_native: list = ()) -> str:
+    """Write a 4-sheet workbook: 'All Comps' (core rows, Source first) + native detail
+    sheets for each source (Internal, External, Contributed). Returns xlsx_path.
+    Lee-maroon header row on every sheet."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -259,9 +412,63 @@ def format_unified_excel(core_rows: list, internal_native: list, external_native
     ext_cols = list(external_native[0].keys()) if external_native else ["(no external rows)"]
     _write_sheet(ws_ext, ext_cols, external_native)
 
+    # Sheet 4 — Contributed native (lee-and-associates#636)
+    contributed_native = list(contributed_native)
+    ws_con = wb.create_sheet("Contributed")
+    con_cols = list(contributed_native[0].keys()) if contributed_native else ["(no contributed rows)"]
+    _write_sheet(ws_con, con_cols, contributed_native)
+
     # Windows 218-char path guard (gi-plugins#7). This orchestrator already loads
     # its siblings, so reuse the canonical helper rather than duplicating it:
     # flatten to a CWD basename + cap the filename so a deep/long path can't survive.
     xlsx_path = load_sibling("internal-comps").safe_xlsx_name(xlsx_path)
     wb.save(xlsx_path)
     return xlsx_path
+
+
+# =====================================================================
+# plan: the exact call for every leg (G33: paste these, never derive them)
+# =====================================================================
+
+def plan(parsed: dict) -> dict:
+    """Validate once and return the three legs' calls:
+    internal (read_query SQL), external (the external skill's own plan), and
+    contributed (one pull_unified_comps call)."""
+    internal = load_sibling("internal-comps")
+    external = load_sibling("external-comps")
+    v = internal.validate_request(dict(parsed))
+    out = {"validated": v["validated"], "missing_required": v["missing_required"],
+           "applied_defaults": v["applied_defaults"], "warnings": v["warnings"],
+           "internal": None, "external": None, "contributed": None, "error": None}
+    if v["missing_required"]:
+        out["error"] = "missing required fields: " + "; ".join(v["missing_required"])
+        return out
+    out["internal"] = {"tool_name": "read_query", **internal.build_sql(v["validated"])}
+    out["external"] = external.plan(dict(parsed))
+    out["contributed"] = contributed_params(v["validated"])
+    return out
+
+
+def _main(argv: list) -> int:
+    if len(argv) < 2 or argv[0] != "plan":
+        print("usage: python3 helpers.py plan <request.json | '{...}'>", file=sys.stderr)
+        return 2
+    arg = argv[1]
+    try:
+        if os.path.exists(arg):
+            with open(arg) as fh:
+                parsed = json.load(fh)
+        else:
+            parsed = json.loads(arg)
+        if not isinstance(parsed, dict):
+            raise ValueError("request must be a JSON object")
+    except Exception as e:  # always hand the session a JSON object to read
+        print(json.dumps({"error": f"could not read request: {e}"}))
+        return 1
+    result = plan(parsed)
+    print(json.dumps(result, indent=2, default=str))
+    return 1 if result["error"] else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main(sys.argv[1:]))
