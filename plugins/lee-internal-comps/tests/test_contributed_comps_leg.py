@@ -16,6 +16,12 @@ Failure modes this file guards:
       combine / the Excel, so the broker cannot tell where a comp came from.
   C4  The unified tool has no location filter, so an out-of-market contributed
       comp (a Wilmington lease on a Triangle ask) lands in the deliverable.
+  C6  The default Triangle ask drops in-market contributed comps whose city is
+      not on the internal leg's city list (Smithfield, Hillsborough), though the
+      external leg reaches those counties.
+  C7  `plan` reports success when the external leg refused the market, so the
+      session runs the other two legs against the wrong market.
+  C8  GI bookkeeping (who loaded a comp, the tenant key) lands in the broker's Excel.
   C5  A quarter-string lease date ("2025Q2", how the first contributed import
       stores it) sorts as undated and falls to the bottom.
 
@@ -153,3 +159,39 @@ def test_c1_plan_cli_prints_all_three_legs():
     assert plan["external"]["tool_name"] == "search_external_lease_comps"
     assert plan["external"]["params_list"]
     assert plan["contributed"]["params"]["leased_sf_min"] == 20000
+
+
+def test_c6_default_triangle_ask_keeps_cities_in_the_seven_counties():
+    rows = [dict(ROWS[0], comp_id=901, property_city="Smithfield"),
+            dict(ROWS[0], comp_id=902, property_city="Hillsborough"),
+            dict(ROWS[0], comp_id=903, property_city="Charlotte")]
+    kept, note = filter_contributed(rows, _validated(ASK))
+    assert sorted(r["property_city"] for r in kept) == ["Hillsborough", "Smithfield"]
+    assert "1 outside" in note
+
+
+def test_c6_an_explicit_city_list_is_not_widened():
+    v = _validated({**ASK, "geography": {"cities": ["Raleigh"]}})
+    rows = [dict(ROWS[0], comp_id=904, property_city="Smithfield")]
+    kept, _ = filter_contributed(rows, v)
+    assert kept == []
+
+
+def test_c7_plan_fails_when_the_external_leg_refuses_the_market():
+    ask = {**ASK, "geography": {"named_market": "Charlotte"}}
+    out = subprocess.run([sys.executable, HELPERS, "plan", json.dumps(ask)],
+                         capture_output=True, text=True)
+    assert out.returncode != 0
+    assert json.loads(out.stdout)["error"]
+
+
+def test_c8_contributed_sheet_leaves_out_bookkeeping_columns(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    from openpyxl import load_workbook
+    core = [to_core(r, SOURCE_CONTRIBUTED, "lease") for r in ROWS]
+    name = format_unified_excel(core, internal_native=[], external_native=[],
+                                contributed_native=ROWS, validated=_validated(ASK),
+                                xlsx_path="x.xlsx")
+    header = [c.value for c in next(load_workbook(name)["Contributed"].iter_rows(max_row=1))]
+    assert "original_source" in header
+    assert "added_by" not in header and "client_id" not in header

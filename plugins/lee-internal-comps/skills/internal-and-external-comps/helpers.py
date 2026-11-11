@@ -154,10 +154,10 @@ def to_core(row: dict, source: str, tx_type: str) -> dict:
 # Contributed leg (lee-and-associates#636)
 # =====================================================================
 
-# The unified tool's property_type is family-aware (Worker 0.59.0); a few skill
-# asset words are spelled differently there.
-_UNIFIED_TYPE_WORD = {"health_care": "medical"}
 CONTRIBUTED_LIMIT = 500
+# Columns of a unified row that are GI bookkeeping, never broker content: who
+# loaded the comp and the tenant key. Kept out of the Contributed sheet.
+_CONTRIBUTED_PRIVATE = ("added_by", "client_id")
 
 
 def _iso_window(date_window: dict) -> tuple:
@@ -186,7 +186,7 @@ def contributed_params(validated: dict) -> dict:
     params = {"transaction_type": tx, "sources": ["broker_added"],
               "limit": CONTRIBUTED_LIMIT}
     if asset:
-        params["property_type"] = _UNIFIED_TYPE_WORD.get(asset, asset)
+        params["property_type"] = asset  # family-aware on the Worker (0.59.0)
     params["date_from"], params["date_to"] = _iso_window(validated.get("date_window"))
     sr = validated.get("size_range") or {}
     key = "leased_sf" if tx == "lease" else "building_sf"
@@ -201,7 +201,9 @@ def filter_contributed(rows: list, validated: dict) -> tuple:
     """Apply the ask's geography to contributed rows. Returns (kept, note).
 
     Cities and named markets match `property_city` case-insensitively (a named
-    market resolves to its city list, the internal leg's rule). County asks map
+    market resolves to its city list, the internal leg's rule; the RDU market also
+    takes every city the RDU table places in its seven counties, the external
+    leg's rule, so Smithfield or Hillsborough is never dropped). County asks map
     the city to its county with the RDU city table. A row with no city is kept
     and counted in the note (where it is cannot be checked); a row whose city
     is known and outside the ask is dropped and counted. For a county outside
@@ -217,6 +219,9 @@ def filter_contributed(rows: list, validated: dict) -> tuple:
     rdu_counties = {c.lower() for c in external.RDU_MSA_COUNTIES}
     counties = set(internal._resolve_counties(geo))
     cities = {c.lower() for c in internal._resolve_cities(geo)} if not counties else set()
+    rdu_cities = {c.lower() for c in internal.RDU_MSA_CITIES}
+    if cities and not geo.get("cities") and cities == rdu_cities:
+        cities |= {c for c, k in city_to_county.items() if k in rdu_counties}
 
     kept, dropped, cityless, unchecked = [], 0, 0, 0
     for r in rows:
@@ -413,7 +418,8 @@ def format_unified_excel(core_rows: list, internal_native: list, external_native
     _write_sheet(ws_ext, ext_cols, external_native)
 
     # Sheet 4 — Contributed native (lee-and-associates#636)
-    contributed_native = list(contributed_native)
+    contributed_native = [{k: v for k, v in r.items() if k not in _CONTRIBUTED_PRIVATE}
+                          for r in contributed_native]
     ws_con = wb.create_sheet("Contributed")
     con_cols = list(contributed_native[0].keys()) if contributed_native else ["(no contributed rows)"]
     _write_sheet(ws_con, con_cols, contributed_native)
@@ -446,6 +452,11 @@ def plan(parsed: dict) -> dict:
     out["internal"] = {"tool_name": "read_query", **internal.build_sql(v["validated"])}
     out["external"] = external.plan(dict(parsed))
     out["contributed"] = contributed_params(v["validated"])
+    # A market one leg refuses must stop all three: the internal validator falls
+    # back to RDU on an unknown market, which would hand a Charlotte ask
+    # Triangle comps from two legs while the third refused.
+    if out["external"].get("error"):
+        out["error"] = "external leg refused the ask: " + out["external"]["error"]
     return out
 
 

@@ -49,8 +49,10 @@ external = load_sibling("external-comps")
 ```
 
 **Get every call from the helper, never by hand.** Write the parsed request to a file and run
-`python3 helpers.py plan request.json`. It prints `internal` (the SQL), `external` (the
-`params_list`) and `contributed` (the one `pull_unified_comps` call). Make exactly those calls.
+`python3 helpers.py plan request.json` from this skill's folder (or pass helpers.py by its
+full path). It prints `internal` (the SQL), `external` (the
+`params_list`) and `contributed` (the one `pull_unified_comps` call). Make exactly those calls. If it prints an `error` (an unknown market, a
+missing field), make none of them: ask the broker what the error asks.
 
 ## Process
 
@@ -91,8 +93,8 @@ external = load_sibling("external-comps")
      `leased_sf_min/max`: contributed lease comps record the space leased, not the building, so a
      building-size band would find none of them. The tool has no location filter, so run
      `kept, contributed_note = filter_contributed(rows, validated)` and use `kept`; put
-     `contributed_note` in the reply and the Methodology (it says how many were outside the area
-     or had no city on file). If the call fails with a schema error naming `leased_sf_min`, the
+     `contributed_note` in the reply under the per-source counts (it says how many were outside the
+     area or had no city on file). If the call fails with a schema error naming `leased_sf_min`, the
      connector's tools list is stale (G26): tell the broker to "Refresh tools list" on the
      lee-raleigh connector, and never re-run it with `building_sf_*` instead.
    - **Surface BOTH freshness lines verbatim as the first two lines of your reply.** They are
